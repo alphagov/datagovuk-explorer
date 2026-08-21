@@ -27,16 +27,15 @@
  * ------------------------------------------------------------------------- */
 
 .table-wrap {
-	background: var(--color-surface);
-	box-shadow: var(--shadow);
-	/* Scrolls inside the card, not the page — see the sticky-header note
-	   above. max-height caps the internal scroll region; bump it if the
-	   contained-scroll feel is too aggressive for long tables. */
+	/* Transparent scroll container — the white card is the table itself
+	   (see .data-table below). Scrolls inside the card, not the page. */
 	max-height: 70vh;
 	overflow: auto;
-	/* Big bottom padding inside the scroll area, so the last row floats
-	   above the pane edge instead of sitting flush against it when
-	   scrolled to the bottom (see also facets.css). */
+	/* Big bottom padding *inside* the scroll area (this wrap is
+	   transparent, so the gap shows the page background): the last row
+	   floats above the pane edge when scrolled to the bottom, while a
+	   short table's white card ends with the last row (see also
+	   facets.css). */
 	padding-bottom: 60px;
 }
 
@@ -47,6 +46,11 @@
 	border-collapse: separate;
 	border-spacing: 0;
 	font-size: var(--text-body);
+	/* The white card — hugs the table content exactly, so the white
+	   always stops with the last row instead of stretching to the pane
+	   edge. */
+	background: var(--color-surface);
+	box-shadow: var(--shadow);
 }
 
 .data-table th {

@@ -138,7 +138,11 @@
 	}
 
 	body.app-layout .table-wrap {
-		flex: 1;
+		/* Hug the table content: flex-grow 0 means a short table's white
+		   card ends with the last row instead of stretching to the bottom
+		   of the pane. flex-shrink 1 + min-height 0 keeps the internal
+		   scroll for tables taller than the viewport remainder. */
+		flex: 0 1 auto;
 		min-height: 0;
 		max-height: none; /* override the 70vh cap in table.css — the section
 		                     height is the viewport remainder now */
