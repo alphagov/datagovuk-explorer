@@ -38,7 +38,12 @@ from explorer.queries.reports import (
     report_facet_counts,
     report_stmts,
 )
-from explorer.queries.reviews import get_review, latest_reviews, reviews_stmts
+from explorer.queries.reviews import (
+    get_review,
+    latest_reviews,
+    reviews_stmts,
+    suggestions_stmts,
+)
 from explorer.queries.series import SERIES_BY_ID, SERIES_COUNT, series_list_stmt
 from explorer.sort import sort_orgs
 from explorer.views.core import PAGE_SIZE
@@ -694,54 +699,24 @@ def test_reviews(client):
 # ---------------------------------------------------------------------------
 # /suggestions
 # ---------------------------------------------------------------------------
-_CONFIDENCE_ORDER = {"high": 3, "medium": 2, "low": 1}
-
-
 def expected_suggestion_ids(sort, dir_, page, page_size=PAGE_SIZE):
-    unique = latest_reviews()
-    ids = [r["dataset_id"] for r in unique]
-    theme_map, tags_map = {}, {}
-    if ids:
-        ph = ",".join("%s" for _ in ids)
-        theme_map = {
-            row["id"]: row["theme_primary"]
-            for row in Query(
-                f"SELECT id, theme_primary FROM datasets WHERE id IN ({ph})",
-            ).all(*ids)
-        }
-        tags_map = {
-            row["id"]: row["tags"]
-            for row in Query(f"SELECT id, tags FROM datasets WHERE id IN ({ph})").all(
-                *ids,
-            )
-        }
-    enriched = []
-    for r in unique:
-        current_theme = theme_map.get(r["dataset_id"]) or None
-        enriched.append(
-            {
-                **r,
-                "current_theme": current_theme,
-                "current_tags": tags_map.get(r["dataset_id"]) or "",
-                "theme_changed": r.get("theme") != current_theme,
-            },
-        )
-    sorters = {
-        "title": lambda r: (r.get("title") or "").lower(),
-        "org": lambda r: str(r.get("org_display_name") or "").lower(),
-        "theme": lambda r: str(r.get("current_theme") or "").lower(),
-        "confidence": lambda r: _CONFIDENCE_ORDER.get(r.get("theme_confidence"), 0),
-    }
-    enriched.sort(key=lambda r: (r.get("title") or "").lower())
-    enriched.sort(key=sorters[sort], reverse=dir_ == "desc")
-    total_pages = max(1, math.ceil(len(enriched) / page_size))
+    """Contract test: the view page must equal the SQL builder's page.
+    The view renders suggestions_stmts(sort, dir_) verbatim (offset / size
+    from paginate()), so this fetches the same builder — it pins the
+    view→builder wiring, the sort/tiebreak ORDER BY and the page
+    clamp/offset arithmetic."""
+    stmts = suggestions_stmts(sort, dir_)
+    total = stmts["count"].get()["n"]
+    total_pages = max(1, math.ceil(total / page_size))
     page = min(max(page, 1), total_pages)
-    start = (page - 1) * page_size
-    return [r["dataset_id"] for r in enriched[start : start + page_size]], len(enriched)
+    offset = (page - 1) * page_size
+    rows = stmts["list"].all(page_size, offset)
+    return [r["dataset_id"] for r in rows]
 
 
 def test_suggestions(client):
-    _, total = expected_suggestion_ids("confidence", "asc", 1)
+    stmts = suggestions_stmts("confidence", "asc")
+    total = stmts["count"].get()["n"]
     assert total > 0
 
     r = client.get("/suggestions")
@@ -752,19 +727,18 @@ def test_suggestions(client):
     for sort in ("title", "org", "theme", "confidence"):
         for dir_ in ("asc", "desc"):
             r = client.get(f"/suggestions?sort={sort}&dir={dir_}")
-            expect, _ = expected_suggestion_ids(sort, dir_, 1)
+            expect = expected_suggestion_ids(sort, dir_, 1)
             assert page_ids(r.content.decode()) == expect, f"sort={sort} dir={dir_}"
 
     # invalid sort falls back to confidence asc
     r = client.get("/suggestions?sort=bogus")
-    expect, _ = expected_suggestion_ids("confidence", "asc", 1)
+    expect = expected_suggestion_ids("confidence", "asc", 1)
     assert page_ids(r.content.decode()) == expect
 
     # page clamp
     r = client.get("/suggestions?page=99999")
-    expect, _ = expected_suggestion_ids("confidence", "asc", 99999)
     assert r.status_code == 200
-    assert page_ids(r.content.decode()) == expect
+    assert page_ids(r.content.decode()) == expected_suggestion_ids("confidence", "asc", 99999)
 
 
 # ---------------------------------------------------------------------------

@@ -150,6 +150,69 @@ def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
     }
 
 
+# --- /suggestions query builder ---
+#
+# No facets — count + list only, same builder shape as reviews_stmts. The
+# dedup subquery carries the suggestion columns (suggested theme, suggested
+# tags as JSON text, suggested title, suggested description, confidence);
+# the join to `datasets` supplies the *current* title/org/theme/tags rather
+# than review-time values from the JSON (docs/pagination-plan.md decision 2).
+
+# The dedup subquery for /suggestions — one (latest) ok review per dataset,
+# same DISTINCT ON as _DEDUP but selecting the suggestion columns. `"desc"`
+# is quoted: desc is a reserved word.
+_SUGGESTIONS_DEDUP = """
+    SELECT DISTINCT ON (dataset_id) id, dataset_id, theme,
+           theme_confidence, tags, title, "desc"
+    FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
+"""
+
+# Sortable column key → SQL ORDER BY expression. Text columns LOWER()
+# case-insensitively; confidence maps high/medium/low to 3/2/1 (default asc
+# = ambiguous first, unchanged). `theme` sorts on the *current* theme
+# (d.theme_primary), mirroring the old Python sort key, not the suggested
+# one (r.theme).
+SUGGESTIONS_SORT_EXPRS = {
+    "title": "LOWER(COALESCE(d.title, ''))",
+    "org": "LOWER(COALESCE(d.org_display_name, ''))",
+    "theme": "LOWER(COALESCE(d.theme_primary, ''))",
+    "confidence": "CASE r.theme_confidence WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END",
+}
+
+
+def suggestions_stmts(sort: str, dir_: str) -> dict:
+    """Return { count, list, params } for one (sort, dir) combo.
+
+    The list query fetches only the page's rows: the dedup subquery joined
+    to datasets for the current title/org/theme/tags, ordered by the sort
+    expr + an unconditional title-ascending tiebreak (the two-pass stable
+    sort's "ties break title-asc regardless of dir" — `,
+    LOWER(COALESCE(d.title,''))` appended to every ORDER BY) + `, r.id`
+    pinning ties on (sort key, title) to ingest order (the stable pre-order
+    of latest_reviews()); without the pin an unpinned ORDER BY would
+    reshuffle pages whenever rows tie.
+    """
+    order_sql = (
+        f"{SUGGESTIONS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'},"
+        " LOWER(COALESCE(d.title, '')), r.id"
+    )
+    from_sql = f"({_SUGGESTIONS_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
+
+    return {
+        "params": [],
+        "count": Query(f"SELECT COUNT(*) AS n FROM {from_sql}"),
+        "list": Query(
+            "SELECT r.dataset_id, d.org_slug, d.org_display_name,"
+            "  d.title, d.theme_primary AS current_theme, d.tags AS current_tags,"
+            "  r.theme, r.theme_confidence, r.tags, r.title AS suggested_title,"
+            '  r."desc" AS suggested_description'
+            f" FROM {from_sql}"
+            f" ORDER BY {order_sql}"
+            " LIMIT %s OFFSET %s",
+        ),
+    }
+
+
 # --- Sidebar facet counts (SQL aggregates over the same _facet_where) ---
 
 

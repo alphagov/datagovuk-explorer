@@ -4,79 +4,50 @@ scripts/ingest_reviews.py). Sorted by confidence so low-confidence
 (ambiguous) datasets surface first. Only the latest classification per
 dataset is shown.
 
-The batch enrichment (theme + tags lookup per dataset) uses the sync
-query layer's Query class — the dynamic IN placeholders are native `%s`,
-like the rest of the SQL.
+The page list, count and sort all run in SQL (the shared
+suggestions_stmts builder in explorer/queries/reviews.py — the /datasets
+pattern), so only the page's rows are fetched, not the whole reviews
+table. Title/org/theme/tags come from the current datasets row via the
+join, not review-time values from the JSON (docs/pagination-plan.md
+decision 2); the suggested theme/tags/title/description come from the
+review row (reviews.title is the *suggested* title — the naming gotcha).
 """
+
+import json
 
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.queries.core import Query
-from explorer.queries.reviews import latest_reviews
+from explorer.queries.reviews import SUGGESTIONS_SORT_EXPRS, suggestions_stmts
 
 from .core import _sort_dir, paginate
-
-# Confidence order for the numeric sort — high/medium/low map to 3/2/1.
-_CONFIDENCE_ORDER = {"high": 3, "medium": 2, "low": 1}
-
-# Accessor for each sortable column.
-SORT_COLUMNS = {
-    "title": lambda r: r.get("title") or "",
-    "org": lambda r: r.get("org_display_name") or "",
-    "theme": lambda r: r.get("current_theme") or "",
-    "confidence": lambda r: _CONFIDENCE_ORDER.get(r.get("theme_confidence"), 0),
-}
 
 
 def suggestions(request):
     """GET /suggestions — the LLM classification table with suggested themes."""
-    # latest_reviews() already dedups to one (latest) record per dataset.
-    unique = latest_reviews()
-    ids = [r["dataset_id"] for r in unique]
+    sort, dir_param = _sort_dir(request, SUGGESTIONS_SORT_EXPRS, "confidence")
 
-    # Batch-load current themes and tags — one query each instead of N.
-    theme_map: dict = {}
-    tags_map: dict = {}
-    if ids:
-        placeholders = ",".join("%s" for _ in ids)
-        theme_rows = Query(
-            f"SELECT id, theme_primary FROM datasets WHERE id IN ({placeholders})",
-        ).all(*ids)
-        theme_map = {row["id"]: row["theme_primary"] for row in theme_rows}
-        tag_rows = Query(
-            f"SELECT id, tags FROM datasets WHERE id IN ({placeholders})",
-        ).all(*ids)
-        tags_map = {row["id"]: row["tags"] for row in tag_rows}
+    # Count + page in SQL (only the page's rows are fetched).
+    stmts = suggestions_stmts(sort, dir_param)
+    total = stmts["count"].get()["n"]
 
-    # Enrich (a falsy DB value reads as missing).
-    enriched = []
-    for r in unique:
-        current_theme = theme_map.get(r["dataset_id"]) or None
-        enriched.append(
-            {
-                **r,
-                "current_theme": current_theme,
-                "current_tags": tags_map.get(r["dataset_id"]) or "",
-                "theme_changed": r.get("theme") != current_theme,
-            },
-        )
-
-    sort, dir_param = _sort_dir(request, SORT_COLUMNS, "confidence")
-    pager_base = facets.pager_base({"sort": sort, "dir": dir_param})
-
-    # Same two-pass sort as explorer/views/reviews.py: stable sort by title
-    # first, then by the primary key — tied primaries keep the
-    # title-ascending order.
-    get = SORT_COLUMNS[sort]
-    enriched.sort(key=lambda r: (r.get("title") or "").lower())
-    if sort in ("title", "org", "theme"):
-        enriched.sort(key=lambda r: str(get(r)).lower(), reverse=dir_param == "desc")
-    else:
-        enriched.sort(key=get, reverse=dir_param == "desc")
-
-    total = len(enriched)
     pagination = paginate(request, total)
+    rows = stmts["list"].all(pagination["page_size"], pagination["offset"])
+
+    # Per-page-row decoration: r.tags is the suggested tags as JSON text
+    # (ingest json.dumps the list) — decode per row, it's a small list.
+    # theme_changed is a display flag computed on the fetched row, not a
+    # filter (the suggested theme compared against the current one).
+    suggestion_rows = [
+        {
+            **r,
+            "tags": json.loads(r["tags"]) if r["tags"] else [],
+            "theme_changed": r["theme"] != r["current_theme"],
+        }
+        for r in rows
+    ]
+
+    pager_base = facets.pager_base({"sort": sort, "dir": dir_param})
 
     return render(
         request,
@@ -84,7 +55,7 @@ def suggestions(request):
         {
             "title": f"Suggestions ({total})",
             "section": "suggestions",
-            "suggestions": enriched[pagination["offset"] : pagination["offset"] + pagination["page_size"]],
+            "suggestions": suggestion_rows,
             "total": total,
             "shown": total,
             "pager_base": pager_base,
