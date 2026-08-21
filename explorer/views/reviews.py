@@ -13,16 +13,12 @@ stand-in for ICU collation (a known, accepted divergence: e.g. "£"
 collates differently).
 """
 
-import math
-
 from django.shortcuts import render
 
 from explorer import facets
 from explorer.queries.reviews import latest_reviews
 
-from .core import _page_param, _sort_dir
-
-PAGE_SIZE = 50
+from .core import _sort_dir, paginate
 
 
 def _subscore(r: dict, key: str) -> int | None:
@@ -175,9 +171,7 @@ def reviews(request):
     sort, dir_ = _sort_dir(request, SORT_COLUMNS, "overall")
     _sort_reviews(filtered, sort, dir_)
 
-    total_pages = max(1, math.ceil(len(filtered) / PAGE_SIZE))
-    page = min(_page_param(request), total_pages)
-    start = (page - 1) * PAGE_SIZE
+    pagination = paginate(request, len(filtered))
 
     # Shared query-string machinery from explorer/facets.py: the base keeps
     # sort/dir then the active facets in SCORE_GROUPS order; facet_qs drops
@@ -198,13 +192,10 @@ def reviews(request):
         {
             "title": f"Dataset reviews ({len(filtered)})",
             "section": "reviews",
-            "reviews": filtered[start : start + PAGE_SIZE],
+            "reviews": filtered[pagination["offset"] : pagination["offset"] + pagination["page_size"]],
             "total": len(all_reviews),
             "shown": len(filtered),
-            "page": page,
-            "total_pages": total_pages,
-            "start_index": start + 1,
-            "end_index": min(start + PAGE_SIZE, len(filtered)),
+            **pagination,
             "sort": sort,
             "dir": dir_,
             "facet_groups": facet_groups,

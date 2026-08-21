@@ -1,11 +1,11 @@
 """View modules, one per route group.
 
-core.py holds the shared helpers (health, 404, _page_param); the rest are
-the per-page modules. Collected here so config/urls.py can address every
-view as views.<name>.
+core.py holds the shared helpers (health, 404, _page_param, paginate); the
+rest are the per-page modules. Collected here so config/urls.py can address
+every view as views.<name>.
 """
 
-from .core import _page_param, health, not_found
+from .core import _page_param, health, not_found, paginate
 from .dashboard import dashboard
 from .dataset import dataset
 from .datasets import datasets
@@ -33,6 +33,7 @@ __all__ = [
     "not_found",
     "organisation",
     "organisations",
+    "paginate",
     "report",
     "reviews",
     "series_detail",

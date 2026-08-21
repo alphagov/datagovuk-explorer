@@ -9,7 +9,6 @@ assembled in queries/dashboard.py.
 """
 
 import json
-import math
 
 from django.http import Http404
 from django.shortcuts import render
@@ -24,10 +23,7 @@ from explorer.queries.reports import (
     report_unfiltered_options,
 )
 
-from .core import _page_param
-
-# Pagination — 100 rows per page on report pages
-PAGE_SIZE = 100
+from .core import paginate
 
 
 def _duplicate_url_report(request, report, url):
@@ -37,11 +33,9 @@ def _duplicate_url_report(request, report, url):
     list_stmt = Query(report["detail_sql"])
     total = count_stmt.get(url)["n"]
 
-    total_pages = max(1, math.ceil(total / PAGE_SIZE))
-    page = min(_page_param(request), total_pages)
-    offset = (page - 1) * PAGE_SIZE
+    pagination = paginate(request, total)
 
-    rows = list_stmt.all(url, PAGE_SIZE, offset)
+    rows = list_stmt.all(url, pagination["page_size"], pagination["offset"])
 
     return render(
         request,
@@ -60,10 +54,7 @@ def _duplicate_url_report(request, report, url):
             "detail_url": url,
             "facet_qs": "",
             "rows": rows,
-            "page": page,
-            "total_pages": total_pages,
-            "start_index": offset + 1,
-            "end_index": offset + len(rows),
+            **pagination,
         },
     )
 
@@ -173,11 +164,9 @@ def report(request, key):
     # filtered counts run live (per-combo SQL).
     total = report_unfiltered_count(report["key"]) if not active_filters else stmt["count"].get(*stmt["params"])["n"]
 
-    total_pages = max(1, math.ceil(total / PAGE_SIZE))
-    page = min(_page_param(request), total_pages)
-    offset = (page - 1) * PAGE_SIZE
+    pagination = paginate(request, total)
 
-    rows = stmt["list"].all(*stmt["params"], PAGE_SIZE, offset)
+    rows = stmt["list"].all(*stmt["params"], pagination["page_size"], pagination["offset"])
 
     # datasets-has-api: api_links arrives as a jsonb string (the query
     # layer's psycopg str loader — jsonb comes back as a JSON string here)
@@ -208,9 +197,6 @@ def report(request, key):
             "facet_url": facet_url,
             "facet_qs": facet_qs,
             "rows": rows,
-            "page": page,
-            "total_pages": total_pages,
-            "start_index": offset + 1,
-            "end_index": offset + len(rows),
+            **pagination,
         },
     )

@@ -5,7 +5,6 @@ The list-statement builder lives in explorer/queries/series.py
 (series_list_stmt).
 """
 
-import math
 import re
 
 from django.shortcuts import render
@@ -19,9 +18,7 @@ from explorer.queries.series import (
     series_list_stmt,
 )
 
-from .core import _page_param, _sort_dir
-
-PAGE_SIZE = 50
+from .core import _sort_dir, paginate
 
 # Leading digits, stop at the first non-digit (so "/series/12.5" reads as
 # 12, not a 404).
@@ -41,13 +38,11 @@ def series_list(request):
         )
 
     total = SERIES_COUNT.get()["n"]
-    total_pages = max(1, math.ceil(total / PAGE_SIZE))
-    current_page = min(_page_param(request), total_pages)
-    offset = (current_page - 1) * PAGE_SIZE
+    pagination = paginate(request, total)
 
     sort, dir_ = _sort_dir(request, SERIES_SORT_COLUMNS, "dataset_count", "desc")
 
-    series = series_list_stmt(sort, dir_).all(PAGE_SIZE, offset)
+    series = series_list_stmt(sort, dir_).all(pagination["page_size"], pagination["offset"])
 
     return render(
         request,
@@ -57,11 +52,7 @@ def series_list(request):
             "section": "series",
             "series": series,
             "total": total,
-            "page": current_page,
-            "total_pages": total_pages,
-            "page_size": PAGE_SIZE,
-            "start_index": offset + 1,
-            "end_index": offset + len(series),
+            **pagination,
             "sort": sort,
             "dir": dir_,
         },

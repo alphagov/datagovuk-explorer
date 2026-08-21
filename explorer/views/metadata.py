@@ -3,18 +3,13 @@ fields and extras keys, sorted by how many datasets use them).
 GET /metadata/{section}/{name} — value distribution for one field, paginated.
 """
 
-import math
-
 from django.http import Http404
 from django.shortcuts import render
 
 from explorer.queries.datasets import DATASET_TOTAL
 from explorer.queries.metadata import METADATA_KEYS, METADATA_VALUE_COUNT, METADATA_VALUES
 
-from .core import _page_param
-
-# 100 values per page on the drill-down view
-METADATA_PAGE_SIZE = 100
+from .core import paginate
 
 
 def metadata_overview(request):
@@ -72,11 +67,9 @@ def metadata_detail(request, section, name):
     non_empty_count = key_row["non_empty"] if key_row else 0
 
     total = total_values["n"]
-    total_pages = max(1, math.ceil(total / METADATA_PAGE_SIZE))
-    current_page = min(_page_param(request), total_pages)
-    offset = (current_page - 1) * METADATA_PAGE_SIZE
+    pagination = paginate(request, total)
 
-    rows = METADATA_VALUES.all(full_key, METADATA_PAGE_SIZE, offset)
+    rows = METADATA_VALUES.all(full_key, pagination["page_size"], pagination["offset"])
 
     display_label = name
 
@@ -91,9 +84,6 @@ def metadata_detail(request, section, name):
             "dataset_count": dataset_count,
             "non_empty_count": non_empty_count,
             "rows": rows,
-            "page": current_page,
-            "total_pages": total_pages,
-            "start_index": offset + 1,
-            "end_index": offset + len(rows),
+            **pagination,
         },
     )

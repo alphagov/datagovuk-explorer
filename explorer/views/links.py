@@ -11,8 +11,6 @@ counts (the same behaviour as /datasets). The report-header totals stay
 fixed whole-table aggregates (LINKS_STATS).
 """
 
-import math
-
 from django.shortcuts import render
 
 from explorer import facets
@@ -23,10 +21,7 @@ from explorer.queries.links import (
     links_stmts,
 )
 
-from .core import _page_param, _sort_dir
-
-# Pagination — 100 links per page, via ?page=
-PAGE_SIZE = 100
+from .core import _sort_dir, paginate
 
 # Facet sidebar: formats beyond this cutoff are hidden behind the
 # "More formats" toggle (all other facet lists are always shown).
@@ -76,10 +71,8 @@ def links(request):
     stmts_out = links_stmts(filters, sort, dir_)
 
     total = stmts_out["count"].get(*stmts_out["params"])["n"]
-    total_pages = max(1, math.ceil(total / PAGE_SIZE))
-    current_page = min(_page_param(request), total_pages)
-    offset = (current_page - 1) * PAGE_SIZE
-    link_rows = stmts_out["list"].all(*stmts_out["params"], PAGE_SIZE, offset)
+    pagination = paginate(request, total)
+    link_rows = stmts_out["list"].all(*stmts_out["params"], pagination["page_size"], pagination["offset"])
 
     # Query-string fragments shared by sort links / facet links / pills.
     # Dicts preserve insertion order, so urlencode emits the fixed
@@ -183,11 +176,7 @@ def links(request):
             "internal_links": stats.get("internal") or 0,
             "external_links": (stats.get("total") or 0) - (stats.get("internal") or 0) - no_url_links,
             "total_orgs": stats.get("orgs") or 0,
-            "page": current_page,
-            "total_pages": total_pages,
-            "page_size": PAGE_SIZE,
-            "start_index": offset + 1,
-            "end_index": offset + len(link_rows),
+            **pagination,
             "sort": sort,
             "dir": dir_,
         },

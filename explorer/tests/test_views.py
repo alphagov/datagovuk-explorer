@@ -41,9 +41,7 @@ from explorer.queries.reports import (
 from explorer.queries.reviews import get_review, latest_reviews
 from explorer.queries.series import SERIES_BY_ID, SERIES_COUNT, series_list_stmt
 from explorer.sort import sort_orgs
-from explorer.views.datasets import PAGE_SIZE as DATASETS_PAGE_SIZE
-from explorer.views.links import PAGE_SIZE as LINKS_PAGE_SIZE
-from explorer.views.reports import PAGE_SIZE as REPORT_PAGE_SIZE
+from explorer.views.core import PAGE_SIZE
 
 
 def esc(s):
@@ -142,7 +140,7 @@ def test_every_report(client):
         assert esc(report["label"]) in html
         assert f"{total:,}" in html
         if total:
-            rows = stmt["list"].all(*stmt["params"], REPORT_PAGE_SIZE, 0)
+            rows = stmt["list"].all(*stmt["params"], PAGE_SIZE, 0)
             cell = (
                 rows[0].get("url")
                 if report["kind"] == "duplicate-urls"
@@ -408,7 +406,7 @@ def test_links(client):
 
     out = links_stmts({}, "host", "asc")
     assert out["count"].get(*out["params"])["n"] == total
-    first_page = out["list"].all(*out["params"], LINKS_PAGE_SIZE, 0)
+    first_page = out["list"].all(*out["params"], PAGE_SIZE, 0)
     assert esc(first_page[0]["name"]) in html
     assert f"1-{len(first_page):,} of {total:,}" in html
 
@@ -418,7 +416,7 @@ def test_links(client):
         filters = {"host": pool["hosts"][0]["host"], "format": pool["formats"][0]["fmt"]}
         out2 = links_stmts(filters, "name", "desc")
         n2 = out2["count"].get(*out2["params"])["n"]
-        page2 = out2["list"].all(*out2["params"], LINKS_PAGE_SIZE, 0)
+        page2 = out2["list"].all(*out2["params"], PAGE_SIZE, 0)
         r2 = client.get(
             f"/links?host={pool['hosts'][0]['host']}&format={pool['formats'][0]['fmt']}&sort=name&dir=desc",
         )
@@ -520,10 +518,10 @@ def test_datasets(client):
     r = client.get("/datasets")
     html = r.content.decode()
     assert r.status_code == 200
-    assert f"1-{DATASETS_PAGE_SIZE:,} of {total:,}" in html
+    assert f"1-{PAGE_SIZE:,} of {total:,}" in html
 
     out = datasets_stmts({}, "organisation", "asc")
-    first_page = out["list"].all(*out["params"], DATASETS_PAGE_SIZE, 0)
+    first_page = out["list"].all(*out["params"], PAGE_SIZE, 0)
     assert esc(first_page[0]["title"]) in html
     assert esc(first_page[0]["organisation"]) in html
 
@@ -656,7 +654,7 @@ def _review_matches(r, filters):
     return True
 
 
-def expected_review_ids(sort, dir_, filters, page, page_size=50):
+def expected_review_ids(sort, dir_, filters, page, page_size=PAGE_SIZE):
     rows = latest_reviews()
     filtered = [r for r in rows if _review_matches(r, filters)]
     filtered.sort(key=lambda r: (r.get("title") or "").lower())
@@ -731,7 +729,7 @@ def test_reviews(client):
 _CONFIDENCE_ORDER = {"high": 3, "medium": 2, "low": 1}
 
 
-def expected_suggestion_ids(sort, dir_, page, page_size=50):
+def expected_suggestion_ids(sort, dir_, page, page_size=PAGE_SIZE):
     unique = latest_reviews()
     ids = [r["dataset_id"] for r in unique]
     theme_map, tags_map = {}, {}

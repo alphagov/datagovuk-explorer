@@ -9,16 +9,12 @@ query layer's Query class — the dynamic IN placeholders are native `%s`,
 like the rest of the SQL.
 """
 
-import math
-
 from django.shortcuts import render
 
 from explorer.queries.core import Query
 from explorer.queries.reviews import latest_reviews
 
-from .core import _page_param, _sort_dir
-
-PAGE_SIZE = 50
+from .core import _sort_dir, paginate
 
 # Confidence order for the numeric sort — high/medium/low map to 3/2/1.
 _CONFIDENCE_ORDER = {"high": 3, "medium": 2, "low": 1}
@@ -78,9 +74,7 @@ def suggestions(request):
         enriched.sort(key=get, reverse=dir_param == "desc")
 
     total = len(enriched)
-    total_pages = max(1, math.ceil(total / PAGE_SIZE))
-    page = min(_page_param(request), total_pages)
-    start = (page - 1) * PAGE_SIZE
+    pagination = paginate(request, total)
 
     return render(
         request,
@@ -88,13 +82,10 @@ def suggestions(request):
         {
             "title": f"Suggestions ({total})",
             "section": "suggestions",
-            "suggestions": enriched[start : start + PAGE_SIZE],
+            "suggestions": enriched[pagination["offset"] : pagination["offset"] + pagination["page_size"]],
             "total": total,
             "shown": total,
-            "page": page,
-            "total_pages": total_pages,
-            "start_index": start + 1,
-            "end_index": min(start + PAGE_SIZE, total),
+            **pagination,
             "sort": sort,
             "dir": dir_param,
         },

@@ -12,7 +12,6 @@ Sidebar facet counts are SQL aggregates from explorer/queries/datasets.py
 """
 
 import functools
-import math
 import re
 from dataclasses import asdict, dataclass
 from urllib.parse import urlencode
@@ -35,10 +34,7 @@ from explorer.queries.datasets import (
 )
 from explorer.sort import DATASETS_SORT_COLUMNS
 
-from .core import _page_param, _sort_dir
-
-# Pagination — 100 datasets per page, via ?page=
-PAGE_SIZE = 100
+from .core import _sort_dir, paginate
 
 # Temporal-year facet window: years above this count collapse behind a
 # "More years" toggle
@@ -311,10 +307,8 @@ def datasets(request):
     stmts_out = datasets_stmts(asdict(filters), sort, dir_)
     shown_count = stmts_out["count"].get(*stmts_out["params"])["n"]
 
-    total_pages = max(1, math.ceil(shown_count / PAGE_SIZE))
-    current_page = min(_page_param(request), total_pages)
-    offset = (current_page - 1) * PAGE_SIZE
-    page_datasets = stmts_out["list"].all(*stmts_out["params"], PAGE_SIZE, offset)
+    pagination = paginate(request, shown_count)
+    page_datasets = stmts_out["list"].all(*stmts_out["params"], pagination["page_size"], pagination["offset"])
 
     labels = _active_labels(filters)
 
@@ -338,11 +332,7 @@ def datasets(request):
             "title": "All datasets — data.gov.uk Explorer",
             "section": "datasets",
             "datasets": page_datasets,
-            "page": current_page,
-            "total_pages": total_pages,
-            "page_size": PAGE_SIZE,
-            "start_index": offset + 1,
-            "end_index": offset + len(page_datasets),
+            **pagination,
             "total_datasets": DATASET_TOTAL.get()["n"],
             "shown_datasets": shown_count,
             "total_orgs": len(fetched_slug_rows),
