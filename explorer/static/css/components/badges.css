@@ -34,6 +34,12 @@
 	color: var(--color-pending);
 }
 
+/* Metadata overview — extras fields carry this badge next to the name */
+.badge-extras {
+	background: var(--color-resource-bg);
+	color: var(--color-muted);
+}
+
 .format-badge {
 	display: inline-block;
 	background: var(--color-resource-bg);

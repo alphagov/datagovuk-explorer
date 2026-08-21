@@ -18,25 +18,29 @@ METADATA_PAGE_SIZE = 100
 
 
 def metadata_overview(request):
-    """GET /metadata — list of field keys with dataset counts."""
+    """GET /metadata — list of field keys with dataset counts, one table
+    ranked by usage; extras fields carry a badge."""
     keys = METADATA_KEYS.all()
     total_datasets = DATASET_TOTAL.get()["n"]
 
-    top_fields: list[dict] = []
-    extras_fields: list[dict] = []
-    for k in keys:
-        entry = {
-            "key": k["key"],
-            "count": k["non_empty"],
-            "distinct": k["distinct_values"],
-            "pct": (k["non_empty"] / total_datasets) * 100,
-        }
-        if k["section"] == "extras":
-            entry["label"] = k["key"][7:]  # strip "extras:"
-            extras_fields.append(entry)
-        else:
-            entry["label"] = k["key"][4:]  # strip "top:"
-            top_fields.append(entry)
+    # Merge top-level and extras fields into one usage-ranked list. The SQL
+    # already orders within section by non_empty, count; sorting again on
+    # the same keys just interleaves the two sections.
+    rows = sorted(keys, key=lambda k: (k["non_empty"], k["count"]), reverse=True)
+    fields: list[dict] = []
+    for k in rows:
+        extras = k["section"] == "extras"
+        fields.append(
+            {
+                "key": k["key"],
+                "section": k["section"],
+                "label": k["key"][7:] if extras else k["key"][4:],  # strip prefix
+                "extras": extras,
+                "count": k["non_empty"],
+                "distinct": k["distinct_values"],
+                "pct": (k["non_empty"] / total_datasets) * 100,
+            },
+        )
 
     return render(
         request,
@@ -44,9 +48,7 @@ def metadata_overview(request):
         {
             "title": "Metadata — data.gov.uk Explorer",
             "section": "metadata",
-            "top_fields": top_fields,
-            "extras_fields": extras_fields,
-            "total_datasets": total_datasets,
+            "fields": fields,
         },
     )
 

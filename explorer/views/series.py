@@ -60,6 +60,8 @@ def series_list(request):
             "page": current_page,
             "total_pages": total_pages,
             "page_size": PAGE_SIZE,
+            "start_index": offset + 1,
+            "end_index": offset + len(series),
             "sort": sort,
             "dir": dir_,
         },

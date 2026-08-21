@@ -21,7 +21,6 @@ import explorer.middleware as mw
 from explorer.queries.core import Query
 from explorer.queries.datasets import (
     DATASET_COUNT,
-    DATASET_TOTAL,
     DATASETS_BY_ORG,
     THEME_COUNTS,
     datasets_facet_counts,
@@ -557,13 +556,11 @@ def test_datasets(client):
 # /metadata
 # ---------------------------------------------------------------------------
 def test_metadata_pages(client):
-    total_row = DATASET_TOTAL.get()
-    assert total_row is not None
-    total = total_row["n"]
     r = client.get("/metadata")
     html = r.content.decode()
     assert r.status_code == 200
-    assert f"{total:,}" in html
+    assert "<h1>Metadata</h1>" in html
+    assert html.count("<table") == 1
 
     keys = METADATA_KEYS.all()
     top = next(k for k in keys if k["section"] == "top")
