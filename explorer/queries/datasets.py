@@ -213,6 +213,32 @@ def datasets_stmts(filters: dict, sort: str, dir_: str) -> dict:
     return entry
 
 
+def org_datasets_stmts(org_slug: str, sort: str, dir_: str) -> dict:
+    """Count + page list for one org's datasets — the /organisation/{slug}
+    page (docs/pagination-plan.md workstream E).
+
+    Same {params, count, list} contract as datasets_stmts: one fixed org
+    param, the DATASETS_SORT_EXPRS ORDER BY with the `, d.id` tiebreak
+    (pins rows tied on the sort key to id order, so pages don't reshuffle),
+    and a LIMIT/OFFSET page the view drives with core.paginate(). The org
+    page used to fetch every row and sort in Python (up to 5.6k for ONS);
+    now it fetches one page of 100.
+    """
+    order_sql = f"{DATASETS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, d.id"
+    return {
+        "params": [org_slug],
+        "count": Query("SELECT COUNT(*) AS n FROM datasets d WHERE d.org_slug = %s"),
+        "list": Query(
+            "SELECT d.id, d.title, d.name, d.metadata_created,"
+            "  d.metadata_modified, d.resource_count,"
+            "  d.harvested, d.harvest_source_title, d.views"
+            " FROM datasets d WHERE d.org_slug = %s"
+            f" ORDER BY {order_sql}"
+            " LIMIT %s OFFSET %s",
+        ),
+    }
+
+
 # --- Sidebar facet counts (SQL aggregates over the same _facet_where) ---
 #
 # Metadata filters are deliberately not applied to any pool: facet counts
@@ -382,15 +408,15 @@ TEMPORAL_YEARS = Query(
     ORDER BY year DESC""",
 )
 
-# Narrow rows for one org's page
-DATASETS_BY_ORG = Query(
-    """SELECT id, title, name, metadata_created, metadata_modified, resource_count,
-              harvested, harvest_source_title, views
-       FROM datasets WHERE org_slug = %s""",
-)
-
 # Dataset count for one org
 DATASET_COUNT = Query("SELECT COUNT(*) AS count FROM datasets WHERE org_slug = %s")
+
+# Harvested datasets for one org — the org page's second headline count
+# (pagination-plan workstream E: was a Python sum over the unfetched full
+# dataset list, now its own COUNT).
+ORG_HARVESTED_COUNT = Query(
+    "SELECT COUNT(*) AS n FROM datasets WHERE org_slug = %s AND harvested = 1",
+)
 
 # Narrow rows for one harvest source's page (joined by harvest_source_id,
 # the datasets↔sources key promoted from the dataset's harvest_source_id

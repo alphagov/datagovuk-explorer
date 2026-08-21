@@ -22,6 +22,8 @@
     </section>
   {% endif %}
 
+  {{ count_pager(start_index, end_index, org.dataset_count, page, total_pages, pager_base) }}
+
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">
       <thead>

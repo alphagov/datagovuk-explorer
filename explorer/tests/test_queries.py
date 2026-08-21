@@ -17,12 +17,12 @@ from explorer.queries.core import Query, facet_where
 from explorer.queries.datasets import (
     DATASET_COUNT,
     DATASET_TOTAL,
-    DATASETS_BY_ORG,
     FETCHED_SLUGS,
     THEME_COUNTS,
     YEARLY_DATASETS,
     datasets_facet_counts,
     datasets_stmts,
+    org_datasets_stmts,
     yearly_dataset_counts,
 )
 from explorer.queries.links import (
@@ -55,6 +55,7 @@ from explorer.queries.reports import (
 )
 from explorer.queries.reviews import get_classification, get_review, latest_reviews
 from explorer.queries.series import SERIES_COUNT, series_list_stmt
+from explorer.views.core import PAGE_SIZE
 
 pytestmark = pytest.mark.usefixtures("db_ready")
 
@@ -130,13 +131,27 @@ def test_series_count_shape():
 # Per-org statements
 # ---------------------------------------------------------------------------
 def test_org_statements_consistency():
-    """datasetCount == len(datasetsByOrg) for a real org with datasets."""
+    """The org page's builder: count == page-list total across every page,
+    and the row shape the template reads."""
     org = next(o for o in ORGS.all() if (DATASET_COUNT.get(o["slug"]) or {}).get("count", 0) > 0)
     slug = org["slug"]
     count = (DATASET_COUNT.get(slug) or {}).get("count", 0)
-    rows = DATASETS_BY_ORG.all(slug)
-    assert count == len(rows)
+    stmts = org_datasets_stmts(slug, "metadata_modified", "desc")
+    assert stmts["count"].get(*stmts["params"])["n"] == count
     assert count > 0
+
+    # Walk every page at PAGE_SIZE — the pages must add up to the count
+    rows = []
+    offset = 0
+    while True:
+        page = stmts["list"].all(*stmts["params"], PAGE_SIZE, offset)
+        if not page:
+            break
+        rows.extend(page)
+        offset += PAGE_SIZE
+        assert len(page) <= PAGE_SIZE
+    assert len(rows) == count
+
     row = rows[0]
     for col in (
         "id",
@@ -148,7 +163,7 @@ def test_org_statements_consistency():
         "harvested",
         "views",
     ):
-        assert col in row, f"datasetsByOrg row missing {col}"
+        assert col in row, f"org builder row missing {col}"
 
 
 def test_org_detail_row():

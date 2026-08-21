@@ -21,10 +21,10 @@ import explorer.middleware as mw
 from explorer.queries.core import Query
 from explorer.queries.datasets import (
     DATASET_COUNT,
-    DATASETS_BY_ORG,
     THEME_COUNTS,
     datasets_facet_counts,
     datasets_stmts,
+    org_datasets_stmts,
 )
 from explorer.queries.links import LINKS_STATS, links_facet_counts, links_stmts
 from explorer.queries.metadata import (
@@ -262,16 +262,52 @@ def test_organisations(client):
 
 
 def test_organisation_detail(client):
+    """/organisation/{slug} — count_pager + sortable, paginated SQL list.
+    Contract test: the page's first row and page range must equal the SQL
+    builder's (the view renders org_datasets_stmts verbatim)."""
     org = next(o for o in ORGS.all() if (DATASET_COUNT.get(o["slug"]) or {}).get("count", 0) > 0)
-    r = client.get(f"/organisation/{org['slug']}")
+    slug = org["slug"]
+    count = (DATASET_COUNT.get(slug) or {}).get("count", 0)
+
+    stmts = org_datasets_stmts(slug, "metadata_modified", "desc")
+    first_page = stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)
+    assert first_page
+
+    r = client.get(f"/organisation/{slug}")
     html = r.content.decode()
     assert r.status_code == 200
     assert esc(org["display_name"] or org["slug"]) in html
+    # count_pager header: "X-Y of Z" with the org's dataset total
+    assert f"1-{len(first_page):,} of {count:,}" in html
     # default sort metadata_modified desc — first dataset row
-    d = DATASETS_BY_ORG.all(org["slug"])
-    first = sorted(d, key=lambda x: x["metadata_modified"] or "", reverse=True)[:1]
-    assert first
-    assert esc(first[0]["title"]) in html
+    assert esc(first_page[0]["title"] or first_page[0]["name"]) in html
+
+    # every sort column, both directions — page rows match the builder
+    for sort in ("title", "metadata_created", "metadata_modified", "resources", "views", "harvested"):
+        for dir_ in ("asc", "desc"):
+            out = org_datasets_stmts(slug, sort, dir_)
+            expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
+            r = client.get(f"/organisation/{slug}?sort={sort}&dir={dir_}")
+            assert r.status_code == 200
+            assert esc(expect[0]["title"] or expect[0]["name"]) in r.content.decode(), (
+                f"sort={sort} dir={dir_}"
+            )
+
+    # invalid sort falls back to metadata_modified desc; bogus dir → asc
+    r = client.get(f"/organisation/{slug}?sort=bogus&dir=bogus")
+    out = org_datasets_stmts(slug, "metadata_modified", "asc")
+    expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
+    assert esc(expect[0]["title"] or expect[0]["name"]) in r.content.decode()
+
+    # page 2 exists for orgs with > 100 datasets; pager links keep sort/dir
+    if count > PAGE_SIZE:
+        r2 = client.get(f"/organisation/{slug}?page=2")
+        assert r2.status_code == 200
+        assert "?sort=metadata_modified&amp;dir=desc&amp;page=2" in r2.content.decode()
+        assert f"{PAGE_SIZE + 1:,}-{min(2 * PAGE_SIZE, count):,} of {count:,}" in r2.content.decode()
+    # out-of-range page clamps rather than erroring
+    assert client.get(f"/organisation/{slug}?page=99999").status_code == 200
+
     # unknown org → 404
     assert client.get("/organisation/no-such-org").status_code == 404
 
