@@ -11,6 +11,7 @@ like the rest of the SQL.
 
 from django.shortcuts import render
 
+from explorer import facets
 from explorer.queries.core import Query
 from explorer.queries.reviews import latest_reviews
 
@@ -62,6 +63,7 @@ def suggestions(request):
         )
 
     sort, dir_param = _sort_dir(request, SORT_COLUMNS, "confidence")
+    pager_base = facets.pager_base({"sort": sort, "dir": dir_param})
 
     # Same two-pass sort as explorer/views/reviews.py: stable sort by title
     # first, then by the primary key — tied primaries keep the
@@ -85,6 +87,7 @@ def suggestions(request):
             "suggestions": enriched[pagination["offset"] : pagination["offset"] + pagination["page_size"]],
             "total": total,
             "shown": total,
+            "pager_base": pager_base,
             **pagination,
             "sort": sort,
             "dir": dir_param,

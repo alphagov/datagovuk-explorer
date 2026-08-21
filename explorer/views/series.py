@@ -9,6 +9,7 @@ import re
 
 from django.shortcuts import render
 
+from explorer import facets
 from explorer.queries.series import (
     SERIES_BY_ID,
     SERIES_COUNT,
@@ -41,6 +42,7 @@ def series_list(request):
     pagination = paginate(request, total)
 
     sort, dir_ = _sort_dir(request, SERIES_SORT_COLUMNS, "dataset_count", "desc")
+    pager_base = facets.pager_base({"sort": sort, "dir": dir_})
 
     series = series_list_stmt(sort, dir_).all(pagination["page_size"], pagination["offset"])
 
@@ -53,6 +55,7 @@ def series_list(request):
             "series": series,
             "total": total,
             **pagination,
+            "pager_base": pager_base,
             "sort": sort,
             "dir": dir_,
         },

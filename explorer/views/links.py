@@ -91,6 +91,8 @@ def links(request):
 
     # Extra query string preserving the active facets (for sort/pagination links)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
+    # ?-prefixed base for the pager links (sort/dir + active facets)
+    pager_base = facets.pager_base(base_params)
 
     # Facet groups for the sidebar (pool counts + current selection -> group)
     facet_groups = [
@@ -170,6 +172,7 @@ def links(request):
             "current_year": current_year,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
+            "pager_base": pager_base,
             "total_links": stats.get("total") or 0,
             "filtered_links": total,
             "no_url_links": no_url_links,

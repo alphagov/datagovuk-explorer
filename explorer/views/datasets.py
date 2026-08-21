@@ -314,6 +314,7 @@ def datasets(request):
 
     base_facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params)
 
     def facet_url(key: str, value: str) -> str:
         # The metadata filter is a key+value pair: clearing the key drops
@@ -351,5 +352,6 @@ def datasets(request):
             "facet_groups": facet_groups,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
+            "pager_base": pager_base,
         },
     )

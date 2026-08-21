@@ -33,7 +33,7 @@
 
 {% block header_right %}
   <p class="count">{{ current.count | num }} total</p>
-  {{ pagination(page, total_pages, "name", "asc", facet_qs) }}
+  {{ pagination(page, total_pages, pager_base) }}
 {% endblock header_right %}
 
 {% block table %}

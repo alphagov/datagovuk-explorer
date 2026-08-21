@@ -180,6 +180,7 @@ def reviews(request):
     base_params = facets.preserve_params(sort, dir_, list(filters.items()))
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params)
 
     # Facet groups for the sidebar — one per score dimension.
     facet_groups = [
@@ -202,5 +203,6 @@ def reviews(request):
             "filters": filters,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
+            "pager_base": pager_base,
         },
     )

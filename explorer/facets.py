@@ -82,6 +82,21 @@ def facet_qs(base_params, *, include_sort=True):
     return f"&{qs}" if qs else ""
 
 
+def pager_base(base_params, *, include_sort=True):
+    """The "?…" base fragment for the pagination/count_pager macros — the
+    ordered base params (sort, dir, then each active facet) as a
+    ?-prefixed query string, exactly the fragment the macros append
+    "&page=N" to. include_sort=False drops sort/dir (pages with no sort
+    UI — reports: the SQL order is fixed, the URL stops pretending).
+    Empty params → "" (clean "?page=N")."""
+    params = dict(base_params)
+    if not include_sort:
+        params.pop("sort", None)
+        params.pop("dir", None)
+    qs = urlencode(params)
+    return f"?{qs}" if qs else ""
+
+
 def facet_toggle_url(base_params, param, *, expanded):
     """?url for a facet list's show-more toggle — base params plus
     param=all when expanding, minus it when collapsing."""

@@ -52,7 +52,7 @@ def _duplicate_url_report(request, report, url):
                 "hidden_cols": {"url"},
             },
             "detail_url": url,
-            "facet_qs": "",
+            "pager_base": "",
             "rows": rows,
             **pagination,
         },
@@ -148,16 +148,15 @@ def report(request, key):
     )
 
     # Query-string machinery — same pattern as the other facet pages: a
-    # preserve_params base (sort/dir are the pagination macro's defaults;
-    # report pages have no sort UI), facet_url_for for the facet links
-    # and pills, facet_qs for the pagination links.
+    # preserve_params base (report pages have no sort UI, so the pager
+    # base is facets only), facet_url_for for the facet links and pills.
     base_params = facets.preserve_params(
         "name",
         "asc",
         [(key, value) for key, value in active_filters.items()],
     )
     facet_url = facets.facet_url_for(base_params)
-    facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params, include_sort=False)
 
     stmt = report_stmts(report, active_filters)
     # No-filter count is memoised per report key (build-time snapshot);
@@ -195,7 +194,7 @@ def report(request, key):
             "facet_groups": facet_groups,
             "active_facets": active_facets,
             "facet_url": facet_url,
-            "facet_qs": facet_qs,
+            "pager_base": pager_base,
             "rows": rows,
             **pagination,
         },

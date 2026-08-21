@@ -14,7 +14,7 @@
 {% endblock header_left %}
 
 {% block header_right %}
-  {{ count_pager(start_index, end_index, filtered_links, page, total_pages, sort, dir, facet_qs) }}
+  {{ count_pager(start_index, end_index, filtered_links, page, total_pages, pager_base) }}
 {% endblock header_right %}
 
 {% block table %}
