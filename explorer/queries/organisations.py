@@ -15,7 +15,13 @@ rebuild (same contract as the dashboard's cards() cache).
 Only the *fixed* fetches are memoised: filtered facet pools stay live
 because their filter key space is unbounded (pubyear is a multi-select).
 The raw Query objects (ORGS, ORG_AGGREGATES, ...) stay uncached so any
-parameterised use elsewhere is unaffected."""
+parameterised use elsewhere is unaffected.
+
+The /organisations page *list* is a per-request SQL builder
+(organisations_stmts — count + one page per filter/sort combo,
+docs/pagination-plan.md workstream F); the memoised fetches still feed
+the facet master lists, the pub-year validation whitelist and the
+sidebar pools."""
 
 import functools
 from typing import Any
@@ -65,8 +71,11 @@ for _value, _ in DATASET_BUCKETS:
         DATASET_BUCKET_RANGES[_value] = (int(lo), int(hi))
 
 
-# The membership tests the view's Python-side list filtering uses —
-# dataset_count is package_count or 0, exactly like the SQL COALESCE below.
+# The bucket membership tests — the reference semantics the SQL bucket
+# clauses must match (dataset_count is package_count or 0, exactly like
+# the SQL COALESCE below). Consumed by the facet-pool reference tests and
+# the /harvesters page's bucket helper (the org list's own filtering is
+# SQL since workstream F).
 def _bucket_test(lo: int, hi: int | None):
     """Membership predicate for one bucket: inclusive [lo, hi], n > lo for
     the open-ended top, and the "0" bucket falls out as [0, 0] ≡ n == 0."""
@@ -173,15 +182,21 @@ def yearly_org_counts() -> list[dict[str, Any]]:
 # Each group counts over the pool filtered by the other two groups via the
 # shared core.facet_where helper — the same one-sentence algorithm as
 # /datasets, expressed over organisations joined to a per-org
-# last-published aggregation of datasets. The list/count filtering stays
-# Python-side in the view (the org list is small); only the sidebar pools
-# move to SQL.
+# last-published aggregation of datasets. The list/filter/sort moved to
+# SQL too (organisations_stmts below); the pools still run as SQL
+# aggregates here, not Python filters.
 
-# Per-org last-published aggregate — the LEFT JOIN base all three pools
-# share (the pubyear clause/pool reads a.last_published from it).
+# Per-org aggregate over datasets — the LEFT JOIN base the facet pools
+# and the /organisations list builder share. Same three aggregates as
+# ORG_AGGREGATES (one 1:1 row per org: GROUP BY org_slug, the primary
+# key). The facet pools only read a.last_published; the list builder
+# reads total_resources/total_views too.
 _ORG_AGG = (
     "LEFT JOIN ("
-    "  SELECT org_slug, MAX(metadata_created) AS last_published"
+    "  SELECT org_slug,"
+    "         SUM(resource_count) AS total_resources,"
+    "         SUM(views) AS total_views,"
+    "         MAX(metadata_created) AS last_published"
     "  FROM datasets GROUP BY org_slug"
     ") a ON a.org_slug = o.slug"
 )
@@ -321,3 +336,69 @@ def organisations_facet_counts(filters: dict) -> dict:
     live (their key space is unbounded, so they can't be cached).
     """
     return _run_facet_counts(filters)
+
+
+# ── /organisations list builder (count + one page per filter/sort combo) ──
+#
+# The list used to be filtered/sorted in Python over the merged memoised
+# fetch (1,480 orgs, docs/pagination-plan.md workstream F); now the page
+# list/count are SQL — the ORGS rows LEFT JOINed to the per-org aggregate,
+# with the view's old Python _apply_filters rules as WHERE clauses
+# (year/pubyear/datasets via the shared _ORG_FACET_CLAUSES) and the
+# sort_orgs column exprs as ORDER BY.
+#
+# The `, LOWER(o.display_name), o.slug` tail reproduces the old
+# stable-sort tie order: Python's list.sort is stable over the base fetch
+# (ORGS is ORDER BY LOWER(display_name), slug), so rows tied on any sort
+# key keep that order — the SQL ORDER BY appends the same two keys,
+# pinning pages against reshuffles. created/last_published sort on the
+# raw ISO timestamp: the old Python sorter sorted the *formatted*
+# dd/mm/yyyy string (day-then-month-then-year, not chronological) — the
+# ISO sort is the intended semantics (same call as the harvesters
+# last_run sort).
+
+# Sortable column key → SQL ORDER BY expression (mirrors
+# explorer.sort.sort_orgs: the numeric columns sort COALESCE'd to 0 —
+# missing sorts as 0, exactly like Python's `or 0` — and the text
+# columns sort case-insensitively via LOWER).
+ORG_SORT_EXPRS = {
+    "name": "LOWER(COALESCE(o.display_name, o.title, o.name, ''))",
+    "dataset_count": "COALESCE(o.package_count, 0)",
+    "resource_count": "COALESCE(a.total_resources, 0)",
+    "views": "COALESCE(a.total_views, 0)",
+    "type": "LOWER(COALESCE(o.type, ''))",
+    "state": "LOWER(COALESCE(o.state, ''))",
+    "approval_status": "LOWER(COALESCE(o.approval_status, ''))",
+    "created": "COALESCE(o.created, '')",
+    "last_published": "COALESCE(a.last_published, '')",
+}
+
+# The list select — ORGS' columns plus the three aggregate columns and a
+# has_data flag (an org is in the per-dataset aggregate iff it has at
+# least one dataset — the old fetched-slugs set).
+_ORG_LIST_SELECT = (
+    "SELECT o.slug, o.name, o.display_name, o.package_count, o.type, o.state,"
+    "       o.approval_status, o.created, o.title,"
+    "       COALESCE(a.total_resources, 0) AS total_resources,"
+    "       COALESCE(a.total_views, 0) AS total_views,"
+    "       a.last_published,"
+    "       (a.org_slug IS NOT NULL) AS has_data"
+    " FROM organisations o"
+)
+
+
+def organisations_stmts(filters: dict, sort: str, dir_: str) -> dict:
+    """Count + page list for /organisations — one (filters, sort, dir) combo.
+
+    {params, count, list} contract, same as datasets_stmts: the view drives
+    the LIMIT/OFFSET page with core.paginate(). The WHERE clauses mirror the
+    old Python _apply_filters rules (year/pubyear/datasets), the ORDER BY
+    mirrors sort_orgs, and the aggregate LEFT JOIN is 1:1 per org, so the
+    count is a plain COUNT over the joined rows."""
+    where, params = facet_where(_ORG_FACET_CLAUSES, filters)
+    order_sql = f"{ORG_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, LOWER(o.display_name), o.slug"
+    return {
+        "params": params,
+        "count": Query(f"SELECT COUNT(*) AS n FROM organisations o {_ORG_AGG}{where}"),
+        "list": Query(f"{_ORG_LIST_SELECT} {_ORG_AGG}{where} ORDER BY {order_sql} LIMIT %s OFFSET %s"),
+    }

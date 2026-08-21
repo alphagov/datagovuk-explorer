@@ -45,7 +45,6 @@ from explorer.queries.reviews import (
     suggestions_stmts,
 )
 from explorer.queries.series import SERIES_BY_ID, SERIES_COUNT, series_list_stmt
-from explorer.sort import sort_orgs
 from explorer.views.core import PAGE_SIZE
 
 
@@ -214,30 +213,53 @@ def test_has_api_both_facets(client):
 # /organisations (facet page)
 # ---------------------------------------------------------------------------
 def test_organisations(client):
+    """/organisations — count_pager + sortable, paginated SQL list. Contract
+    test: the page's rows and count must equal the SQL builder's (the view
+    renders organisations_stmts verbatim); the facet contract is
+    test_organisations_facets."""
+    from explorer.queries.organisations import organisations_stmts  # noqa: PLC0415
+
     orgs = ORGS.all()
     assert orgs
     total = len(orgs)
+
+    # default sort: name asc — first page rows match the builder
+    out = organisations_stmts({}, "name", "asc")
+    page1 = out["list"].all(*out["params"], PAGE_SIZE, 0)
+    assert page1
     r = client.get("/organisations")
     html = r.content.decode()
     assert r.status_code == 200
-    assert f"1-{total:,} of {total:,}" in html
+    # count_pager header: "X-Y of Z" with the filtered total
+    assert f"1-{len(page1):,} of {total:,}" in html
 
-    # default sort: name asc — first org's display name
-    sorted_default = list(orgs)
-    sort_orgs(sorted_default, "name", "asc")
-    assert esc(sorted_default[0]["display_name"] or sorted_default[0]["name"]) in html
+    # every sort column, both directions — page rows match the builder
+    for sort in (
+        "name",
+        "dataset_count",
+        "resource_count",
+        "views",
+        "type",
+        "state",
+        "approval_status",
+        "created",
+        "last_published",
+    ):
+        for dir_ in ("asc", "desc"):
+            out = organisations_stmts({}, sort, dir_)
+            expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
+            r = client.get(f"/organisations?sort={sort}&dir={dir_}")
+            assert r.status_code == 200
+            assert esc(expect[0]["display_name"] or expect[0]["name"]) in r.content.decode(), (
+                f"sort={sort} dir={dir_}"
+            )
 
-    # sort combo
-    r2 = client.get("/organisations?sort=dataset_count&dir=desc")
-    assert r2.status_code == 200
-    sorted_ds = list(orgs)
-    sort_orgs(sorted_ds, "dataset_count", "desc")
-    assert esc(sorted_ds[0]["display_name"] or sorted_ds[0]["name"]) in r2.content.decode()
-
-    # invalid sort falls back to name asc
+    # invalid sort falls back to name asc; bogus dir → asc
     r3 = client.get("/organisations?sort=bogus&dir=bogus")
     assert r3.status_code == 200
-    assert esc(sorted_default[0]["display_name"] or sorted_default[0]["name"]) in r3.content.decode()
+    out = organisations_stmts({}, "name", "asc")
+    expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
+    assert esc(expect[0]["display_name"] or expect[0]["name"]) in r3.content.decode()
 
     # one facet combo: ?year=<latest org-creation year>
     years = sorted(
@@ -246,9 +268,29 @@ def test_organisations(client):
     )
     if years:
         year = years[0]
-        year_count = sum(1 for o in orgs if (o["created"] or "")[:4] == year)
+        out = organisations_stmts({"year": year}, "name", "asc")
+        year_count = out["count"].get(*out["params"])["n"]
         r4 = client.get(f"/organisations?year={year}")
-        assert f"1-{year_count:,} of {total:,}" in r4.content.decode()
+        assert f"1-{min(year_count, PAGE_SIZE):,} of {year_count:,}" in r4.content.decode()
+
+    # page 2 exists (1,480 orgs > 100); pager links keep sort/dir
+    if total > PAGE_SIZE:
+        assert (
+            "?sort=name&amp;dir=asc&amp;page=2"
+            in client.get(
+                "/organisations",
+            ).content.decode()
+        )
+        r2 = client.get("/organisations?page=2")
+        assert r2.status_code == 200
+        assert "?sort=name&amp;dir=asc&amp;page=1" in r2.content.decode()
+        out2 = organisations_stmts({}, "name", "asc")
+        page2 = out2["list"].all(*out2["params"], PAGE_SIZE, PAGE_SIZE)
+        assert page2
+        assert esc(page2[0]["display_name"] or page2[0]["name"]) in r2.content.decode()
+        assert f"{PAGE_SIZE + 1:,}-{min(2 * PAGE_SIZE, total):,} of {total:,}" in r2.content.decode()
+    # out-of-range page clamps rather than erroring
+    assert client.get("/organisations?page=99999").status_code == 200
 
     # ?pubyear=__none__ renders the Never published pill + trailing bucket
     r5 = client.get("/organisations?pubyear=__none__")
@@ -259,6 +301,57 @@ def test_organisations(client):
     # the bucket stays visible on the unfiltered page, in the pubyear facet
     section = _facet_section(client.get("/organisations").content.decode(), "Filter by year last published")
     assert ">Never published<" in section
+
+
+def test_organisations_facets(client):
+    """Each /organisations facet's SQL count equals the Python reference
+    count over the full merged fetch (the WHERE clauses mirror the old
+    _apply_filters rules); the active selection renders its pill."""
+    from collections import Counter  # noqa: PLC0415
+
+    from explorer.queries.organisations import (  # noqa: PLC0415
+        DATASET_BUCKET_TESTS,
+        all_org_rows,
+        org_aggregate_rows,
+        organisations_stmts,
+    )
+    from explorer.views.organisations import _merge_org_rows  # noqa: PLC0415
+
+    rows = _merge_org_rows(all_org_rows(), org_aggregate_rows())
+
+    # ?year=<most common creation year>
+    year_counts = Counter(o["created_year"] for o in rows if o["created_year"])
+    top_year, _ = year_counts.most_common(1)[0]
+    n_year = sum(1 for o in rows if o["created_year"] == top_year)
+    out = organisations_stmts({"year": top_year}, "name", "asc")
+    assert out["count"].get(*out["params"])["n"] == n_year
+    r4 = client.get(f"/organisations?year={top_year}")
+    h4 = r4.content.decode()
+    assert r4.status_code == 200
+    assert f"1-{min(n_year, PAGE_SIZE):,} of {n_year:,}" in h4
+    assert 'class="filter-pill"' in h4
+
+    # ?pubyear=<most common last-published year>
+    pubyear_counts = Counter(o["last_published_year"] for o in rows if o["last_published_year"])
+    top_pub, _ = pubyear_counts.most_common(1)[0]
+    n_pub = sum(1 for o in rows if o["last_published_year"] == top_pub)
+    out = organisations_stmts({"pubyear": (top_pub,)}, "name", "asc")
+    assert out["count"].get(*out["params"])["n"] == n_pub
+    r5 = client.get(f"/organisations?pubyear={top_pub}")
+    h5 = r5.content.decode()
+    assert r5.status_code == 200
+    assert f"1-{min(n_pub, PAGE_SIZE):,} of {n_pub:,}" in h5
+    assert 'class="filter-pill"' in h5
+
+    # ?datasets=0 renders the zero-datasets bucket
+    n_zero = sum(1 for o in rows if DATASET_BUCKET_TESTS["0"](o["dataset_count"]))
+    out = organisations_stmts({"datasets": "0"}, "name", "asc")
+    assert out["count"].get(*out["params"])["n"] == n_zero
+    r6 = client.get("/organisations?datasets=0")
+    h6 = r6.content.decode()
+    assert r6.status_code == 200
+    assert f"1-{min(n_zero, PAGE_SIZE):,} of {n_zero:,}" in h6
+    assert 'class="filter-pill"' in h6
 
 
 def test_organisation_detail(client):

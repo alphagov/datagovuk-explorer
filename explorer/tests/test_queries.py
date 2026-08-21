@@ -48,6 +48,7 @@ from explorer.queries.organisations import (
     RESOURCE_COUNTS,
     VIEWS_BY_ORG,
     organisations_facet_counts,
+    organisations_stmts,
     yearly_org_counts,
 )
 from explorer.queries.reports import (
@@ -376,6 +377,16 @@ def _org_rows():
     return _merge_org_rows(ORGS.all(), ORG_AGGREGATES.all())
 
 
+def _pub_year_match(o, pub_years):
+    """Reference pub-year match — the rule the SQL pubyear clause mirrors.
+    Inlined here (workstream F) since the view's Python-side list filter
+    was replaced by the SQL builder: __none__ matches orgs with no
+    last-published year, a real year list matches those years."""
+    if "__none__" in pub_years:
+        return o["last_published_year"] is None
+    return o["last_published_year"] in pub_years
+
+
 def _org_ref_pools(filters):
     r"""(year, pubyear, no_pubyear, datasets) reference pools — each group
     counts the rows matching every filter except its own, counted exactly
@@ -384,14 +395,12 @@ def _org_ref_pools(filters):
     splits into the year list + the never-published (no last-published)
     bucket."""
 
-    from explorer.views.organisations import _matches_pub_year  # noqa: PLC0415
-
     def kept(exclude):
         return [
             o
             for o in _org_rows()
             if (filters.get("year") is None or exclude == "year" or o["created_year"] == filters["year"])
-            and (not filters.get("pubyear") or exclude == "pubyear" or _matches_pub_year(o, filters["pubyear"]))
+            and (not filters.get("pubyear") or exclude == "pubyear" or _pub_year_match(o, filters["pubyear"]))
             and (
                 filters.get("datasets") is None
                 or exclude == "datasets"
@@ -518,6 +527,57 @@ def test_harvest_sources_stmts_consistency():
     row = stmts["list"].all(*stmts["params"], 1, 0)[0]
     for col in ("id", "title", "type", "active", "frequency", "last_run", "org_name", "dataset_count"):
         assert col in row, f"harvester list row missing {col}"
+
+    # Deterministic order — the tiebreak pins pages between runs
+    a = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]
+    b = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]
+    assert a == b
+
+
+def test_organisations_stmts_consistency():
+    """/organisations list builder: count == page-list total across every
+    filter/sort combo, the row shape the template reads, and deterministic
+    pages (the `, LOWER(o.display_name), o.slug` tiebreak pins ties to the
+    stable base order)."""
+    from collections import Counter  # noqa: PLC0415
+
+    rows = _org_rows()
+    year_counts = Counter(o["created_year"] for o in rows if o["created_year"])
+    top_year = year_counts.most_common(1)[0][0] if year_counts else None
+
+    combos = [
+        {},
+        {"datasets": "0"},
+        {"datasets": "1000+"},
+        {"pubyear": ("__none__",)},
+    ]
+    if top_year:
+        combos.append({"year": top_year})
+
+    for filters in combos:
+        for sort, dir_ in (("name", "asc"), ("dataset_count", "desc"), ("last_published", "desc")):
+            stmts = organisations_stmts(filters, sort, dir_)
+            count = stmts["count"].get(*stmts["params"])["n"]
+            rows_all = stmts["list"].all(*stmts["params"], 1_000_000, 0)
+            assert count == len(rows_all), (filters, sort, dir_)
+
+    # Row shape the template reads
+    stmts = organisations_stmts({}, "name", "asc")
+    row = stmts["list"].all(*stmts["params"], 1, 0)[0]
+    for col in (
+        "slug",
+        "display_name",
+        "package_count",
+        "type",
+        "state",
+        "approval_status",
+        "created",
+        "total_resources",
+        "total_views",
+        "last_published",
+        "has_data",
+    ):
+        assert col in row, f"organisation list row missing {col}"
 
     # Deterministic order — the tiebreak pins pages between runs
     a = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]

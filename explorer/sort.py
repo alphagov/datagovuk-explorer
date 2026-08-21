@@ -10,7 +10,9 @@ collation: "base" sensitivity, numeric ordering).
 import re
 from typing import Any
 
-# Sortable columns for the org table on the home page
+# Sortable columns for the org table on the /organisations page (the
+# accepted-keys whitelist — sorting happens in PostgreSQL, see
+# ORG_SORT_EXPRS in explorer/queries/organisations.py)
 SORT_COLUMNS = [
     "name",
     "dataset_count",
@@ -80,25 +82,11 @@ def _natural_key(value: Any) -> tuple[tuple[int, Any], ...]:
     return tuple((0, int(p)) if p.isdigit() else (1, p) for p in parts if p != "")
 
 
-def _num_key(row: dict[str, Any], key: str) -> float:
-    """Numeric column value, missing → 0 (a missing value sorts as 0)."""
-    return row.get(key) or 0
-
-
 def _text_key(row: dict[str, Any], key: str, fallback: str | None = None) -> tuple:
     value = row.get(key)
     if value is None and fallback is not None:
         value = row.get(fallback)
     return _natural_key(value or "")
-
-
-def sort_orgs(rows: list[dict[str, Any]], sort: str, dir_: str) -> None:
-    """Sort org rows in place by column key and direction (asc|desc)."""
-    reverse = dir_ == "desc"
-    if sort in ("dataset_count", "resource_count", "views"):
-        rows.sort(key=lambda r: _num_key(r, sort), reverse=reverse)
-    else:
-        rows.sort(key=lambda r: _text_key(r, sort), reverse=reverse)
 
 
 def sort_resources(rows: list[dict[str, Any]], sort: str, dir_: str) -> None:

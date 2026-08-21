@@ -10,7 +10,10 @@ Facets use the same pattern as /datasets:
 Sidebar facet counts are self-excluding SQL aggregates from
 queries/organisations.py (organisations_facet_counts) — each group counts
 over the pool filtered by the other two groups, exactly like /datasets.
-The page list/filter/sort itself stays Python-side (the org list is small).
+The page list/filter/sort/pagination is SQL (organisations_stmts — one
+count + one page per request, docs/pagination-plan.md workstream F); the
+memoised full fetch still feeds the facet master lists, the pub-year
+validation whitelist and the sidebar pools.
 
 Sort columns are whitelisted in explorer.sort.SORT_COLUMNS; unknown keys
 fall back to the default (name asc).
@@ -24,17 +27,17 @@ from explorer import facets
 from explorer.helpers import format_date
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
-    DATASET_BUCKET_TESTS,
     DATASET_BUCKETS,
     VALID_DATASET_BUCKETS,
     all_org_rows,
     org_aggregate_rows,
     organisations_facet_counts,
+    organisations_stmts,
     yearly_org_counts,
 )
-from explorer.sort import SORT_COLUMNS, sort_orgs
+from explorer.sort import SORT_COLUMNS
 
-from .core import _sort_dir
+from .core import _sort_dir, paginate
 
 
 def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
@@ -68,6 +71,27 @@ def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
             },
         )
     return rows
+
+
+def _page_row(r: dict) -> dict:
+    """One SQL page row → display row — the same fields _merge_org_rows
+    produces for the table (minus created_year/last_published_year, which
+    only the old Python-side filter consumed). has_data comes from the
+    aggregate join: an org is in the per-dataset aggregate iff it has at
+    least one dataset."""
+    return {
+        "slug": r["slug"],
+        "name": r["display_name"] or r["title"] or r["name"],
+        "dataset_count": r["package_count"] or 0,
+        "resource_count": r["total_resources"] or 0,
+        "views": r["total_views"] or 0,
+        "type": r["type"],
+        "state": r["state"],
+        "approval_status": r["approval_status"],
+        "created": format_date(r["created"]),
+        "last_published": format_date(r["last_published"]),
+        "has_data": r["has_data"],
+    }
 
 
 @dataclass(frozen=True)
@@ -110,35 +134,14 @@ def _parse_filters(request, valid_years, valid_pub_years) -> OrgFilters:
     )
 
 
-def _matches_pub_year(o: dict, pub_years: tuple[str, ...] | None) -> bool:
-    """Org matches the pubyear selection: a real last-published year, or the
-    never-published bucket (__none__) for orgs with no last_published.
-    None (no selection) matches everything."""
-    if pub_years is None:
-        return True
-    if "__none__" in pub_years:
-        return o["last_published_year"] is None
-    return o["last_published_year"] in pub_years
-
-
-def _apply_filters(rows, filters: OrgFilters) -> list[dict]:
-    """Rows matching all active facet filters (filtering happens before
-    sorting)."""
-    return [
-        o
-        for o in rows
-        if (filters.year is None or o["created_year"] == filters.year)
-        and _matches_pub_year(o, filters.pub_years)
-        and (filters.datasets is None or DATASET_BUCKET_TESTS[filters.datasets](o["dataset_count"]))
-    ]
-
-
 def organisations(request):
     """GET /organisations — all orgs, server-side sortable, with facets."""
     # Three fetches, all memoised in queries/organisations.py (build-time
     # snapshot): org rows, the merged per-org aggregate pass, and the
-    # yearly-created chart counts. The per-org aggregate is the page's
-    # dominant cost (~145ms), so it's cached after the first request.
+    # yearly-created chart counts. The full merged rows still feed the
+    # facet master lists, the pub-year validation whitelist and the
+    # sidebar pools; only the page *list* is fetched per request (SQL,
+    # one page of 100 — workstream F).
     org_rows = all_org_rows()
     agg_rows = org_aggregate_rows()
     yearly = yearly_org_counts()
@@ -157,10 +160,25 @@ def organisations(request):
     )
 
     filters = _parse_filters(request, set(years), set(pub_years))
-    shown_rows = _apply_filters(rows, filters)
 
-    # Sort happens after filtering
-    sort_orgs(shown_rows, sort, dir_)
+    # Count + page in SQL — the WHERE clauses mirror the old Python
+    # _apply_filters rules (year/pubyear/datasets), the ORDER BY mirrors
+    # sort_orgs (dates on the raw ISO timestamp, see queries/organisations.py).
+    stmts = organisations_stmts(
+        {
+            "year": filters.year,
+            "pubyear": filters.pub_years,
+            "datasets": filters.datasets,
+        },
+        sort,
+        dir_,
+    )
+    shown_orgs = stmts["count"].get(*stmts["params"])["n"]
+    pagination = paginate(request, shown_orgs)
+    page_rows = [
+        _page_row(r)
+        for r in stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
+    ]
 
     pubyear_param = ",".join(filters.pub_years) if filters.pub_years else None
 
@@ -180,6 +198,7 @@ def organisations(request):
     # Fragment for sort/pagination links — the sort_link/pagination macros
     # append it to ?sort=..&dir=.., so sort/dir come off here.
     facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params)
 
     # Sidebar facet groups (pool counts + current selection -> group).
     # Counts are self-excluding SQL aggregates (each group applies the other
@@ -256,10 +275,8 @@ def organisations(request):
         {
             "title": "data.gov.uk — Explorer",
             "section": "orgs",
-            "orgs": shown_rows,
-            "total_orgs": len(rows),
-            "shown_orgs": len(shown_rows),
-            "total_datasets": sum(o["dataset_count"] for o in rows),
+            "orgs": page_rows,
+            "shown_orgs": shown_orgs,
             "sort": sort,
             "dir": dir_,
             "yearly": yearly,
@@ -276,5 +293,7 @@ def organisations(request):
             "facet_groups": facet_groups,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
+            "pager_base": pager_base,
+            **pagination,
         },
     )
