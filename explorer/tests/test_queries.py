@@ -26,7 +26,7 @@ from explorer.queries.datasets import (
     source_datasets_stmts,
     yearly_dataset_counts,
 )
-from explorer.queries.harvesters import HARVEST_SOURCES
+from explorer.queries.harvesters import HARVEST_SOURCES, harvest_sources_stmts
 from explorer.queries.links import (
     _LINKS_CLAUSES,
     LINKS_STATS,
@@ -482,6 +482,47 @@ def test_org_facet_counts_with_live_year_and_pubyear():
     assert {r["year"]: r["count"] for r in counts["pubyear"]} == pub_ref
     assert counts["no_pubyear"] == no_pub_ref
     assert {r["bucket"]: r["count"] for r in counts["datasets"]} == bucket_ref
+
+
+def test_harvest_sources_stmts_consistency():
+    """/harvesters list builder: count == page-list total across every
+    filter/sort combo, the row shape the template reads, and
+    deterministic pages (the `, LOWER(h.title), h.id` tiebreak pins
+    ties to the stable base order)."""
+    from collections import Counter  # noqa: PLC0415
+
+    from explorer.queries.harvesters import harvest_source_rows  # noqa: PLC0415
+
+    rows = harvest_source_rows()
+    type_counts = Counter(r["type"] for r in rows)
+    top_type = type_counts.most_common(1)[0][0] if type_counts else None
+
+    combos = [
+        {},
+        {"active": "false"},
+        {"datasets": "0"},
+        {"datasets": "1000+"},
+    ]
+    if top_type:
+        combos.append({"type": top_type})
+
+    for filters in combos:
+        for sort, dir_ in (("dataset_count", "desc"), ("title", "asc"), ("last_run", "desc")):
+            stmts = harvest_sources_stmts(filters, sort, dir_)
+            count = stmts["count"].get(*stmts["params"])["n"]
+            rows_all = stmts["list"].all(*stmts["params"], 1_000_000, 0)
+            assert count == len(rows_all), (filters, sort, dir_)
+
+    # Row shape the template reads
+    stmts = harvest_sources_stmts({}, "dataset_count", "desc")
+    row = stmts["list"].all(*stmts["params"], 1, 0)[0]
+    for col in ("id", "title", "type", "active", "frequency", "last_run", "org_name", "dataset_count"):
+        assert col in row, f"harvester list row missing {col}"
+
+    # Deterministic order — the tiebreak pins pages between runs
+    a = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]
+    b = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]
+    assert a == b
 
 
 # ---------------------------------------------------------------------------

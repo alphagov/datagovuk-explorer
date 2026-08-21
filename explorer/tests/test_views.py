@@ -320,76 +320,115 @@ def test_organisation_detail(client):
 # /harvesters
 # ---------------------------------------------------------------------------
 def test_harvesters(client):
-    from explorer.queries.harvesters import harvest_source_rows  # noqa: PLC0415
-    from explorer.sort import sort_harvesters  # noqa: PLC0415
+    """/harvesters — count_pager + sortable, paginated SQL list. Contract
+    test: the page's rows and count must equal the SQL builder's (the view
+    renders harvest_sources_stmts verbatim); the facet contract is
+    test_harvesters_facets."""
+    from explorer.queries.harvesters import harvest_source_rows, harvest_sources_stmts  # noqa: PLC0415
 
     rows = harvest_source_rows()
     assert rows
     total = len(rows)
+
+    # default sort: dataset_count desc — first page rows match the builder
+    out = harvest_sources_stmts({}, "dataset_count", "desc")
+    page1 = out["list"].all(*out["params"], PAGE_SIZE, 0)
+    assert page1
     r = client.get("/harvesters")
     html = r.content.decode()
     assert r.status_code == 200
-    assert f"1-{total:,} of {total:,}" in html
+    # count_pager header: "X-Y of Z" with the filtered total
+    assert f"1-{len(page1):,} of {total:,}" in html
 
-    # default sort: dataset_count desc — most datasets first
-    sorted_default = list(rows)
-    sort_harvesters(sorted_default, "dataset_count", "desc")
-    assert esc(sorted_default[0]["title"]) in html
-
-    # sort combo
-    r2 = client.get("/harvesters?sort=dataset_count&dir=desc")
-    assert r2.status_code == 200
-    sorted_ds = list(rows)
-    sort_harvesters(sorted_ds, "dataset_count", "desc")
-    assert esc(sorted_ds[0]["title"]) in r2.content.decode()
+    # every sort column, both directions — page rows match the builder
+    for sort in ("title", "org_name", "type", "active", "frequency", "dataset_count", "last_run"):
+        for dir_ in ("asc", "desc"):
+            out = harvest_sources_stmts({}, sort, dir_)
+            expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
+            r = client.get(f"/harvesters?sort={sort}&dir={dir_}")
+            assert r.status_code == 200
+            assert esc(expect[0]["title"]) in r.content.decode(), f"sort={sort} dir={dir_}"
 
     # invalid sort falls back to the default column; bogus dir becomes asc
     r3 = client.get("/harvesters?sort=bogus&dir=bogus")
     assert r3.status_code == 200
-    sorted_fallback = list(rows)
-    sort_harvesters(sorted_fallback, "dataset_count", "asc")
-    assert esc(sorted_fallback[0]["title"]) in r3.content.decode()
-
-    # one facet combo: the most common harvest type
-    from collections import Counter  # noqa: PLC0415
-
-    type_counts = Counter(r["type"] for r in rows)
-    top_type, _ = type_counts.most_common(1)[0]
-    n_type = sum(1 for r in rows if r["type"] == top_type)
-    r4 = client.get(f"/harvesters?type={top_type}")
-    h4 = r4.content.decode()
-    assert r4.status_code == 200
-    assert f"1-{n_type:,} of {total:,}" in h4
-
-    # ?active=false renders the Inactive pill + badge
-    n_inactive = sum(1 for r in rows if not r["active"])
-    r5 = client.get("/harvesters?active=false")
-    h5 = r5.content.decode()
-    assert r5.status_code == 200
-    assert f"1-{n_inactive:,} of {total:,}" in h5
-    assert 'class="filter-pill"' in h5
-    assert "Inactive" in h5
-
-    # ?datasets=0 renders the zero-datasets bucket (pill + count)
-    from explorer.queries.organisations import DATASET_BUCKET_TESTS  # noqa: PLC0415
-
-    n_zero = sum(1 for r in rows if DATASET_BUCKET_TESTS["0"](r["dataset_count"]))
-    r6 = client.get("/harvesters?datasets=0")
-    h6 = r6.content.decode()
-    assert r6.status_code == 200
-    assert f"1-{n_zero:,} of {total:,}" in h6
-    assert 'class="filter-pill"' in h6
+    out = harvest_sources_stmts({}, "dataset_count", "asc")
+    expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
+    assert esc(expect[0]["title"]) in r3.content.decode()
 
     # ?datasets=bogus falls back to the unfiltered list
     r7 = client.get("/harvesters?datasets=bogus")
     assert r7.status_code == 200
-    assert f"1-{total:,} of {total:,}" in r7.content.decode()
+    assert f"1-{min(total, PAGE_SIZE):,} of {total:,}" in r7.content.decode()
 
     # Last run column replaces Created: sortable, renders a date or an
     # em-dash for sources that never ran
     assert "Last run" in html
     assert "Created" not in html
     assert "?sort=last_run&dir=asc" in html
+
+    # page 2 exists; pager links keep sort/dir
+    if total > PAGE_SIZE:
+        assert (
+            "?sort=dataset_count&amp;dir=desc&amp;page=2"
+            in client.get(
+                "/harvesters",
+            ).content.decode()
+        )
+        r2 = client.get("/harvesters?page=2")
+        assert r2.status_code == 200
+        assert "?sort=dataset_count&amp;dir=desc&amp;page=1" in r2.content.decode()
+        out2 = harvest_sources_stmts({}, "dataset_count", "desc")
+        page2 = out2["list"].all(*out2["params"], PAGE_SIZE, PAGE_SIZE)
+        assert page2
+        assert esc(page2[0]["title"]) in r2.content.decode()
+    # out-of-range page clamps rather than erroring
+    assert client.get("/harvesters?page=99999").status_code == 200
+
+
+def test_harvesters_facets(client):
+    """Each /harvesters facet's SQL count equals the Python _matches count
+    over the full fetch (the WHERE/HAVING clauses mirror _matches), and the
+    active selection renders its pill."""
+    from collections import Counter  # noqa: PLC0415
+
+    from explorer.queries.harvesters import harvest_source_rows, harvest_sources_stmts  # noqa: PLC0415
+    from explorer.queries.organisations import DATASET_BUCKET_TESTS  # noqa: PLC0415
+
+    rows = harvest_source_rows()
+
+    # the most common harvest type
+    type_counts = Counter(r["type"] for r in rows)
+    top_type, _ = type_counts.most_common(1)[0]
+    n_type = sum(1 for r in rows if r["type"] == top_type)
+    out = harvest_sources_stmts({"type": top_type}, "dataset_count", "desc")
+    assert out["count"].get(*out["params"])["n"] == n_type
+    r4 = client.get(f"/harvesters?type={top_type}")
+    h4 = r4.content.decode()
+    assert r4.status_code == 200
+    assert f"1-{min(n_type, PAGE_SIZE):,} of {n_type:,}" in h4
+    assert 'class="filter-pill"' in h4
+
+    # ?active=false renders the Inactive pill + badge
+    n_inactive = sum(1 for r in rows if not r["active"])
+    out = harvest_sources_stmts({"active": "false"}, "dataset_count", "desc")
+    assert out["count"].get(*out["params"])["n"] == n_inactive
+    r5 = client.get("/harvesters?active=false")
+    h5 = r5.content.decode()
+    assert r5.status_code == 200
+    assert f"1-{min(n_inactive, PAGE_SIZE):,} of {n_inactive:,}" in h5
+    assert 'class="filter-pill"' in h5
+    assert "Inactive" in h5
+
+    # ?datasets=0 renders the zero-datasets bucket (pill + count)
+    n_zero = sum(1 for r in rows if DATASET_BUCKET_TESTS["0"](r["dataset_count"]))
+    out = harvest_sources_stmts({"datasets": "0"}, "dataset_count", "desc")
+    assert out["count"].get(*out["params"])["n"] == n_zero
+    r6 = client.get("/harvesters?datasets=0")
+    h6 = r6.content.decode()
+    assert r6.status_code == 200
+    assert f"1-{min(n_zero, PAGE_SIZE):,} of {n_zero:,}" in h6
+    assert 'class="filter-pill"' in h6
 
 
 # The headline "datasets harvested" matches the /datasets SOURCE facet's

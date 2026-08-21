@@ -17,11 +17,8 @@
 {% endblock header_right_class %}
 
 {% block header_right %}
-  <p class="count">
-    1-{{ shown | num }} of {{ total | num }} sources
-    — {{ total_datasets | num }} datasets harvested
-  </p>
-
+  {{ count_pager(start_index, end_index, shown_sources, page, total_pages, pager_base) }}
+  <p class="count-note">— {{ total_datasets | num }} datasets harvested</p>
   {% if linked_datasets != total_datasets %}
     <p class="count-note">
       {{ linked_datasets | num }} are attributed to the sources below;

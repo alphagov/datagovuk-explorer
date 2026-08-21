@@ -9,9 +9,10 @@ Facets use the same pattern as /organisations:
                    — same buckets as /organisations, applied to the
                    per-source dataset_count
 
-The list is small (a few hundred sources), so the filtering, sorting
-and sidebar facet counts all stay Python-side — no SQL facet pools like
-/datasets needs.
+The list is filtered/sorted/paged in SQL (one count + one page per
+request — pagination-plan workstream F); the sidebar facet counts stay
+Python-side over the memoised full fetch (cheap Counters over the small
+list, correct self-excluding pools).
 
 Sort columns are whitelisted in explorer.sort.HARVESTER_SORT_COLUMNS;
 unknown keys fall back to the default (dataset_count desc).
@@ -27,7 +28,12 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.helpers import format_date
 from explorer.queries.datasets import source_datasets_stmts
-from explorer.queries.harvesters import HARVEST_SOURCE, harvest_source_rows, harvested_total
+from explorer.queries.harvesters import (
+    HARVEST_SOURCE,
+    harvest_source_rows,
+    harvest_sources_stmts,
+    harvested_total,
+)
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
     DATASET_BUCKET_TESTS,
@@ -35,7 +41,7 @@ from explorer.queries.organisations import (
     ORG,
     VALID_DATASET_BUCKETS,
 )
-from explorer.sort import DATASET_SORT_COLUMNS, HARVESTER_SORT_COLUMNS, sort_harvesters
+from explorer.sort import DATASET_SORT_COLUMNS, HARVESTER_SORT_COLUMNS
 
 from .core import _sort_dir, paginate
 
@@ -120,7 +126,7 @@ def _matches(r: dict, filters: HarvesterFilters, exclude: str | None = None) -> 
     counted — self-excluding pools, the same rule as /organisations)."""
     return (
         (exclude == "type" or filters.type is None or r["type"] == filters.type)
-        and (exclude == "active" or filters.active is None or r["active_key"] == filters.active)
+        and (exclude == "active" or filters.active is None or (r["active"] is True) == (filters.active == "true"))
         and (exclude == "frequency" or filters.frequency is None or r["frequency"] == filters.frequency)
         and (
             exclude == "datasets"
@@ -132,24 +138,24 @@ def _matches(r: dict, filters: HarvesterFilters, exclude: str | None = None) -> 
 
 def harvesters(request):
     """GET /harvesters — all harvest sources, server-side sortable, with
-    type/status/frequency facets."""
+    type/status/frequency facets, paginated (100/page).
+
+    The list filter/sort/page is SQL (harvest_sources_stmts — the WHERE
+    clauses mirror _matches); the memoised full fetch still feeds the
+    facet master lists, the validation whitelists and the Python-side
+    self-excluding sidebar pools (cheap Counters over the small fetch).
+    """
     rows = harvest_source_rows()
 
-    # Decorate: display labels (type/frequency/status) + formatted dates.
-    # facet masters double as the label maps, so rows and facets can't drift.
+    # Facet masters over the full fetch — the validation whitelists, the
+    # row-label lookups and the sidebar facet master lists all consume
+    # these (computed once, not per consumer).
     all_types = Counter(r["type"] for r in rows)
     all_frequencies = Counter(r["frequency"] for r in rows)
     type_master = _facet_master(all_types, TYPE_LABELS)
     frequency_master = _facet_master(all_frequencies, FREQUENCY_LABELS)
     type_labels = dict(type_master)
     frequency_labels = dict(frequency_master)
-
-    for r in rows:
-        r["type_label"] = type_labels.get(r["type"], r["type"])
-        r["frequency_label"] = frequency_labels.get(r["frequency"], r["frequency"])
-        r["active_key"] = "true" if r["active"] else "false"
-        r["active_label"] = ACTIVE_LABELS[r["active_key"]]
-        r["last_run"] = format_date(r["last_run"])
 
     sort, dir_ = _sort_dir(request, HARVESTER_SORT_COLUMNS, "dataset_count", "desc")
 
@@ -158,8 +164,32 @@ def harvesters(request):
         set(all_types),
         set(all_frequencies),
     )
-    shown_rows = [r for r in rows if _matches(r, filters)]
-    sort_harvesters(shown_rows, sort, dir_)
+
+    # Count + page in SQL — the WHERE clauses mirror _matches, the ORDER
+    # BY mirrors sort_harvesters (with last_run on the raw ISO timestamp,
+    # see queries/harvesters.py).
+    stmts = harvest_sources_stmts(
+        {
+            "type": filters.type,
+            "active": filters.active,
+            "frequency": filters.frequency,
+            "datasets": filters.datasets,
+        },
+        sort,
+        dir_,
+    )
+    shown_sources = stmts["count"].get(*stmts["params"])["n"]
+    pagination = paginate(request, shown_sources)
+    page_rows = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
+
+    # Decorate only the page's rows: display labels (type/frequency/
+    # status) + formatted dates. The facet masters double as the label
+    # maps, so rows and facets can't drift.
+    for r in page_rows:
+        r["type_label"] = type_labels.get(r["type"], r["type"])
+        r["frequency_label"] = frequency_labels.get(r["frequency"], r["frequency"])
+        r["active_label"] = ACTIVE_LABELS["true" if r["active"] else "false"]
+        r["last_run"] = format_date(r["last_run"])
 
     # Shared query-string base: sort, dir, then the active facets in a
     # fixed order.
@@ -175,12 +205,13 @@ def harvesters(request):
     )
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params)
 
     # Sidebar facet groups — Python-side self-excluding pools: each group
-    # counts over the rows filtered by the other two facets (excluding its
+    # counts over the rows filtered by the other facets (excluding its
     # own), via the shared core.facet_where-style _matches exclude rule.
     type_counts = Counter(r["type"] for r in rows if _matches(r, filters, exclude="type"))
-    active_counts = Counter(r["active_key"] for r in rows if _matches(r, filters, exclude="active"))
+    active_counts = Counter("true" if r["active"] else "false" for r in rows if _matches(r, filters, exclude="active"))
     frequency_counts = Counter(r["frequency"] for r in rows if _matches(r, filters, exclude="frequency"))
     dataset_counts = Counter(
         _dataset_bucket(r["dataset_count"]) for r in rows if _matches(r, filters, exclude="datasets")
@@ -235,9 +266,9 @@ def harvesters(request):
         {
             "title": "Harvesters — data.gov.uk Explorer",
             "section": "harvesters",
-            "sources": shown_rows,
-            "total": len(rows),
-            "shown": len(shown_rows),
+            "sources": page_rows,
+            "shown_sources": shown_sources,
+            **pagination,
             # Headline: harvested datasets by the dataset's own harvested
             # flag — the same definition the /datasets SOURCE facet counts.
             # The per-source dataset_count column is attribution: it only
@@ -258,6 +289,7 @@ def harvesters(request):
             "facet_groups": facet_groups,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
+            "pager_base": pager_base,
         },
     )
 

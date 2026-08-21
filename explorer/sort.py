@@ -92,18 +92,6 @@ def _text_key(row: dict[str, Any], key: str, fallback: str | None = None) -> tup
     return _natural_key(value or "")
 
 
-def sort_harvesters(rows: list[dict[str, Any]], sort: str, dir_: str) -> None:
-    """Sort harvest source rows in place by column key and direction (asc|desc)."""
-    reverse = dir_ == "desc"
-    if sort == "dataset_count":
-        rows.sort(key=lambda r: _num_key(r, sort), reverse=reverse)
-    elif sort == "active":
-        # False sorts before True (False < True alphabetically)
-        rows.sort(key=lambda r: str(bool(r.get("active"))), reverse=reverse)
-    else:
-        rows.sort(key=lambda r: _text_key(r, sort), reverse=reverse)
-
-
 def sort_orgs(rows: list[dict[str, Any]], sort: str, dir_: str) -> None:
     """Sort org rows in place by column key and direction (asc|desc)."""
     reverse = dir_ == "desc"

@@ -28,7 +28,9 @@ dashboard's cards() cache).
 import functools
 from typing import Any
 
-from .core import Query
+from explorer.queries.organisations import DATASET_BUCKET_RANGES
+
+from .core import Query, facet_where
 
 # All harvest sources, with org display name and dataset count. h.id is
 # the primary key, so the other h.* columns are functionally dependent
@@ -64,6 +66,119 @@ HARVEST_SOURCE = Query(
               organization_id, created, json
        FROM harvest_sources WHERE id = %s""",
 )
+
+
+# ── /harvesters list builder (count + one page per filter/sort combo) ──
+#
+# The list used to be filtered/sorted in Python over the memoised full
+# fetch (up to 557 rows, docs/pagination-plan.md workstream F); now the
+# page list/count are SQL — the same joins as HARVEST_SOURCES, with the
+# view's Python _matches rules as WHERE clauses (type/active/frequency)
+# plus a HAVING for the datasets-count bucket (an aggregate), and the
+# sort_harvesters column exprs as ORDER BY.
+#
+# The `, LOWER(h.title), h.id` tail reproduces the old stable-sort tie
+# order: Python's list.sort is stable over the base fetch (ORDER BY
+# LOWER(h.title), h.id), so rows tied on any sort key keep that order —
+# the SQL ORDER BY appends the same two keys, pinning pages against
+# reshuffles. last_run sorts on the raw ISO timestamp: the old Python
+# sorter sorted the *formatted* dd/mm/yyyy string (day-then-month-then-
+# year, not chronological); the ISO sort is the intended semantics.
+
+# Sortable column key → SQL ORDER BY expression (mirrors
+# explorer.sort.sort_harvesters; `active` is a real boolean, so FALSE
+# sorts before TRUE exactly like "False" < "True" in Python).
+HARVESTER_SORT_EXPRS = {
+    "title": "LOWER(COALESCE(h.title, ''))",
+    "org_name": "LOWER(COALESCE(o.display_name, o.title, o.name, ''))",
+    "type": "LOWER(COALESCE(h.type, ''))",
+    "active": "h.active",
+    "frequency": "LOWER(COALESCE(h.frequency, ''))",
+    "dataset_count": "COUNT(d.id)",
+    "last_run": "COALESCE(NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None'), '')",
+}
+
+_HARVEST_SOURCE_SELECT = (
+    "SELECT h.id, h.title, h.url, h.type, h.active, h.frequency, h.created,"
+    "       NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None') AS last_run,"
+    "       COALESCE(o.display_name, o.title, o.name) AS org_name,"
+    "       COUNT(d.id) AS dataset_count"
+    " FROM harvest_sources h"
+    " LEFT JOIN organisations o ON o.slug = h.org_slug"
+    " LEFT JOIN datasets d ON d.harvest_source_id = h.id"
+)
+
+# h.id is the primary key, so the other h.* columns are functionally
+# dependent on it and don't need GROUP BY entries (same as HARVEST_SOURCES).
+_GROUP_BY = " GROUP BY h.id, o.display_name, o.title, o.name"
+
+
+def _type_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """type WHERE fragment + params, or ([], []) when skipped/excluded."""
+    if exclude == "type":
+        return [], []
+    type_ = filters.get("type")
+    if type_:
+        return ["h.type = %s"], [type_]
+    return [], []
+
+
+def _active_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """active WHERE fragment + params (a real boolean), or ([], []) when
+    skipped/excluded. Mirrors the view's `r["active"] is True ==
+    (filters.active == "true")` — a NULL active would match "false" in
+    Python but be excluded by `h.active = FALSE` in SQL (no NULLs exist,
+    so the divergence is unobserved)."""
+    if exclude == "active":
+        return [], []
+    active = filters.get("active")
+    if active in ("true", "false"):
+        return ["h.active = %s"], [active == "true"]
+    return [], []
+
+
+def _frequency_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """frequency WHERE fragment + params, or ([], []) when skipped/excluded."""
+    if exclude == "frequency":
+        return [], []
+    frequency = filters.get("frequency")
+    if frequency:
+        return ["h.frequency = %s"], [frequency]
+    return [], []
+
+
+# The three WHERE clause builders, keyed by facet — core.facet_where ANDs
+# them together. The datasets bucket is handled separately in the builder:
+# it's a HAVING on the COUNT(d.id) aggregate, not a WHERE on a column.
+_HARVESTER_FACET_CLAUSES = {
+    "type": _type_clause,
+    "active": _active_clause,
+    "frequency": _frequency_clause,
+}
+
+
+def harvest_sources_stmts(filters: dict, sort: str, dir_: str) -> dict:
+    """Count + page list for /harvesters — one (filters, sort, dir) combo.
+
+    {params, count, list} contract, same as datasets_stmts: the view
+    drives the LIMIT/OFFSET page with core.paginate(). The datasets-count
+    bucket becomes a HAVING with boundaries from DATASET_BUCKET_RANGES —
+    the same edges as the view's Python bucket tests, applied to
+    COUNT(d.id)."""
+    where, params = facet_where(_HARVESTER_FACET_CLAUSES, filters)
+    having = ""
+    bucket = filters.get("datasets")
+    if bucket:
+        lo, hi = DATASET_BUCKET_RANGES[bucket]
+        having = " HAVING COUNT(d.id) > %s" if hi is None else " HAVING COUNT(d.id) BETWEEN %s AND %s"
+        params = [*params, lo] if hi is None else [*params, lo, hi]
+    order_sql = f"{HARVESTER_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, LOWER(h.title), h.id"
+    stmt = f"{_HARVEST_SOURCE_SELECT}{where}{_GROUP_BY}{having}"
+    return {
+        "params": params,
+        "count": Query(f"SELECT COUNT(*) AS n FROM ({stmt}) s"),
+        "list": Query(f"{stmt} ORDER BY {order_sql} LIMIT %s OFFSET %s"),
+    }
 
 
 @functools.cache
