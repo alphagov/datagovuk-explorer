@@ -1,9 +1,7 @@
 {% extends "_report.html" %}
 
-{% block report_header %}
+{% block report_header_left %}
   <h1>Links</h1>
-
-  <p class="count">{{ start_index | num }}-{{ end_index | num }} of {{ filtered_links | num }}</p>
 
   {% if current_host or current_format or current_year %}
     <div class="filter-pills" aria-label="Active filters">
@@ -20,12 +18,15 @@
       {% endif %}
     </div>
   {% endif %}
-{% endblock report_header %}
+{% endblock report_header_left %}
+
+{% block report_header_right %}
+  <p class="count">{{ start_index | num }}-{{ end_index | num }} of {{ filtered_links | num }}</p>
+  {{ pagination(page, total_pages, sort, dir, facet_qs) }}
+{% endblock report_header_right %}
 
 {% block report_facets %}
-  {% for g in facet_groups %}
-    {{ facet_group(g, facet_url) }}
-  {% endfor %}
+  {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
 {% endblock report_facets %}
 
 {% block report_table %}
@@ -57,8 +58,6 @@
       </tbody>
     </table>
   </div>
-
-  {{ pagination(page, total_pages, sort, dir, facet_qs) }}
 
   <script defer src="{{ static('links.js') }}"></script>
 {% endblock report_table %}

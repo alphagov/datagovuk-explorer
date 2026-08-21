@@ -1,9 +1,7 @@
 {% extends "_report.html" %}
 
-{% block report_header %}
+{% block report_header_left %}
   <h1>Organisations</h1>
-
-  <p class="count">1-{{ shown_orgs | num }} of {{ total_orgs | num }}</p>
 
   {% if year or pubyear or datasets %}
     <div class="filter-pills" aria-label="Active filters">
@@ -16,12 +14,14 @@
       {% endif %}
     </div>
   {% endif %}
-{% endblock report_header %}
+{% endblock report_header_left %}
+
+{% block report_header_right %}
+  <p class="count">1-{{ shown_orgs | num }} of {{ total_orgs | num }}</p>
+{% endblock report_header_right %}
 
 {% block report_facets %}
-  {% for g in facet_groups %}
-    {{ facet_group(g, facet_url) }}
-  {% endfor %}
+  {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
 {% endblock report_facets %}
 
 {% block report_table %}

@@ -5,7 +5,7 @@
   <link rel="stylesheet" href="{{ static('css/pages/report.css') }}" />
 {% endblock styles %}
 
-{% block report_header %}
+{% block report_header_left %}
   {% if detail_url %}
     {{ back_link('/report/links-duplicate-urls', 'Duplicate URLs across datasets') }}
   {% else %}
@@ -29,14 +29,12 @@
       {% endfor %}
     </div>
   {% endif %}
+{% endblock report_header_left %}
 
-  <p class="count">
-    {{ current.count | num }} total
-    {% if total_pages > 1 %}
-      <span class="page-info">— showing {{ start_index | num }}-{{ end_index | num }} (page {{ page }} of {{ total_pages }})</span>
-    {% endif %}
-  </p>
-{% endblock report_header %}
+{% block report_header_right %}
+  <p class="count">{{ current.count | num }} total</p>
+  {{ pagination(page, total_pages, "name", "asc", facet_qs) }}
+{% endblock report_header_right %}
 
 {% block report_facets %}
   {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
@@ -170,6 +168,4 @@
       {% endif %}
     </table>
   </div>
-
-  {{ pagination(page, total_pages, "name", "asc", facet_qs) }}
 {% endblock report_table %}

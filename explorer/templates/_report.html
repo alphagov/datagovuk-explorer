@@ -1,20 +1,45 @@
 {% extends "_layout.html" %}
 
 {# Report layout — pages with a header, sidebar facets, and a main table.
-   Override report_header (h1, count, filter pills), report_facets (facet
-   groups), and report_table (table + pagination). #}
+   The panes are defined here; each page fills the blocks inside them:
+
+     layout-header__left   pane → report_header_left  (heading, description,
+                                                       filter pills)
+     layout-header__right  pane → report_header_right (count + pager)
+     facets                pane → report_facets       (facet groups)
+     content-main          pane → report_table        (table only — pagination
+                                                       lives in the header right)
+
+   Pages that need the right pane to stack its content vertically (e.g.
+   harvesters' count + note) override report_header_right_class with the
+   modifier class.
+
+   Report pages get the app-like layout (body.app-layout, see
+   pages/app-layout.css): a viewport-height frame with the header row and
+   facets fixed, and the table scrolling in the section below. #}
+
+{% block body_attrs %}
+  class="app-layout"
+{% endblock body_attrs %}
 
 {% block styles %}
   <link rel="stylesheet" href="{{ static('css/components/pills.css') }}" />
   <link rel="stylesheet" href="{{ static('css/components/content-layout.css') }}" />
   <link rel="stylesheet" href="{{ static('css/components/facets.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/pages/app-layout.css') }}" />
 {% endblock styles %}
 
 {% block page_header %}
   <div class="content-layout{% if has_facets is defined and not has_facets %} content-layout--full{% endif %}">
     <div class="layout-header">
-      {% block report_header %}
-      {% endblock report_header %}
+      <div class="layout-header__left">
+        {% block report_header_left %}
+        {% endblock report_header_left %}
+      </div>
+      <div class="layout-header__right{% block report_header_right_class %}{% endblock report_header_right_class %}">
+        {% block report_header_right %}
+        {% endblock report_header_right %}
+      </div>
     </div>
   </div>
 {% endblock page_header %}

@@ -6,9 +6,11 @@
 
 .facets {
 	background: var(--color-surface);
-	border-radius: var(--radius);
 	box-shadow: var(--shadow);
-	padding: 16px 18px;
+	/* Big bottom padding inside the scroll area (the pane scrolls in the
+	   app layout), so the last facet group floats above the pane edge
+	   instead of sitting flush against it when scrolled to the bottom. */
+	padding: 16px 18px 60px;
 }
 
 .facet-group + .facet-group {
@@ -36,7 +38,6 @@
 	gap: 8px;
 	padding: 5px 8px;
 	margin: 0 -8px;
-	border-radius: var(--radius-sm);
 	color: var(--color-text);
 	font-size: var(--text-sm);
 	text-decoration: none;
@@ -47,7 +48,6 @@
 	content: "";
 	position: absolute;
 	inset: 0;
-	border-radius: var(--radius-sm);
 	background: var(--color-border);
 	opacity: 0.6;
 	transform: scaleX(var(--facet-prop, 0));
@@ -119,7 +119,6 @@
 	display: block;
 	padding: 6px 8px;
 	margin: 0 -8px;
-	border-radius: var(--radius-sm);
 	font-size: var(--text-sm);
 	font-weight: 600;
 	color: var(--color-accent);

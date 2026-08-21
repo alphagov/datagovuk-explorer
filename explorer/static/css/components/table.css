@@ -19,17 +19,25 @@
  *   .data-table--report  fixed layout + explicit column widths
  *                            (defined in pages/report.css)
  *
- * Sticky header: the page itself must be the scroll container, so do not
- * add overflow-x/auto/scroll to .table-wrap — any overflow value makes the
- * wrapper the nearest scroll container and position: sticky sticks within
- * it, which never scrolls vertically, so the header never sticks.
+ * Sticky header: the wrapper is its own scroll container (max-height +
+ * overflow: auto), so wide tables scroll horizontally inside the white card
+ * instead of stretching the page, and the header sticks to the top of the
+ * card's scrollport while the table scrolls vertically within it. Short
+ * tables never overflow, so the card just sits on the page like a block.
  * ------------------------------------------------------------------------- */
 
 .table-wrap {
 	background: var(--color-surface);
-	border-radius: var(--radius);
 	box-shadow: var(--shadow);
-	/* No overflow here on purpose — see the sticky-header note above. */
+	/* Scrolls inside the card, not the page — see the sticky-header note
+	   above. max-height caps the internal scroll region; bump it if the
+	   contained-scroll feel is too aggressive for long tables. */
+	max-height: 70vh;
+	overflow: auto;
+	/* Big bottom padding inside the scroll area, so the last row floats
+	   above the pane edge instead of sitting flush against it when
+	   scrolled to the bottom (see also facets.css). */
+	padding-bottom: 60px;
 }
 
 .data-table {
@@ -58,22 +66,14 @@
 	min-width: 260px;
 }
 
-/* Sticky header — sticks to the top of the viewport while the page
-   scrolls. The th's own background stays with it and covers rows scrolling
-   underneath. The rounded top corners mirror .table-wrap's radius now that
-   the wrapper no longer clips the table. */
+/* Sticky header — sticks to the top of the .table-wrap scrollport while
+   the table scrolls vertically inside the card (the card, not the page,
+   is the scroll container now). The th's own background stays with it and
+   covers rows scrolling underneath. */
 .data-table thead th {
 	position: sticky;
 	top: 0;
 	z-index: 1;
-}
-
-.data-table thead th:first-child {
-	border-top-left-radius: var(--radius);
-}
-
-.data-table thead th:last-child {
-	border-top-right-radius: var(--radius);
 }
 
 .data-table td {

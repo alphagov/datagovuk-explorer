@@ -7,10 +7,8 @@
   <link rel="stylesheet" href="{{ static('css/pages/suggestions.css') }}" />
 {% endblock styles %}
 
-{% block report_header %}
+{% block report_header_left %}
   <h1>Suggestions</h1>
-
-  <p class="count">{{ start_index | num }}-{{ end_index | num }} of {{ total | num }}</p>
 
   <p class="subtitle">
     LLM-suggested theme, tags, title and description improvements for
@@ -19,7 +17,12 @@
     —
     <a href="https://www.data.gov.uk" target="_blank" rel="noopener">data.gov.uk</a>
   </p>
-{% endblock report_header %}
+{% endblock report_header_left %}
+
+{% block report_header_right %}
+  <p class="count">{{ start_index | num }}-{{ end_index | num }} of {{ total | num }}</p>
+  {{ pagination(page, total_pages) }}
+{% endblock report_header_right %}
 
 {% block report_facets %}
 {% endblock report_facets %}
@@ -78,5 +81,4 @@
     </table>
   </div>
 
-  {% if total_pages > 1 %}<div class="table-nav-bottom">{{ pagination(page, total_pages) }}</div>{% endif %}
 {% endblock report_table %}

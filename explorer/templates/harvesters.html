@@ -1,19 +1,7 @@
 {% extends "_report.html" %}
 
-{% block report_header %}
+{% block report_header_left %}
   <h1>Harvesters</h1>
-
-  <p class="count">
-    1-{{ shown | num }} of {{ total | num }} sources
-    — {{ total_datasets | num }} datasets harvested
-  </p>
-
-  {% if linked_datasets != total_datasets %}
-    <p class="count-note">
-      {{ linked_datasets | num }} are attributed to the sources below;
-      the rest were harvested by sources no longer in the registry.
-    </p>
-  {% endif %}
 
   {% if type or active or frequency or datasets %}
     <div class="filter-pills" aria-label="Active filters">
@@ -31,7 +19,25 @@
       {% endif %}
     </div>
   {% endif %}
-{% endblock report_header %}
+{% endblock report_header_left %}
+
+{% block report_header_right_class %}
+  layout-header__right--stacked
+{% endblock report_header_right_class %}
+
+{% block report_header_right %}
+  <p class="count">
+    1-{{ shown | num }} of {{ total | num }} sources
+    — {{ total_datasets | num }} datasets harvested
+  </p>
+
+  {% if linked_datasets != total_datasets %}
+    <p class="count-note">
+      {{ linked_datasets | num }} are attributed to the sources below;
+      the rest were harvested by sources no longer in the registry.
+    </p>
+  {% endif %}
+{% endblock report_header_right %}
 
 {% block report_facets %}
   {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}

@@ -24,7 +24,7 @@
     {% block styles %}
     {% endblock styles %}
   </head>
-  <body>
+  <body{% block body_attrs %}{% endblock %}>
     {% macro nav_link(href, label, active_section) %}
       <a href="{{ href }}"
          class="nav-link{% if section == active_section %} nav-link--active{% endif %}"
