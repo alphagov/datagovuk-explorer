@@ -2,7 +2,6 @@
 
 {% block header_left %}
   <h1>Harvesters</h1>
-
   {% set pills = [
       {"label": "Type", "value": type_label, "href": facet_url("type", "") , "aria": "Remove type filter: " ~ type_label} if type else none,
       {"label": "Status", "value": active_label, "href": facet_url("active", "") , "aria": "Remove status filter: " ~ active_label} if active else none,
@@ -12,19 +11,8 @@
   {{ filter_pills(pills) }}
 {% endblock header_left %}
 
-{% block header_right_class %}
-  layout-header__right--stacked
-{% endblock header_right_class %}
-
 {% block header_right %}
   {{ pagination(start_index, end_index, shown_sources, page, total_pages, pager_base) }}
-  <p class="count-note">— {{ total_datasets | num }} datasets harvested</p>
-  {% if linked_datasets != total_datasets %}
-    <p class="count-note">
-      {{ linked_datasets | num }} are attributed to the sources below;
-      the rest were harvested by sources no longer in the registry.
-    </p>
-  {% endif %}
 {% endblock header_right %}
 
 {% block table %}
