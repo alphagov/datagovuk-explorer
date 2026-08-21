@@ -11,6 +11,7 @@ skip when it's unreachable or empty.
 
 import math
 import re
+from urllib.parse import urlencode
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -780,7 +781,7 @@ def test_metadata_pages(client):
     r2 = client.get(f"/metadata/{section}/{name}")
     h2 = r2.content.decode()
     assert r2.status_code == 200
-    assert f"<h1>{name}</h1>" in h2
+    assert f"<h1>Metadata: {name}</h1>" in h2
     first = METADATA_VALUES.all(top["key"], 100, 0)[0]
     assert esc(first["value"]) in h2
 
@@ -948,6 +949,67 @@ def test_suggestions(client):
     r = client.get("/suggestions?page=99999")
     assert r.status_code == 200
     assert page_ids(r.content.decode()) == expected_suggestion_ids("confidence", "asc", 99999)
+
+
+def _pager_hrefs(html):
+    """Pager link hrefs (page numbers + prev/next all use .page-link)."""
+    return re.findall(r'<a class="page-link" href="([^"]+)"', html)
+
+
+def test_pager_urls_never_undefined(client):
+    """Regression: pages without a sort UI used to render pager links like
+    ?sort=undefined&dir=undefined&page=N (the macros' old "kept deliberately"
+    defaults), and /report/{key} hardcoded sort=name&dir=asc although it has
+    no sort UI. The macros now take a base fragment the view builds
+    (pagination-plan workstream B), so every pager href is either the view's
+    own query state (?sort=..&dir=..&page=N) or a clean ?page=N — never
+    "undefined", and reports never pretend to sort by name."""
+    # /suggestions — sortable, > 100 rows: the pager keeps the view's sort/dir
+    total = suggestions_stmts("confidence", "asc")["count"].get()["n"]
+    if total > PAGE_SIZE:
+        html = client.get("/suggestions").content.decode()
+        hrefs = _pager_hrefs(html)
+        assert hrefs, "suggestions pager should render"
+        assert "undefined" not in "".join(hrefs)
+        expect_base = "?" + esc(urlencode({"sort": "confidence", "dir": "asc"}))
+        assert all(h.startswith(expect_base + "&amp;page=") for h in hrefs)
+
+    # /metadata/{s}/{n} — no query state at all: clean ?page=N
+    keys = METADATA_KEYS.all()
+    top = next(k for k in keys if k["section"] == "top")
+    section, name = top["key"].split(":", 1)
+    n_values = METADATA_VALUE_COUNT.get(top["key"])["n"]
+    if n_values > PAGE_SIZE:
+        html = client.get(f"/metadata/{section}/{name}").content.decode()
+        hrefs = _pager_hrefs(html)
+        assert hrefs, "metadata values pager should render"
+        assert "undefined" not in "".join(hrefs)
+        assert all(h.startswith("?page=") for h in hrefs)
+
+    # /report/{key} — no sort UI: unfiltered links are clean ?page=N, and
+    # with an active facet they keep only the facet (?org=..&page=N)
+    report = next(r for r in REPORTS if r["kind"] != "duplicate-urls")
+    total = report_stmts(report)["count"].get()["n"]
+    if total > PAGE_SIZE:
+        html = client.get(f"/report/{report['key']}").content.decode()
+        hrefs = _pager_hrefs(html)
+        assert hrefs, "report pager should render"
+        assert "undefined" not in "".join(hrefs)
+        assert all(h.startswith("?page=") for h in hrefs)
+        if report.get("facets"):
+            facet = report["facets"][0]
+            sql, params = report_facet_counts(report, {})[facet["key"]]
+            options = Query(sql).all(*params)
+            if options:
+                slug = options[0]["slug"]
+                r2 = client.get(
+                    f"/report/{report['key']}?{urlencode({facet['key']: slug})}",
+                )
+                hrefs2 = _pager_hrefs(r2.content.decode())
+                if hrefs2:  # the facet may filter below a pager
+                    assert "undefined" not in "".join(hrefs2)
+                    expect_base = "?" + esc(urlencode({facet["key"]: slug}))
+                    assert all(h.startswith(expect_base + "&amp;page=") for h in hrefs2)
 
 
 # ---------------------------------------------------------------------------
