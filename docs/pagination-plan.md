@@ -74,8 +74,8 @@
 | C — SQL port of `/reviews` | done — `0d8798b` (notes inline below) |
 | D — SQL port of `/suggestions` | done — `afe23e6` (notes inline below) |
 | E — org + harvester detail pagination | done — `e641c7e` (org), `3ec83ce` (harvester); `sort_datasets` deleted (notes inline below) |
-| F — organisations + harvesters list pagination | pending |
-| G — tests | reviews contract-test landed with C; suggestions with D; org + harvester detail contract tests landed with E; F's pagination tests pending |
+| F — organisations + harvesters list pagination | harvesters half done — `4683750` (notes inline below); organisations half pending |
+| G — tests | reviews contract-test landed with C; suggestions with D; org + harvester detail contract tests landed with E; F's pagination tests land with the F commits — harvesters landed with `4683750`, organisations pending |
 
 ## Workstreams (in order)
 
@@ -184,20 +184,46 @@ Original plan:
 - `/organisation/{slug}`: replace `DATASETS_BY_ORG.all(slug)` with a count + `LIMIT/OFFSET` builder (`WHERE org_slug = %s`, `ORDER BY` from `DATASET_SORT_COLUMNS` exprs + `, d.id` tiebreak — exactly the `/datasets` builder shape, one fixed param). Drop the Python `sort_datasets`. `harvested_count` becomes a second count (`AND harvested = 1`). Template: add `count_pager` header; table unchanged.
 - `/harvester/{id}`: same for `DATASETS_BY_SOURCE`; `dataset_count` currently `len(datasets)` → the count query.
 
-### F. Organisations + harvesters list pagination
+### F. Organisations + harvesters list pagination — harvesters done (`4683750`); organisations pending
 
-The facet clause builders already exist in SQL (`_ORG_FACET_CLAUSES`, used by the sidebar pools) — the list just needs to use them:
+Harvesters half, as implemented (`4683750`): `queries/harvesters.py`
+gains `harvest_sources_stmts(filters, sort, dir_)` with the `{params,
+count, list}` contract — the `HARVEST_SOURCES` joins with the view's
+Python `_matches` rules as WHERE clauses (type/active/frequency via the
+shared `facet_where` pattern) plus a **HAVING** for the datasets-count
+bucket (an aggregate; boundaries from `DATASET_BUCKET_RANGES` — the same
+edges as the Python bucket tests). `HARVESTER_SORT_EXPRS` ORDER BY with a
+`, LOWER(h.title), h.id` tail reproducing the old stable-sort tie order
+(the base fetch's `ORDER BY LOWER(h.title), h.id` — this table's
+`, d.id`-style pin). `last_run` sorts on the raw ISO timestamp: the old
+Python sorter sorted the *formatted* dd/mm/yyyy string (day-then-month-
+then-year, not chronological), so this is a deliberate correction.
+
+The view drives count + one page via `core.paginate()` and decorates only
+the page's rows (it used to mutate the memoised full fetch in place); the
+facet master lists, validation whitelists and the Python-side
+self-excluding sidebar pools still run over the memoised 557-row fetch
+per the original spec. The template's hardcoded `1-{{ shown }} of {{ total }}`
+→ `count_pager` (the "N datasets harvested" headline moves to the
+count-note line). `sort_harvesters` deleted from `explorer/sort.py` — the
+list was its last consumer. Tests: `test_harvesters` rewritten as a
+contract test against the builder (every sort column × dir, page-2 range
++ pager URLs keeping sort/dir, page clamp); new `test_harvesters_facets`
+pins each facet's SQL count to the Python `_matches` count over the full
+fetch; `test_queries.py` gains a count==list + determinism check.
+
+Original plan:
 
 - `/organisations`: `organisations o LEFT JOIN (<aggregate subquery>) a` + `facet_where(_ORG_FACET_CLAUSES, filters)` + `ORDER BY <sort expr>` + `LIMIT/OFFSET`. Sort exprs for `SORT_COLUMNS` (resource_count/views/last_published come from the aggregate join). **The memoised full-table `ORG_AGGREGATES` and `all_org_rows` stay as-is** — the page still needs the full pools for the facet master lists, pub-year validation and the total-datasets headline, and the aggregate pass is already a cached build-time snapshot, so serving pages from it costs nothing. Only the *list* becomes SQL.
-- `/harvesters`: add WHERE clauses (type/active/frequency/datasets-bucket — the Python `_matches` rules become SQL, bucket ranges already exist in `organisations.py`) + ORDER BY (harvester sort exprs incl. `last_run`) + LIMIT/OFFSET to the `HARVEST_SOURCES` query shape; decorate only the page's rows. Facet counts **stay Python-side** over the full 557-row memoised fetch (cheap Counters, correct self-excluding pools).
-- Both templates: hardcoded `1-{{ shown }} of {{ total }}` → `count_pager`.
+- `/harvesters` — **done (`4683750`)**: add WHERE clauses (type/active/frequency/datasets-bucket — the Python `_matches` rules become SQL, bucket ranges already exist in `organisations.py`) + ORDER BY (harvester sort exprs incl. `last_run`) + LIMIT/OFFSET to the `HARVEST_SOURCES` query shape; decorate only the page's rows. Facet counts **stay Python-side** over the full 557-row memoised fetch (cheap Counters, correct self-excluding pools).
+- Both templates: hardcoded `1-{{ shown }} of {{ total }}` → `count_pager` — done for harvesters with `4683750`; organisations pending.
 
 ### G. Tests
 
 - `test_views.py` imports of `PAGE_SIZE` move to the shared constant — done with A (`e67cfad`).
 - Reviews — done with C (`0d8798b`): `expected_review_ids` fetches from `reviews_stmts` (contract test: view page == builder page); the invalid-sort / page-clamp / facet tests are kept.
 - Suggestions: `expected_suggestion_ids` replicates the Python sort — rewrite to fetch from the new SQL builder with D (same contract test shape).
-- New: org detail + harvester detail pagination tests — done with E (`e641c7e`, `3ec83ce`; contract tests against the builders, every sort column × dir, page-2 range + pager URL, page clamp). Organisations + harvesters pagination tests land with F; a pager-URL assertion (`/suggestions` and `/metadata/...` links contain no `undefined`, reports/metadata-values link `?page=N` only); page-size assertions updated to 100.
+- New: org detail + harvester detail pagination tests — done with E (`e641c7e`, `3ec83ce`; contract tests against the builders, every sort column × dir, page-2 range + pager URL, page clamp). Organisations + harvesters pagination tests land with F — harvesters landed with `4683750` (`test_harvesters` contract test + new `test_harvesters_facets` pinning the SQL facet counts to the Python `_matches` counts), organisations pending; a pager-URL assertion (`/suggestions` and `/metadata/...` links contain no `undefined`, reports/metadata-values link `?page=N` only); page-size assertions updated to 100.
 - Keep the existing `1-100 of X` assertions on `/datasets`/`/links` (size unchanged).
 
 ## Decisions to confirm
@@ -212,4 +238,4 @@ The facet clause builders already exist in SQL (`_ORG_FACET_CLAUSES`, used by th
 - **A + B**: small, mechanical, fixes the #4 bug immediately — done (`e67cfad`, `502f67f`).
 - **C + D**: medium; the biggest single behaviour change, but the schema supports it and verified no ingest dedup surprises (0 duplicate rows). Both done — C (`0d8798b`), D (`afe23e6`).
 - **E**: medium, high value — the 5.6k-row org page. Done — `e641c7e` (org detail), `3ec83ce` (harvester detail).
-- **F**: the largest surface (two pages move from Python-side to SQL-side filter/sort), but the clause builders and sort whitelists already exist; harvesters is the easier half.
+- **F**: the largest surface (two pages move from Python-side to SQL-side filter/sort), but the clause builders and sort whitelists already exist; harvesters is the easier half — done (`4683750`), organisations to go.
