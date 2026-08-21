@@ -17,7 +17,7 @@
 {% endblock header_right_class %}
 
 {% block header_right %}
-  {{ count_pager(start_index, end_index, shown_sources, page, total_pages, pager_base) }}
+  {{ pagination(start_index, end_index, shown_sources, page, total_pages, pager_base) }}
   <p class="count-note">— {{ total_datasets | num }} datasets harvested</p>
   {% if linked_datasets != total_datasets %}
     <p class="count-note">

@@ -218,6 +218,8 @@ def dataset(request, org_slug, dataset_id):
 
     # Related datasets via tsvector "more like this"
     match_str = build_match_string(dataset.get("title"), dataset.get("tags"))
+    # small list — related lists are bounded by LIMIT 20 in SQL, exempt
+    # from pagination (see docs/pagination-plan.md).
     related: list = []
     if match_str:
         # Series-exclusion version: datasets in the same detected series as

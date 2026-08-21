@@ -1,9 +1,16 @@
-{# Pagination controls. `base` is the "?…" query fragment the view builds
+{# Pagination controls for the header-right pane: the "X–Y of Z" count
+   followed by the pager. `base` is the "?…" query fragment the view builds
    (sort/dir + active facets for sortable pages, facets only for reports,
    "" for pages with no query state). Each page link is
    base + "&page=N" (or "?page=N" when base is empty), so pages without
-   a sort UI stop emitting the old sort=undefined URLs. #}
-{% macro pagination(page, total_pages, base="") %}
+   a sort UI stop emitting the old sort=undefined URLs.
+
+   The count renders only when `total` is given (start/end/total); the pager
+   renders only when total_pages > 1. #}
+{% macro pagination(start=None, end=None, total=None, page=1, total_pages=1, base="") %}
+  {% if total is not none %}
+    <p class="count">{{ start | num }}-{{ end | num }} of {{ total | num }}</p>
+  {% endif %}
   {% if total_pages > 1 %}
     {% set page_href = base + "&page=" if base else "?page=" %}
     <nav class="pagination" aria-label="Pagination">
@@ -20,11 +27,4 @@
       {% if page < total_pages %}<a class="page-link" href="{{ page_href }}{{ page + 1 }}">Next →</a>{% endif %}
     </nav>
   {% endif %}
-{% endmacro %}
-
-{# Count + pagination pair for the header-right pane: "X–Y of Z" count
-   followed by the pager. base mirrors pagination(). #}
-{% macro count_pager(start, end, total, page, total_pages, base="") %}
-  <p class="count">{{ start | num }}-{{ end | num }} of {{ total | num }}</p>
-  {{ pagination(page, total_pages, base) }}
 {% endmacro %}

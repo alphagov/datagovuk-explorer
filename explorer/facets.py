@@ -83,7 +83,7 @@ def facet_qs(base_params, *, include_sort=True):
 
 
 def pager_base(base_params, *, include_sort=True):
-    """The "?…" base fragment for the pagination/count_pager macros — the
+    """The "?…" base fragment for the pagination macro — the
     ordered base params (sort, dir, then each active facet) as a
     ?-prefixed query string, exactly the fragment the macros append
     "&page=N" to. include_sort=False drops sort/dir (pages with no sort

@@ -214,7 +214,7 @@ def test_has_api_both_facets(client):
 # /organisations (facet page)
 # ---------------------------------------------------------------------------
 def test_organisations(client):
-    """/organisations — count_pager + sortable, paginated SQL list. Contract
+    """/organisations — count + sortable, paginated SQL list. Contract
     test: the page's rows and count must equal the SQL builder's (the view
     renders organisations_stmts verbatim); the facet contract is
     test_organisations_facets."""
@@ -231,7 +231,7 @@ def test_organisations(client):
     r = client.get("/organisations")
     html = r.content.decode()
     assert r.status_code == 200
-    # count_pager header: "X-Y of Z" with the filtered total
+    # count header: "X-Y of Z" with the filtered total
     assert f"1-{len(page1):,} of {total:,}" in html
 
     # every sort column, both directions — page rows match the builder
@@ -356,7 +356,7 @@ def test_organisations_facets(client):
 
 
 def test_organisation_detail(client):
-    """/organisation/{slug} — count_pager + sortable, paginated SQL list.
+    """/organisation/{slug} — count + sortable, paginated SQL list.
     Contract test: the page's first row and page range must equal the SQL
     builder's (the view renders org_datasets_stmts verbatim)."""
     org = next(o for o in ORGS.all() if (DATASET_COUNT.get(o["slug"]) or {}).get("count", 0) > 0)
@@ -371,7 +371,7 @@ def test_organisation_detail(client):
     html = r.content.decode()
     assert r.status_code == 200
     assert esc(org["display_name"] or org["slug"]) in html
-    # count_pager header: "X-Y of Z" with the org's dataset total
+    # count header: "X-Y of Z" with the org's dataset total
     assert f"1-{len(first_page):,} of {count:,}" in html
     # default sort metadata_modified desc — first dataset row
     assert esc(first_page[0]["title"] or first_page[0]["name"]) in html
@@ -414,7 +414,7 @@ def test_organisation_detail(client):
 # /harvesters
 # ---------------------------------------------------------------------------
 def test_harvesters(client):
-    """/harvesters — count_pager + sortable, paginated SQL list. Contract
+    """/harvesters — count + sortable, paginated SQL list. Contract
     test: the page's rows and count must equal the SQL builder's (the view
     renders harvest_sources_stmts verbatim); the facet contract is
     test_harvesters_facets."""
@@ -431,7 +431,7 @@ def test_harvesters(client):
     r = client.get("/harvesters")
     html = r.content.decode()
     assert r.status_code == 200
-    # count_pager header: "X-Y of Z" with the filtered total
+    # count header: "X-Y of Z" with the filtered total
     assert f"1-{len(page1):,} of {total:,}" in html
 
     # every sort column, both directions — page rows match the builder
@@ -545,7 +545,7 @@ def test_harvesters_total_matches_datasets_facet(client):
 # /harvester/{id} (detail page)
 # ---------------------------------------------------------------------------
 def test_harvester_detail(client):
-    """/harvester/{id} — count_pager + sortable, paginated SQL list.
+    """/harvester/{id} — count + sortable, paginated SQL list.
     Contract test: the page's first row and page range must equal the SQL
     builder's (the view renders source_datasets_stmts verbatim)."""
     from explorer.queries.datasets import source_datasets_stmts  # noqa: PLC0415
@@ -568,7 +568,7 @@ def test_harvester_detail(client):
     # back link to the list + a dataset row linking to its detail
     assert "/harvesters" in h
     assert "/dataset/" in h
-    # count_pager header: "X-Y of Z" with the source's dataset total
+    # count header: "X-Y of Z" with the source's dataset total
     assert f"1-{len(first_page):,} of {count:,}" in h
     # default sort metadata_modified desc — first dataset row
     assert esc(first_page[0]["title"] or first_page[0]["name"]) in h
@@ -985,6 +985,8 @@ def test_pager_urls_never_undefined(client):
         assert hrefs, "metadata values pager should render"
         assert "undefined" not in "".join(hrefs)
         assert all(h.startswith("?page=") for h in hrefs)
+        # count display: "X–Y of Z" range in the header right pane
+        assert f"1-{PAGE_SIZE:,} of {n_values:,}" in html
 
     # /report/{key} — no sort UI: unfiltered links are clean ?page=N, and
     # with an active facet they keep only the facet (?org=..&page=N)

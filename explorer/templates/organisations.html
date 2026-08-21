@@ -12,7 +12,7 @@
 {% endblock header_left %}
 
 {% block header_right %}
-  {{ count_pager(start_index, end_index, shown_orgs, page, total_pages, pager_base) }}
+  {{ pagination(start_index, end_index, shown_orgs, page, total_pages, pager_base) }}
 {% endblock header_right %}
 
 {% block table %}

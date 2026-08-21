@@ -12,7 +12,8 @@ PAGE_SIZE = 100
 
 def paginate(request, total, page_size: int = PAGE_SIZE) -> dict:
     """The standard pagination context: clamped page, total_pages, page_size,
-    the LIMIT/OFFSET offset, and the 1-based "X-Y of Z" range for count_pager.
+    the LIMIT/OFFSET offset, and the 1-based "X-Y of Z" range for the
+    pagination macro's count.
 
     Absorbs the repeated max(1, ceil(...)) + min(_page_param, ...) + offset
     logic that every paginated view used to inline (docs/pagination-plan.md

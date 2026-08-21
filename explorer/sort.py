@@ -1,9 +1,11 @@
-"""Client-visible sort columns and the in-place sorters that back them.
+"""Client-visible sort-column whitelists, plus the one in-place sorter.
 
-Every page whitelists the keys it accepts in ?sort= and has a matching
-sorter; unknown keys fall back to the page's default.
+Every page whitelists the keys it accepts in ?sort=; unknown keys fall back
+to the page's default. Sorting itself happens in PostgreSQL (ORDER BY in
+the query builders — datasets, org, harvester, series, ...) except the
+dataset page's resource table, which is sorted in place by sort_resources.
 
-Text columns are sorted case-insensitively and numeric-aware (locale-aware
+Text columns sort case-insensitively and numeric-aware (locale-aware
 collation: "base" sensitivity, numeric ordering).
 """
 

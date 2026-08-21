@@ -15,6 +15,8 @@ from .core import paginate
 def metadata_overview(request):
     """GET /metadata — list of field keys with dataset counts, one table
     ranked by usage; extras fields carry a badge."""
+    # small list — 185 field keys, below the 500-row pagination threshold;
+    # renders fully, no pager (see docs/pagination-plan.md).
     keys = METADATA_KEYS.all()
     total_datasets = DATASET_TOTAL.get()["n"]
 
@@ -84,6 +86,7 @@ def metadata_detail(request, section, name):
             "dataset_count": dataset_count,
             "non_empty_count": non_empty_count,
             "rows": rows,
+            "total": total,
             **pagination,
         },
     )

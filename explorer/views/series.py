@@ -81,6 +81,8 @@ def series_detail(request, series_id):
     if not s:
         return render(request, "404.html", {"title": "Series not found"}, status=404)
 
+    # small list — ≤238 datasets per series, below the 500-row pagination
+    # threshold; renders fully, no pager (see docs/pagination-plan.md).
     datasets = SERIES_DATASETS.all(id_)
 
     return render(

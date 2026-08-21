@@ -32,8 +32,7 @@
 {% endblock header_left %}
 
 {% block header_right %}
-  <p class="count">{{ current.count | num }} total</p>
-  {{ pagination(page, total_pages, pager_base) }}
+  {{ pagination(start_index, end_index, current.count, page, total_pages, pager_base) }}
 {% endblock header_right %}
 
 {% block table %}
