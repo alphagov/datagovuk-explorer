@@ -1,0 +1,6 @@
+{# Back link above the page heading (report / org / dataset pages). #}
+{% macro back_link(href, label) %}
+  <p class="subtitle">
+    <a href="{{ href }}" class="back-link">← {{ label }}</a>
+  </p>
+{% endmacro %}

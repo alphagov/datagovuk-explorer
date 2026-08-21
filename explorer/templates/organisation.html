@@ -4,11 +4,9 @@
   <link rel="stylesheet" href="{{ static('css/components/chart.css') }}" />
 {% endblock styles %}
 
-{% block header %}
-  {{ breadcrumb('/', 'All organisations') }}
-{% endblock header %}
-
 {% block content %}
+  {{ back_link('/', 'All organisations') }}
+
   <h1>{{ org.display_name }}</h1>
 
   <p class="count">

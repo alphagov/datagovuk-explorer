@@ -1,7 +1,7 @@
 {# Site-wide macros — imported once here so every page that extends
    this layout (directly or via _report.html) gets all of them. #}
 {% from "macros/_bar_chart.html" import bar_chart %}
-{% from "macros/_breadcrumb.html" import breadcrumb %}
+{% from "macros/_back_link.html" import back_link %}
 {% from "macros/_facet_group.html" import facet_group %}
 {% from "macros/_filter_pill.html" import filter_pill %}
 {% from "macros/_format_badge.html" import format_badge %}
@@ -49,8 +49,6 @@
           {{ nav_link('/suggestions', 'Suggestions', 'suggestions') }}
         </nav>
       </div>
-      {% block header %}
-      {% endblock header %}
     </header>
 
     <main class="container{% if narrow %} container--narrow{% endif %}">

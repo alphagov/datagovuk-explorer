@@ -163,12 +163,12 @@ body {
 	max-width: 900px;
 }
 
-.breadcrumb-link {
+.back-link {
 	color: var(--color-muted);
 	text-decoration: none;
 }
 
-.breadcrumb-link:hover {
+.back-link:hover {
 	color: var(--color-accent);
 	text-decoration: underline;
 }

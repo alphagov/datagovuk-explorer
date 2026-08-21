@@ -13,11 +13,8 @@
   <link rel="stylesheet" href="{{ static('css/pages/dataset.css') }}" />
 {% endblock styles %}
 
-{% block header %}
-  {{ breadcrumb('/harvesters', 'All harvesters') }}
-{% endblock header %}
-
 {% block content %}
+  {{ back_link('/harvesters', 'All harvesters') }}
   <article class="dataset-detail">
     <h1>{{ source.title or source.id }}</h1>
 

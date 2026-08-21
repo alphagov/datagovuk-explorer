@@ -13,11 +13,8 @@
   {% endif %}
 {% endmacro %}
 
-{% block header %}
-  {{ breadcrumb("/organisation/" ~ org.slug, org.display_name) }}
-{% endblock header %}
-
 {% block content %}
+  {{ back_link("/organisation/" ~ org.slug, org.display_name) }}
   <article class="dataset-detail">
     <h1>
       <a href="https://www.data.gov.uk/dataset/{{ dataset.name }}" target="_blank" rel="noopener">

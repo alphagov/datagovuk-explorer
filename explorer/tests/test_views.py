@@ -381,7 +381,7 @@ def test_harvester_detail(client):
     h = r.content.decode()
     assert r.status_code == 200
     assert source["title"] in h
-    # breadcrumb back to the list + a dataset row linking to its detail
+    # back link to the list + a dataset row linking to its detail
     assert "/harvesters" in h
     assert "/dataset/" in h
 

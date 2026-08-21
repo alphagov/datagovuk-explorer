@@ -5,15 +5,13 @@
   <link rel="stylesheet" href="{{ static('css/pages/report.css') }}" />
 {% endblock styles %}
 
-{% block header %}
-  {% if detail_url %}
-    {{ breadcrumb('/report/links-duplicate-urls', 'Duplicate URLs across datasets') }}
-  {% else %}
-    {{ breadcrumb('/', 'Dashboard') }}
-  {% endif %}
-{% endblock header %}
-
 {% block report_header %}
+  {% if detail_url %}
+    {{ back_link('/report/links-duplicate-urls', 'Duplicate URLs across datasets') }}
+  {% else %}
+    {{ back_link('/', 'Dashboard') }}
+  {% endif %}
+
   <h1>{{ current.label }}</h1>
 
   {% if detail_url %}
