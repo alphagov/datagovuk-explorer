@@ -23,8 +23,10 @@ from explorer.queries.datasets import (
     datasets_facet_counts,
     datasets_stmts,
     org_datasets_stmts,
+    source_datasets_stmts,
     yearly_dataset_counts,
 )
+from explorer.queries.harvesters import HARVEST_SOURCES
 from explorer.queries.links import (
     _LINKS_CLAUSES,
     LINKS_STATS,
@@ -164,6 +166,42 @@ def test_org_statements_consistency():
         "views",
     ):
         assert col in row, f"org builder row missing {col}"
+
+
+def test_source_statements_consistency():
+    """The harvest-source page's builder: count == page-list total across
+    every page, and the row shape the template reads."""
+    with_datasets = [r for r in HARVEST_SOURCES.all() if r["dataset_count"] > 0]
+    assert with_datasets
+    source_id = with_datasets[0]["id"]
+    stmts = source_datasets_stmts(source_id, "metadata_modified", "desc")
+    count = stmts["count"].get(*stmts["params"])["n"]
+    assert count > 0
+
+    # Walk every page at PAGE_SIZE — the pages must add up to the count
+    rows = []
+    offset = 0
+    while True:
+        page = stmts["list"].all(*stmts["params"], PAGE_SIZE, offset)
+        if not page:
+            break
+        rows.extend(page)
+        offset += PAGE_SIZE
+        assert len(page) <= PAGE_SIZE
+    assert len(rows) == count
+
+    row = rows[0]
+    for col in (
+        "id",
+        "org_slug",
+        "title",
+        "name",
+        "metadata_created",
+        "metadata_modified",
+        "resource_count",
+        "views",
+    ):
+        assert col in row, f"source builder row missing {col}"
 
 
 def test_org_detail_row():

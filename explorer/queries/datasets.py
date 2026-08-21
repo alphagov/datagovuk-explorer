@@ -239,6 +239,31 @@ def org_datasets_stmts(org_slug: str, sort: str, dir_: str) -> dict:
     }
 
 
+def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
+    """Count + page list for one harvest source's datasets — the
+    /harvester/{id} page (docs/pagination-plan.md workstream E).
+
+    Same {params, count, list} contract as org_datasets_stmts, joined by
+    harvest_source_id (the datasets↔sources key promoted from the dataset's
+    harvest_source_id extra — the same join the /harvesters list uses;
+    titles aren't unique across sources, so title joins overcount). All of
+    these datasets are harvested by definition, so no harvested column: the
+    source page shows Title/Created/Updated/Resources/Views.
+    """
+    order_sql = f"{DATASETS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, d.id"
+    return {
+        "params": [source_id],
+        "count": Query("SELECT COUNT(*) AS n FROM datasets d WHERE d.harvest_source_id = %s"),
+        "list": Query(
+            "SELECT d.id, d.org_slug, d.title, d.name, d.metadata_created,"
+            "  d.metadata_modified, d.resource_count, d.views"
+            " FROM datasets d WHERE d.harvest_source_id = %s"
+            f" ORDER BY {order_sql}"
+            " LIMIT %s OFFSET %s",
+        ),
+    }
+
+
 # --- Sidebar facet counts (SQL aggregates over the same _facet_where) ---
 #
 # Metadata filters are deliberately not applied to any pool: facet counts
@@ -416,17 +441,6 @@ DATASET_COUNT = Query("SELECT COUNT(*) AS count FROM datasets WHERE org_slug = %
 # dataset list, now its own COUNT).
 ORG_HARVESTED_COUNT = Query(
     "SELECT COUNT(*) AS n FROM datasets WHERE org_slug = %s AND harvested = 1",
-)
-
-# Narrow rows for one harvest source's page (joined by harvest_source_id,
-# the datasets↔sources key promoted from the dataset's harvest_source_id
-# extra — the same join the /harvesters list uses; titles aren't unique
-# across sources, so title joins overcount). All of these datasets are
-# harvested by definition, so no harvested column: the source page shows
-# Title/Created/Updated/Resources/Views.
-DATASETS_BY_SOURCE = Query(
-    """SELECT id, org_slug, title, name, metadata_created, metadata_modified, resource_count, views
-       FROM datasets WHERE harvest_source_id = %s""",
 )
 
 # Full dataset JSON for the detail page

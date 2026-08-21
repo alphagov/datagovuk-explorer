@@ -113,19 +113,6 @@ def sort_orgs(rows: list[dict[str, Any]], sort: str, dir_: str) -> None:
         rows.sort(key=lambda r: _text_key(r, sort), reverse=reverse)
 
 
-def sort_datasets(rows: list[dict[str, Any]], sort: str, dir_: str) -> None:
-    """Sort dataset rows in place by column key and direction (asc|desc)."""
-    reverse = dir_ == "desc"
-    if sort in ("resources", "views", "harvested"):
-        # 'resources' sorts on resource_count; missing → 0
-        column = "resource_count" if sort == "resources" else sort
-        rows.sort(key=lambda r: _num_key(r, column), reverse=reverse)
-    elif sort == "title":
-        rows.sort(key=lambda r: _text_key(r, "title", fallback="name"), reverse=reverse)
-    else:
-        rows.sort(key=lambda r: _text_key(r, sort), reverse=reverse)
-
-
 def sort_resources(rows: list[dict[str, Any]], sort: str, dir_: str) -> None:
     """Sort resource rows in place by column key and direction (asc|desc)."""
     reverse = dir_ == "desc"

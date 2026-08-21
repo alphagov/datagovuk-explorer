@@ -58,6 +58,7 @@
 
     <section class="section">
       <h3>Datasets ({{ source.dataset_count | num }})</h3>
+      {{ count_pager(start_index, end_index, source.dataset_count, page, total_pages, pager_base) }}
       <div class="table-wrap">
         <table class="data-table data-table--wide-first">
           <thead>

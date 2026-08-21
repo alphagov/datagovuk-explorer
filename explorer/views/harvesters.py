@@ -26,7 +26,7 @@ from django.shortcuts import render
 
 from explorer import facets
 from explorer.helpers import format_date
-from explorer.queries.datasets import DATASETS_BY_SOURCE
+from explorer.queries.datasets import source_datasets_stmts
 from explorer.queries.harvesters import HARVEST_SOURCE, harvest_source_rows, harvested_total
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
@@ -35,9 +35,9 @@ from explorer.queries.organisations import (
     ORG,
     VALID_DATASET_BUCKETS,
 )
-from explorer.sort import DATASET_SORT_COLUMNS, HARVESTER_SORT_COLUMNS, sort_datasets, sort_harvesters
+from explorer.sort import DATASET_SORT_COLUMNS, HARVESTER_SORT_COLUMNS, sort_harvesters
 
-from .core import _sort_dir
+from .core import _sort_dir, paginate
 
 # Fixed value → display-label maps for the type/frequency columns and
 # facets. The facet master lists are derived from the data (counts order),
@@ -283,9 +283,18 @@ def harvester(request, source_id):
         if org_row is not None:
             org_name = org_row["display_name"] or org_row["title"] or org_row["name"]
 
-    datasets = DATASETS_BY_SOURCE.all(row["id"]) if row["id"] else []
     sort, dir_ = _sort_dir(request, DATASET_SORT_COLUMNS, "metadata_modified", "desc")
-    sort_datasets(datasets, sort, dir_)
+
+    # Count + page in SQL (the same builder shape as /organisation/{slug},
+    # pagination-plan workstream E): the source page used to fetch every
+    # dataset row and sort in Python (up to 4k rows); now one page of 100.
+    stmts = source_datasets_stmts(row["id"], sort, dir_)
+    total = stmts["count"].get(*stmts["params"])["n"]
+    pagination = paginate(request, total)
+    datasets = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
+
+    # Pager base = sort/dir only (this page has no facets)
+    pager_base = facets.pager_base({"sort": sort, "dir": dir_})
 
     active = bool(row["active"])
     # The API writes the literal string "None" (not null) for missing
@@ -308,7 +317,7 @@ def harvester(request, source_id):
         "job_count": status.get("job_count"),
         "publisher": record.get("publisher_title") or record.get("publisher_id"),
         "description": record.get("description"),
-        "dataset_count": len(datasets),
+        "dataset_count": total,
         "datasets": datasets,
     }
 
@@ -321,5 +330,7 @@ def harvester(request, source_id):
             "source": source,
             "sort": sort,
             "dir": dir_,
+            **pagination,
+            "pager_base": pager_base,
         },
     )

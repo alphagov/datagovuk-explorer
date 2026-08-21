@@ -301,9 +301,13 @@ def test_organisation_detail(client):
 
     # page 2 exists for orgs with > 100 datasets; pager links keep sort/dir
     if count > PAGE_SIZE:
+        # page 1 links forward to page 2; page 2 links back via Previous
+        assert "?sort=metadata_modified&amp;dir=desc&amp;page=2" in client.get(
+            f"/organisation/{slug}",
+        ).content.decode()
         r2 = client.get(f"/organisation/{slug}?page=2")
         assert r2.status_code == 200
-        assert "?sort=metadata_modified&amp;dir=desc&amp;page=2" in r2.content.decode()
+        assert "?sort=metadata_modified&amp;dir=desc&amp;page=1" in r2.content.decode()
         assert f"{PAGE_SIZE + 1:,}-{min(2 * PAGE_SIZE, count):,} of {count:,}" in r2.content.decode()
     # out-of-range page clamps rather than erroring
     assert client.get(f"/organisation/{slug}?page=99999").status_code == 200
@@ -408,12 +412,21 @@ def test_harvesters_total_matches_datasets_facet(client):
 # /harvester/{id} (detail page)
 # ---------------------------------------------------------------------------
 def test_harvester_detail(client):
+    """/harvester/{id} — count_pager + sortable, paginated SQL list.
+    Contract test: the page's first row and page range must equal the SQL
+    builder's (the view renders source_datasets_stmts verbatim)."""
+    from explorer.queries.datasets import source_datasets_stmts  # noqa: PLC0415
     from explorer.queries.harvesters import harvest_source_rows  # noqa: PLC0415
 
     rows = harvest_source_rows()
     with_datasets = [r for r in rows if r["dataset_count"] > 0]
     assert with_datasets
     source = with_datasets[0]
+
+    stmts = source_datasets_stmts(source["id"], "metadata_modified", "desc")
+    count = stmts["count"].get(*stmts["params"])["n"]
+    first_page = stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)
+    assert first_page
 
     r = client.get(f"/harvester/{source['id']}")
     h = r.content.decode()
@@ -422,6 +435,34 @@ def test_harvester_detail(client):
     # back link to the list + a dataset row linking to its detail
     assert "/harvesters" in h
     assert "/dataset/" in h
+    # count_pager header: "X-Y of Z" with the source's dataset total
+    assert f"1-{len(first_page):,} of {count:,}" in h
+    # default sort metadata_modified desc — first dataset row
+    assert esc(first_page[0]["title"] or first_page[0]["name"]) in h
+
+    # every sort column, both directions — page rows match the builder
+    for sort in ("title", "metadata_created", "metadata_modified", "resources", "views", "harvested"):
+        for dir_ in ("asc", "desc"):
+            out = source_datasets_stmts(source["id"], sort, dir_)
+            expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
+            r = client.get(f"/harvester/{source['id']}?sort={sort}&dir={dir_}")
+            assert r.status_code == 200
+            assert esc(expect[0]["title"] or expect[0]["name"]) in r.content.decode(), (
+                f"sort={sort} dir={dir_}"
+            )
+
+    # page 2 exists for sources with > 100 datasets; pager links keep sort/dir
+    if count > PAGE_SIZE:
+        # page 1 links forward to page 2; page 2 links back via Previous
+        assert "?sort=metadata_modified&amp;dir=desc&amp;page=2" in client.get(
+            f"/harvester/{source['id']}",
+        ).content.decode()
+        r2 = client.get(f"/harvester/{source['id']}?page=2")
+        assert r2.status_code == 200
+        assert "?sort=metadata_modified&amp;dir=desc&amp;page=1" in r2.content.decode()
+        assert f"{PAGE_SIZE + 1:,}-{min(2 * PAGE_SIZE, count):,} of {count:,}" in r2.content.decode()
+    # out-of-range page clamps rather than erroring
+    assert client.get(f"/harvester/{source['id']}?page=99999").status_code == 200
 
     # the record block shows the fields the list page can't fit
     assert "Last run" in h
