@@ -13,7 +13,7 @@
      min-content huge, which squashes the facets column. minmax(0, 1fr)
      lets the table shrink and scroll inside .table-wrap instead. */
 	grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
-	gap: 1.5rem;
+	gap: 24px;
 	align-items: start;
 }
 

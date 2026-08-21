@@ -71,13 +71,13 @@
 	padding: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 0.3rem;
+	gap: 5px;
 }
 
 .api-resource {
 	display: flex;
 	align-items: baseline;
-	gap: 0.4rem;
+	gap: 6px;
 	font-size: var(--text-sm);
 }
 

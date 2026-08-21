@@ -22,7 +22,7 @@
 	display: flex;
 	flex-grow: 1;
 	align-items: end;
-	gap: 0.6rem;
+	gap: 10px;
 	text-decoration: none;
 	margin-bottom: 20px;
 	margin-right: 20px;

@@ -8,13 +8,13 @@
 	background: var(--color-surface);
 	border-radius: var(--radius);
 	box-shadow: var(--shadow);
-	padding: 1.25rem;
-	margin-bottom: 2rem;
+	padding: 20px;
+	margin-bottom: 32px;
 }
 
 .chart-section h2 {
 	font-size: var(--text-heading);
-	margin-bottom: 1rem;
+	margin-bottom: 16px;
 }
 
 .bar-chart {
@@ -44,7 +44,7 @@
 .bar-labels {
 	display: flex;
 	gap: 2px;
-	margin-top: 0.35rem;
+	margin-top: 6px;
 }
 
 .bar-label {

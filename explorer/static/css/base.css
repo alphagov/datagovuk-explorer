@@ -79,6 +79,14 @@
 	--text-body: 1rem; /* default body and table text */
 	--text-sm: 0.9rem; /* secondary text, dates, descriptions */
 	--text-xs: 0.8rem; /* labels, badges, chips, chart annotations */
+
+	/* ---- Spacing ----
+	   Margins, padding and gaps are plain px, NOT rem. Font sizes are
+	   rem so they scale with the user's font-size preference; keeping
+	   spacing in px means larger fonts grow the text without inflating
+	   the layout. (Browser zoom scales both units, so this only matters
+	   for text-zoom / font-size settings.) Line-heights stay unitless
+	   multipliers so line boxes scale with their text. */
 }
 
 /* ---- Type scale ---- */
@@ -93,7 +101,7 @@ h4 {
 
 h1 {
 	font-size: var(--text-display);
-	margin-bottom: 1rem;
+	margin-bottom: 16px;
 }
 
 h2 {
@@ -144,13 +152,13 @@ body {
 
 .container {
 	width: 100%;
-	margin: 2rem 0;
-	padding: 0 1.5rem;
+	margin: 32px 0;
+	padding: 0 24px;
 }
 
 .container--narrow {
 	max-width: 900px;
-	margin: 2rem auto;
+	margin: 32px auto;
 }
 
 .subtitle {
@@ -158,8 +166,8 @@ body {
 	padding: 0;
 	color: var(--color-muted);
 	font-size: var(--text-body);
-	margin-top: -0.25rem;
-	margin-bottom: 1rem;
+	margin-top: -4px;
+	margin-bottom: 16px;
 	max-width: 900px;
 }
 
@@ -176,13 +184,13 @@ body {
 /* Result count line above tables/lists */
 .count {
 	color: var(--color-muted);
-	margin-bottom: 1.25rem;
+	margin-bottom: 20px;
 }
 
 /* Small explanatory note under a count line (e.g. /harvesters' attribution gap) */
 .count-note {
 	color: var(--color-muted);
 	font-size: 0.875rem;
-	margin-top: -0.75rem;
-	margin-bottom: 1.25rem;
+	margin-top: -12px;
+	margin-bottom: 20px;
 }

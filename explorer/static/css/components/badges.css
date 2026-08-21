@@ -6,7 +6,7 @@
 
 .badge {
 	display: inline-block;
-	padding: 0.15rem 0.6rem;
+	padding: 2px 10px;
 	border-radius: var(--radius-pill);
 	font-size: var(--text-xs);
 	font-weight: 600;
@@ -37,7 +37,7 @@
 .format-badge {
 	display: inline-block;
 	background: var(--color-resource-bg);
-	padding: 0.15rem 0.5rem;
+	padding: 2px 8px;
 	border-radius: 4px;
 	font-size: var(--text-xs);
 	font-weight: 600;
@@ -54,7 +54,7 @@
 /* LLM review scores (0–5) — reviews table + dataset detail review card */
 .score-badge {
 	display: inline-block;
-	padding: 0.15rem 0.6rem;
+	padding: 2px 10px;
 	border-radius: var(--radius-pill);
 	font-size: var(--text-xs);
 	font-weight: 600;
