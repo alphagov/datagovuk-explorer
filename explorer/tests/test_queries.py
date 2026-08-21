@@ -337,7 +337,7 @@ def _org_ref_pools(filters):
         return [
             o
             for o in _org_rows()
-            if (filters.get("year") is None or exclude == "year" or o["created"][:4] == filters["year"])
+            if (filters.get("year") is None or exclude == "year" or o["created_year"] == filters["year"])
             and (not filters.get("pubyear") or exclude == "pubyear" or _matches_pub_year(o, filters["pubyear"]))
             and (
                 filters.get("datasets") is None
@@ -348,7 +348,7 @@ def _org_ref_pools(filters):
 
     year_pool: dict[str, int] = {}
     for o in kept("year"):
-        y = o["created"][:4]
+        y = o["created_year"]
         if re.fullmatch(r"\d{4}", y):
             year_pool[y] = year_pool.get(y, 0) + 1
 
@@ -374,7 +374,7 @@ def _org_facet_combos():
     """Filter combos built from the live data — real years/buckets, so the
     pools aren't vacuously empty."""
     rows = _org_rows()
-    years = sorted({(o["created"] or "")[:4] for o in rows}, reverse=True)
+    years = sorted({y for o in rows if (y := o["created_year"])}, reverse=True)
     pub_years = sorted(
         {o["last_published_year"] for o in rows if o["last_published_year"]},
         reverse=True,
@@ -418,7 +418,7 @@ def test_org_facet_counts_with_live_year_and_pubyear():
     live data — the multi-facet self-exclusion case (mirrors the /datasets
     live-year-and-theme test)."""
     rows = _org_rows()
-    year = next((o["created"][:4] for o in rows if re.fullmatch(r"\d{4}", (o["created"] or "")[:4])), None)
+    year = next((o["created_year"] for o in rows if o["created_year"]), None)
     pub_year = next((o["last_published_year"] for o in rows if o["last_published_year"]), None)
     if not year or not pub_year:
         pytest.skip("no valid year/pubyear in live data")

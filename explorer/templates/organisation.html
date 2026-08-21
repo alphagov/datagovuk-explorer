@@ -40,8 +40,8 @@
             <th scope="row" class="col-text">
               <a href="/dataset/{{ org.slug }}/{{ ds.id }}">{{ ds.title or ds.name }}</a>
             </th>
-            <td class="col-date">{{ ds.metadata_created | truncate(10, false, "") if ds.metadata_created else "—" }}</td>
-            <td class="col-date">{{ ds.metadata_modified | truncate(10, false, "") if ds.metadata_modified else "—" }}</td>
+            <td class="col-date">{{ ds.metadata_created | date_short if ds.metadata_created else "—" }}</td>
+            <td class="col-date">{{ ds.metadata_modified | date_short if ds.metadata_modified else "—" }}</td>
             <td class="col-num">{{ ds.resource_count | num }}</td>
             <td class="col-num">{{ ds.views | num }}</td>
             <td class="col-text">{{ harvested_badge(ds) }}</td>

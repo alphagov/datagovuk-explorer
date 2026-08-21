@@ -76,8 +76,8 @@
         {{ detail("Creator user ID", dataset.creator_user_id) }}
         {{ detail("Owner org ID", dataset.owner_org) }}
 
-        {{ detail("Created", dataset.metadata_created | truncate(10, false, "") | safe if dataset.metadata_created else "") }}
-        {{ detail("Last modified", dataset.metadata_modified | truncate(10, false, "") | safe if dataset.metadata_modified else "") }}
+        {{ detail("Created", dataset.metadata_created | date_short if dataset.metadata_created else "") }}
+        {{ detail("Last modified", dataset.metadata_modified | date_short if dataset.metadata_modified else "") }}
         {{ detail("Harvested", "Yes" if harvested else "No") }}
         {% if harvest_source %}{{ detail("Harvest source", harvest_source) }}{% endif %}
       </dl>
@@ -156,9 +156,10 @@
                   <td class="col-text">{{ format_badge(r.format, fallback="?") }}</td>
                   <td class="col-text">{{ r.mimetype or "—" }}</td>
                   <td class="col-num">{{ r.size | num }}</td>
-                  <td class="col-date">{{ (r.created or "") | truncate(10, false, "") or "—" }}</td>
-                  {% set createdDate = (r.created or "") | truncate(10, false, "") %}
-                  {% set updatedDate = (r.last_modified or r.metadata_modified or "") | truncate(10, false, "") %}
+                  <td class="col-date">{{ r.created | date_short if r.created else "—" }}</td>
+                  {% set createdDate = r.created | date_short if r.created else "" %}
+                  {% set updatedRaw = r.last_modified or r.metadata_modified or "" %}
+                  {% set updatedDate = updatedRaw | date_short if updatedRaw else "" %}
                   <td class="col-date{% if createdDate and updatedDate and createdDate != updatedDate %} updated-diff{% endif %}">
                     {{ updatedDate or "—" }}
                   </td>

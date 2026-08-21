@@ -8,7 +8,7 @@
  *   .col-text  — text: wraps at word boundaries (falling back to
  *                mid-word breaks for long strings), capped at 400px
  *   .col-num   — numbers: no wrap, right-aligned, tabular figures
- *   .col-date  — dates: no wrap, muted, slightly smaller (body cells only;
+ *   .col-date  — dates: no wrap, muted, tabular figures (body cells only;
  *                the header keeps the shared .data-table th label style)
  * Badges and format chips have their own nowrap (components/badges.css);
  * long single-value cells that need truncation/breaking are handled by
@@ -110,13 +110,15 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* Date cells — smaller size and muted colour for body cells only. Scoped
-   to td so the header <th class="col-date"> does not pick up the larger
-   body size and stays on the shared label style (base.css). */
+/* Date cells — muted colour and tabular figures for body cells only, at
+   the same size as text cells (no font-size override; the base .data-table
+   td size applies). Scoped to td so the header <th class="col-date"> does
+   not pick up the larger body size and stays on the shared label style
+   (base.css). */
 .data-table td.col-date {
 	white-space: nowrap;
 	color: var(--color-muted);
-	font-size: var(--text-sm);
+	font-variant-numeric: tabular-nums;
 }
 
 .data-table .col-text {

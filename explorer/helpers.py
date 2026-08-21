@@ -27,7 +27,7 @@ THEME_LABELS = {
 
 
 def format_date(iso: str | None) -> str:
-    """Format an ISO timestamp as YYYY-MM-DD.
+    """Format an ISO timestamp as dd/mm/yyyy.
 
     The DB stores UTC timestamps as naive `timestamp without time zone`;
     a naive parse would treat them as *local* time and shift dates near
@@ -46,10 +46,11 @@ def format_date(iso: str | None) -> str:
         return iso
     if dt.tzinfo is not None:
         dt = dt.astimezone(UTC)
-    # date.isoformat(), NOT dt.strftime(): strftime makes the C library
-    # resolve the timezone on every call, and this runs per-row on the
-    # big pages. isoformat is pure Python.
-    return dt.date().isoformat()
+    # Pure-Python formatting, NOT dt.strftime(): strftime makes the C
+    # library resolve the timezone on every call, and this runs per-row
+    # on the big pages. Manual zero-padding is pure Python.
+    d = dt.date()
+    return f"{d.day:02d}/{d.month:02d}/{d.year}"
 
 
 def theme_label(slug: str) -> str:

@@ -61,6 +61,7 @@ def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
                 "state": o["state"],
                 "approval_status": o["approval_status"],
                 "created": format_date(o["created"]),
+                "created_year": o["created"][:4] if o["created"] else None,
                 "last_published": format_date(last_pub),
                 "last_published_year": last_pub[:4] if last_pub else None,
                 "has_data": o["slug"] in fetched_slugs,
@@ -126,7 +127,7 @@ def _apply_filters(rows, filters: OrgFilters) -> list[dict]:
     return [
         o
         for o in rows
-        if (filters.year is None or o["created"][:4] == filters.year)
+        if (filters.year is None or o["created_year"] == filters.year)
         and _matches_pub_year(o, filters.pub_years)
         and (filters.datasets is None or DATASET_BUCKET_TESTS[filters.datasets](o["dataset_count"]))
     ]
