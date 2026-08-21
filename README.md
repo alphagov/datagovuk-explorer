@@ -1,7 +1,7 @@
 # data.gov.uk Explorer
 
 A Django 6 web app that audits the quality of the data on
-[data.gov.uk](https://www.data.gov.uk): the catalogue's organisation and
+[data.gov.uk](https://www.data.gov.uk): the catalogue's publisher and
 dataset inventory, data-quality issue reports (datasets with no links,
 duplicate titles, unparseable URLs, …), a browseable `/datasets` and
 `/links` index with sidebar facets, LLM-generated reviews and suggestions,
@@ -35,7 +35,7 @@ Requires Python 3.13, `uv`, and a local PostgreSQL server.
 just setup                    # uv sync --dev
 cp .env.example .env          # then set DATABASE_URL (and secrets)
 just fetch-organisations      # downloads/organisations.json from the CKAN API
-just fetch-harvest-sources   # downloads/harvest_sources.json (walks orgs, per-org filter)
+just fetch-harvest-sources   # downloads/harvest_sources.json (walks publishers, per-publisher filter)
 just download-datasets        # dataset JSON under downloads/ (gitignored)
 just build-db --skip-embeddings   # populate the database (offline build)
 just dev                      # runserver on :3000

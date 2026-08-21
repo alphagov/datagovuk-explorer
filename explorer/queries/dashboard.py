@@ -38,7 +38,7 @@ ACTIVE_YEAR_COUNT = 2
 
 
 def _active_card(org_rows: list, last_pub_rows: list) -> dict:
-    """'Organisations have published since …' card — pure, no DB.
+    """'Publishers have published since …' card — pure, no DB.
 
     org_rows: ORGS.all() rows; last_pub_rows: LAST_PUBLISHED_BY_ORG.all()
     rows. Callers fetch both once (see cards()).
@@ -55,7 +55,7 @@ def _active_card(org_rows: list, last_pub_rows: list) -> dict:
 
     return {
         "key": "orgs-active",
-        "label": (f"Organisations have published since {since}" if since else "Organisations have published recently"),
+        "label": (f"Publishers have published since {since}" if since else "Publishers have published recently"),
         "count": count,
         "link": (f"/organisations?pubyear={','.join(active_years)}" if active_years else "/organisations"),
     }
@@ -125,7 +125,7 @@ def cards() -> dict:
     # orgs-no-datasets card
     no_datasets_count = sum(1 for o in org_rows if (o["package_count"] or 0) == 0)
     cards["orgs-no-datasets"] = {
-        "label": "Organisations with no datasets",
+        "label": "Publishers with no datasets",
         "count": no_datasets_count,
         "percent": ((no_datasets_count / totals["orgs"] * 100) if totals["orgs"] else None),
         "href": "/organisations?datasets=0",

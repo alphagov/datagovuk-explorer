@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
  * components/table.css — the shared table component.
- * Used by every content page (organisations, datasets, links, report pages,
+ * Used by every content page (publishers, datasets, links, report pages,
  * reviews, dataset detail). Loaded on every page from _layout.njk.
  *
  * Column typing — every column carries a type class, applied to BOTH the

@@ -333,6 +333,20 @@ def harvester(request, source_id):
     # timestamps — normalise it so format_date renders an em-dash.
     last_run = status.get("last_harvest_request")
     next_run = record.get("next_run")
+
+    # The record's own publisher_title/publisher_id fields are populated by
+    # the API as a copy of the owning organisation, so they're redundant
+    # whenever the owning publisher resolves. Surface them only when they
+    # differ (renames, aggregator/third-party feeds) or when no owning
+    # publisher could be resolved at all.
+    meta_publisher = record.get("publisher_title") or record.get("publisher_id")
+    publisher = (
+        None
+        if org_name
+        and meta_publisher
+        and meta_publisher.strip().casefold() == org_name.strip().casefold()
+        else meta_publisher
+    )
     source = {
         "id": row["id"],
         "title": row["title"],
@@ -347,7 +361,7 @@ def harvester(request, source_id):
         "last_run": format_date(None if last_run == "None" else last_run),
         "next_run": format_date(None if next_run == "None" else next_run),
         "job_count": status.get("job_count"),
-        "publisher": record.get("publisher_title") or record.get("publisher_id"),
+        "publisher": publisher,
         "description": record.get("description"),
         "dataset_count": total,
         "datasets": datasets,

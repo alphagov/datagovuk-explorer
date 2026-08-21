@@ -221,7 +221,7 @@ REPORTS = [
         "facets": [
             {
                 "key": "org",
-                "label": "Organisation",
+                "label": "Publisher",
                 # Self-excluding option counts: {facet_and} is the other
                 # active facets' WHERE (always '' here — single facet).
                 "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
@@ -315,11 +315,11 @@ REPORTS = [
         # Columns the WHERE clause guarantees to be empty — hidden so the
         # table doesn't show a column of dashes (shared links table).
         "hidden_cols": ["url"],
-        # Organisation facet (?org=<slug>) — same pattern as datasets-no-links.
+        # Publisher facet (?org=<slug>) — same pattern as datasets-no-links.
         "facets": [
             {
                 "key": "org",
-                "label": "Organisation",
+                "label": "Publisher",
                 "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
             FROM links WHERE (url IS NULL OR url = ''){facet_and}
             GROUP BY org_slug, org_display_name
@@ -355,11 +355,11 @@ REPORTS = [
         ),
         "kind": "links",
         "hidden_cols": ["name", "description"],
-        # Organisation facet (?org=<slug>) — same pattern as links-no-url.
+        # Publisher facet (?org=<slug>) — same pattern as links-no-url.
         "facets": [
             {
                 "key": "org",
-                "label": "Organisation",
+                "label": "Publisher",
                 "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
             FROM links
             WHERE (name IS NULL OR name = '')
@@ -423,7 +423,7 @@ REPORTS = [
         # Tells the report template to render the matched-resources column
         # (and the route to parse the jsonb aggregate into a list).
         "show_api_links": True,
-        # Two single-select facets: Organisation (?org=<slug>) so orgs can
+        # Two single-select facets: Publisher (?org=<slug>) so publishers can
         # audit their own API coverage, and API type (?api_type=<slug>) so
         # readers can separate WMS/WFS/ArcGIS REST endpoints from JSON dumps
         # and name-only matches. Both land on the outer `datasets` table
@@ -431,7 +431,7 @@ REPORTS = [
         "facets": [
             {
                 "key": "org",
-                "label": "Organisation",
+                "label": "Publisher",
                 # Self-excluding option counts: {facet_and} is the api_type
                 # filter when active (the org facet's own filter is excluded).
                 "counts_sql": f"""SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count

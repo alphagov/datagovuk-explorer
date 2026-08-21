@@ -69,7 +69,7 @@ class OrgNotFoundError(RuntimeError):
     """
 
     def __init__(self, slug: str):
-        super().__init__(f'Organisation not found: "{slug}"')
+        super().__init__(f'Publisher not found: "{slug}"')
         self.hint = "Check organisations.json or run fetch-organisations.py."
 
 

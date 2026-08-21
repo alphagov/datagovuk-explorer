@@ -69,7 +69,7 @@
       <dl class="detail-list">
         {{ detail("Name (slug)", dataset.name) }}
         {{ detail("Dataset ID", dataset.id) }}
-        {{ detail("Organisation", org.display_name) }}
+        {{ detail("Publisher", org.display_name) }}
         {{ detail("Open", "Yes" if dataset.isopen else "No") }}
         {{ detail("Version", dataset.version) }}
         {{ detail("URL", dataset.url) }}
@@ -282,7 +282,7 @@
               <tr>
                 <th>Dataset</th>
                 {% if series.type == 'timeseries' %}<th>Period</th>{% endif %}
-                <th>Organisation</th>
+                <th>Publisher</th>
                 <th class="col-date">Created</th>
                 <th>Theme</th>
                 <th class="col-num">Resources</th>

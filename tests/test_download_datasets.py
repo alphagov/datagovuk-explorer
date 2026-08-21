@@ -147,7 +147,7 @@ def test_select_batch_single_org():
     assert "ons" not in no  # cleared, even if previously marked empty
 
     # not found -> OrgNotFoundError with a helpful hint
-    with pytest.raises(dd.OrgNotFoundError, match='Organisation not found: "zzz"') as exc:
+    with pytest.raises(dd.OrgNotFoundError, match='Publisher not found: "zzz"') as exc:
         dd.select_batch(orgs, no, 50, 0, org_slug="zzz")
     assert "Check organisations.json" in exc.value.hint
     print("ok: select_batch single org (found / clears marker / not-found + hint)")
@@ -432,7 +432,7 @@ def test_cli():
         with chdir(d):
             res = runner.invoke(dd.app, ["--org", "zzz"])
         assert res.exit_code == 1, res.output
-        assert 'Organisation not found: "zzz"' in res.stderr
+        assert 'Publisher not found: "zzz"' in res.stderr
         assert "Check organisations.json" in res.stderr
 
     # bogus --per-org -> usage error (non-zero exit is all callers rely on)
@@ -450,7 +450,7 @@ def test_cli():
             # 'all' parses fine — reach the --org lookup (fail-fast, no network)
             res = runner.invoke(dd.app, ["--per-org", "all", "--org", "nope"])
             assert res.exit_code == 1, res.output
-            assert 'Organisation not found: "nope"' in res.stderr
+            assert 'Publisher not found: "nope"' in res.stderr
 
     # --orgs 0 / --offset -1 -> usage error (non-zero exit)
     with tempfile.TemporaryDirectory() as d:

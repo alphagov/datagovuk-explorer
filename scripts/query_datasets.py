@@ -309,7 +309,7 @@ def main(
     org_name = org["name"] if org else org_name_or_id
 
     if org:
-        print(f"Organisation: {org.get('display_name') or org['name']} ({org['name']})")
+        print(f"Publisher: {org.get('display_name') or org['name']} ({org['name']})")
         if org.get("package_count"):
             print(f"Total datasets: {org['package_count']}")
         print()
