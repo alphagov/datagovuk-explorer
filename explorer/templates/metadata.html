@@ -1,12 +1,10 @@
-{% extends "_report.html" %}
+{% extends "_app_layout.html" %}
 
-{% set has_facets = false %}
-
-{% block report_header_left %}
+{% block header_left %}
   <h1>Metadata</h1>
-{% endblock report_header_left %}
+{% endblock header_left %}
 
-{% block report_table %}
+{% block table %}
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">
       <thead>
@@ -38,4 +36,4 @@
       </tbody>
     </table>
   </div>
-{% endblock report_table %}
+{% endblock table %}

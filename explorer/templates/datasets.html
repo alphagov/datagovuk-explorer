@@ -1,38 +1,24 @@
-{% extends "_report.html" %}
+{% extends "_app_layout.html" %}
 
-{% block report_header_left %}
+{% block header_left %}
   <h1>Datasets</h1>
 
-  {% if theme or source or year or temporal or metadata_key %}
-    <div class="filter-pills" aria-label="Active filters">
-      {% if theme %}
-        {{ filter_pill("Theme", theme_label, facet_url("theme", "") , "Remove theme filter: " ~ theme_label) }}
-      {% endif %}
-      {% if source %}
-        {% set source_name = "Harvested" if source == "harvested" else "Manual" %}
-        {{ filter_pill("Source", source_name, facet_url("source", "") , "Remove source filter: " ~ source_name) }}
-      {% endif %}
-      {% if year %}{{ filter_pill("Year", year, facet_url("year", "") , "Remove year filter: " ~ year) }}{% endif %}
-      {% if temporal %}
-        {{ filter_pill("Temporal", temporal_label, facet_url("temporal", "") , "Remove temporal year filter: " ~ temporal_label) }}
-      {% endif %}
-      {% if metadata_key %}
-        {{ filter_pill("Metadata", metadata_label, facet_url("metadata_key", "") , "Remove metadata filter: " ~ metadata_label) }}
-      {% endif %}
-    </div>
-  {% endif %}
-{% endblock report_header_left %}
+  {% set source_name = "Harvested" if source == "harvested" else "Manual" %}
+  {% set pills = [
+      {"label": "Theme", "value": theme_label, "href": facet_url("theme", "") , "aria": "Remove theme filter: " ~ theme_label} if theme else none,
+      {"label": "Source", "value": source_name, "href": facet_url("source", "") , "aria": "Remove source filter: " ~ source_name} if source else none,
+      {"label": "Year", "value": year, "href": facet_url("year", ""), "aria": "Remove year filter: " ~ year} if year else none,
+      {"label": "Temporal", "value": temporal_label, "href": facet_url("temporal", "") , "aria": "Remove temporal year filter: " ~ temporal_label} if temporal else none,
+      {"label": "Metadata", "value": metadata_label, "href": facet_url("metadata_key", "") , "aria": "Remove metadata filter: " ~ metadata_label} if metadata_key else none,
+    ] %}
+  {{ filter_pills(pills) }}
+{% endblock header_left %}
 
-{% block report_header_right %}
-  <p class="count">{{ start_index | num }}-{{ end_index | num }} of {{ shown_datasets | num }}</p>
-  {{ pagination(page, total_pages, sort, dir, facet_qs) }}
-{% endblock report_header_right %}
+{% block header_right %}
+  {{ count_pager(start_index, end_index, shown_datasets, page, total_pages, sort, dir, facet_qs) }}
+{% endblock header_right %}
 
-{% block report_facets %}
-  {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
-{% endblock report_facets %}
-
-{% block report_table %}
+{% block table %}
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">
       <thead>
@@ -67,4 +53,4 @@
   </div>
 
   <script defer src="{{ static('links.js') }}"></script>
-{% endblock report_table %}
+{% endblock table %}

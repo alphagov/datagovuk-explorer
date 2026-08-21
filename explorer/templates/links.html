@@ -1,35 +1,23 @@
-{% extends "_report.html" %}
+{% extends "_app_layout.html" %}
 
-{% block report_header_left %}
+{% block header_left %}
   <h1>Links</h1>
 
-  {% if current_host or current_format or current_year %}
-    <div class="filter-pills" aria-label="Active filters">
-      {% if current_host %}
-        {% set host_name = "No URL" if current_host == "__none__" else current_host %}
-        {{ filter_pill("Domain", host_name, facet_url("host", "") , "Remove domain filter: " ~ host_name) }}
-      {% endif %}
-      {% if current_format %}
-        {% set format_name = "No format" if current_format == "__none__" else current_format %}
-        {{ filter_pill("Format", format_name, facet_url("format", "") , "Remove format filter: " ~ format_name) }}
-      {% endif %}
-      {% if current_year %}
-        {{ filter_pill("Year", current_year, facet_url("year", "") , "Remove year filter: " ~ current_year) }}
-      {% endif %}
-    </div>
-  {% endif %}
-{% endblock report_header_left %}
+  {% set host_name = "No URL" if current_host == "__none__" else current_host %}
+  {% set format_name = "No format" if current_format == "__none__" else current_format %}
+  {% set pills = [
+      {"label": "Domain", "value": host_name, "href": facet_url("host", "") , "aria": "Remove domain filter: " ~ host_name} if current_host else none,
+      {"label": "Format", "value": format_name, "href": facet_url("format", "") , "aria": "Remove format filter: " ~ format_name} if current_format else none,
+      {"label": "Year", "value": current_year, "href": facet_url("year", ""), "aria": "Remove year filter: " ~ current_year} if current_year else none,
+    ] %}
+  {{ filter_pills(pills) }}
+{% endblock header_left %}
 
-{% block report_header_right %}
-  <p class="count">{{ start_index | num }}-{{ end_index | num }} of {{ filtered_links | num }}</p>
-  {{ pagination(page, total_pages, sort, dir, facet_qs) }}
-{% endblock report_header_right %}
+{% block header_right %}
+  {{ count_pager(start_index, end_index, filtered_links, page, total_pages, sort, dir, facet_qs) }}
+{% endblock header_right %}
 
-{% block report_facets %}
-  {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
-{% endblock report_facets %}
-
-{% block report_table %}
+{% block table %}
   <div class="table-wrap">
     <table class="data-table">
       <thead>
@@ -60,4 +48,4 @@
   </div>
 
   <script defer src="{{ static('links.js') }}"></script>
-{% endblock report_table %}
+{% endblock table %}

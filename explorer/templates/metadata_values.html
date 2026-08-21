@@ -1,6 +1,6 @@
-{% extends "_layout.html" %}
+{% extends "_app_layout.html" %}
 
-{% block content %}
+{% block header_left %}
   {{ back_link('/metadata', 'Metadata fields') }}
 
   <h1>{{ field_label }}</h1>
@@ -11,7 +11,13 @@
     {% endif %}
     .
   </p>
+{% endblock header_left %}
 
+{% block header_right %}
+  {{ pagination(page, total_pages) }}
+{% endblock header_right %}
+
+{% block table %}
   {% if rows | length %}
     <div class="table-wrap">
       <table class="data-table data-table--wide-first">
@@ -39,23 +45,7 @@
         </tbody>
       </table>
     </div>
-
-    {% if total_pages > 1 %}
-      <nav class="pagination" aria-label="Pagination">
-        {% if page > 1 %}<a class="page-link" href="?page={{ page - 1 }}">← Previous</a>{% endif %}
-        {% for p in range(1, total_pages + 1) %}
-          {% if p == page %}
-            <span class="page-link page-link--active">{{ p }}</span>
-          {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
-            <a class="page-link" href="?page={{ p }}">{{ p }}</a>
-          {% elif p == page - 3 or p == page + 3 %}
-            <span class="page-link page-link--ellipsis">…</span>
-          {% endif %}
-        {% endfor %}
-        {% if page < total_pages %}<a class="page-link" href="?page={{ page + 1 }}">Next →</a>{% endif %}
-      </nav>
-    {% endif %}
   {% else %}
     <p>No values recorded for this field.</p>
   {% endif %}
-{% endblock content %}
+{% endblock table %}

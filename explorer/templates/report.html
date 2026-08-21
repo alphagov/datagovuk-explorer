@@ -1,11 +1,11 @@
-{% extends "_report.html" %}
+{% extends "_app_layout.html" %}
 
 {% block styles %}
   {{ super() }}
   <link rel="stylesheet" href="{{ static('css/pages/report.css') }}" />
 {% endblock styles %}
 
-{% block report_header_left %}
+{% block header_left %}
   {% if detail_url %}
     {{ back_link('/report/links-duplicate-urls', 'Duplicate URLs across datasets') }}
   {% else %}
@@ -29,18 +29,14 @@
       {% endfor %}
     </div>
   {% endif %}
-{% endblock report_header_left %}
+{% endblock header_left %}
 
-{% block report_header_right %}
+{% block header_right %}
   <p class="count">{{ current.count | num }} total</p>
   {{ pagination(page, total_pages, "name", "asc", facet_qs) }}
-{% endblock report_header_right %}
+{% endblock header_right %}
 
-{% block report_facets %}
-  {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
-{% endblock report_facets %}
-
-{% block report_table %}
+{% block table %}
   <div class="table-wrap">
     <table class="data-table{% if current.kind == "links" or current.show_api_links %} data-table--report{% endif %}">
       {% if current.kind == "datasets" %}
@@ -168,4 +164,4 @@
       {% endif %}
     </table>
   </div>
-{% endblock report_table %}
+{% endblock table %}

@@ -1,31 +1,22 @@
-{% extends "_report.html" %}
+{% extends "_app_layout.html" %}
 
-{% block report_header_left %}
+{% block header_left %}
   <h1>Harvesters</h1>
 
-  {% if type or active or frequency or datasets %}
-    <div class="filter-pills" aria-label="Active filters">
-      {% if type %}
-        {{ filter_pill("Type", type_label, facet_url("type", "") , "Remove type filter: " ~ type_label) }}
-      {% endif %}
-      {% if active %}
-        {{ filter_pill("Status", active_label, facet_url("active", "") , "Remove status filter: " ~ active_label) }}
-      {% endif %}
-      {% if frequency %}
-        {{ filter_pill("Frequency", frequency_label, facet_url("frequency", "") , "Remove frequency filter: " ~ frequency_label) }}
-      {% endif %}
-      {% if datasets %}
-        {{ filter_pill("Datasets", datasets_label, facet_url("datasets", "") , "Remove datasets filter: " ~ datasets_label) }}
-      {% endif %}
-    </div>
-  {% endif %}
-{% endblock report_header_left %}
+  {% set pills = [
+      {"label": "Type", "value": type_label, "href": facet_url("type", "") , "aria": "Remove type filter: " ~ type_label} if type else none,
+      {"label": "Status", "value": active_label, "href": facet_url("active", "") , "aria": "Remove status filter: " ~ active_label} if active else none,
+      {"label": "Frequency", "value": frequency_label, "href": facet_url("frequency", "") , "aria": "Remove frequency filter: " ~ frequency_label} if frequency else none,
+      {"label": "Datasets", "value": datasets_label, "href": facet_url("datasets", "") , "aria": "Remove datasets filter: " ~ datasets_label} if datasets else none,
+    ] %}
+  {{ filter_pills(pills) }}
+{% endblock header_left %}
 
-{% block report_header_right_class %}
+{% block header_right_class %}
   layout-header__right--stacked
-{% endblock report_header_right_class %}
+{% endblock header_right_class %}
 
-{% block report_header_right %}
+{% block header_right %}
   <p class="count">
     1-{{ shown | num }} of {{ total | num }} sources
     — {{ total_datasets | num }} datasets harvested
@@ -37,13 +28,9 @@
       the rest were harvested by sources no longer in the registry.
     </p>
   {% endif %}
-{% endblock report_header_right %}
+{% endblock header_right %}
 
-{% block report_facets %}
-  {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
-{% endblock report_facets %}
-
-{% block report_table %}
+{% block table %}
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">
       <thead>
@@ -76,4 +63,4 @@
       </tbody>
     </table>
   </div>
-{% endblock report_table %}
+{% endblock table %}

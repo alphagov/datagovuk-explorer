@@ -1,8 +1,6 @@
-{% extends "_report.html" %}
+{% extends "_app_layout.html" %}
 
-{% set has_facets = false %}
-
-{% block report_header_left %}
+{% block header_left %}
   <h1>Series</h1>
   <p class="subtitle">
     {{ total | num }} series detected from dataset title patterns.
@@ -10,14 +8,13 @@
     published by different organisations (<em>templates</em>) or covering
     different time periods (<em>timeseries</em>).
   </p>
-{% endblock report_header_left %}
+{% endblock header_left %}
 
-{% block report_header_right %}
-  <p class="count">{{ start_index | num }}-{{ end_index | num }} of {{ total | num }}</p>
-  {{ pagination(page, total_pages, sort, dir) }}
-{% endblock report_header_right %}
+{% block header_right %}
+  {{ count_pager(start_index, end_index, total, page, total_pages, sort, dir) }}
+{% endblock header_right %}
 
-{% block report_table %}
+{% block table %}
   {% if not series %}
     <p>
       No series found. Run <code>just build-series</code> first.
@@ -54,4 +51,4 @@
       </table>
     </div>
   {% endif %}
-{% endblock report_table %}
+{% endblock table %}

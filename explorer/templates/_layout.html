@@ -1,12 +1,12 @@
 {# Site-wide macros — imported once here so every page that extends
-   this layout (directly or via _report.html) gets all of them. #}
+   this layout (directly or via _app_layout.html) gets all of them. #}
 {% from "macros/_bar_chart.html" import bar_chart %}
 {% from "macros/_back_link.html" import back_link %}
 {% from "macros/_facet_group.html" import facet_group %}
-{% from "macros/_filter_pill.html" import filter_pill %}
+{% from "macros/_filter_pills.html" import filter_pill, filter_pills %}
 {% from "macros/_format_badge.html" import format_badge %}
 {% from "macros/_harvested_badge.html" import harvested_badge %}
-{% from "macros/_pagination.html" import pagination %}
+{% from "macros/_pagination.html" import pagination, count_pager %}
 {% from "macros/_resource_name.html" import resource_name %}
 {% from "macros/_sort_link.html" import sort_link %}
 
@@ -24,7 +24,7 @@
     {% block styles %}
     {% endblock styles %}
   </head>
-  <body{% block body_attrs %}{% endblock %}>
+  <body {% block body_attrs %}{% endblock body_attrs %}>
     {% macro nav_link(href, label, active_section) %}
       <a href="{{ href }}"
          class="nav-link{% if section == active_section %} nav-link--active{% endif %}"

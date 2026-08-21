@@ -1,13 +1,11 @@
-{% extends "_report.html" %}
-
-{% set has_facets = false %}
+{% extends "_app_layout.html" %}
 
 {% block styles %}
   {{ super() }}
   <link rel="stylesheet" href="{{ static('css/pages/suggestions.css') }}" />
 {% endblock styles %}
 
-{% block report_header_left %}
+{% block header_left %}
   <h1>Suggestions</h1>
 
   <p class="subtitle">
@@ -17,15 +15,11 @@
     —
     <a href="https://www.data.gov.uk" target="_blank" rel="noopener">data.gov.uk</a>
   </p>
-{% endblock report_header_left %}
+{% endblock header_left %}
 
-{% block report_header_right %}
-  <p class="count">{{ start_index | num }}-{{ end_index | num }} of {{ total | num }}</p>
-  {{ pagination(page, total_pages) }}
-{% endblock report_header_right %}
-
-{% block report_facets %}
-{% endblock report_facets %}
+{% block header_right %}
+  {{ count_pager(start_index, end_index, total, page, total_pages) }}
+{% endblock header_right %}
 
 {% macro tag_list(tags, cls) %}
   <div class="tags">
@@ -35,7 +29,7 @@
   </div>
 {% endmacro %}
 
-{% block report_table %}
+{% block table %}
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">
       <thead>
@@ -81,4 +75,4 @@
     </table>
   </div>
 
-{% endblock report_table %}
+{% endblock table %}

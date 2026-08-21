@@ -1,30 +1,21 @@
-{% extends "_report.html" %}
+{% extends "_app_layout.html" %}
 
-{% block report_header_left %}
+{% block header_left %}
   <h1>Organisations</h1>
 
-  {% if year or pubyear or datasets %}
-    <div class="filter-pills" aria-label="Active filters">
-      {% if datasets %}
-        {{ filter_pill("Datasets", datasets_label, facet_url("datasets", "") , "Remove datasets filter: " ~ datasets_label) }}
-      {% endif %}
-      {% if year %}{{ filter_pill("Year", year, facet_url("year", "") , "Remove year filter: " ~ year) }}{% endif %}
-      {% if pubyear %}
-        {{ filter_pill("Published in", pubyear, facet_url("pubyear", "") , "Remove year-last-published filter: " ~ pubyear) }}
-      {% endif %}
-    </div>
-  {% endif %}
-{% endblock report_header_left %}
+  {% set pills = [
+      {"label": "Datasets", "value": datasets_label, "href": facet_url("datasets", "") , "aria": "Remove datasets filter: " ~ datasets_label} if datasets else none,
+      {"label": "Year", "value": year, "href": facet_url("year", ""), "aria": "Remove year filter: " ~ year} if year else none,
+      {"label": "Published in", "value": pubyear, "href": facet_url("pubyear", "") , "aria": "Remove year-last-published filter: " ~ pubyear} if pubyear else none,
+    ] %}
+  {{ filter_pills(pills) }}
+{% endblock header_left %}
 
-{% block report_header_right %}
+{% block header_right %}
   <p class="count">1-{{ shown_orgs | num }} of {{ total_orgs | num }}</p>
-{% endblock report_header_right %}
+{% endblock header_right %}
 
-{% block report_facets %}
-  {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
-{% endblock report_facets %}
-
-{% block report_table %}
+{% block table %}
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">
       <thead>
@@ -65,4 +56,4 @@
       </tbody>
     </table>
   </div>
-{% endblock report_table %}
+{% endblock table %}

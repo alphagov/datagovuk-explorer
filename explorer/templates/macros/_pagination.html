@@ -22,3 +22,10 @@
     </nav>
   {% endif %}
 {% endmacro %}
+
+{# Count + pagination pair for the header-right pane: "X–Y of Z" count
+   followed by the pager. sort/dir/preserve default like pagination(). #}
+{% macro count_pager(start, end, total, page, total_pages, sort="undefined", dir="undefined", preserve="") %}
+  <p class="count">{{ start | num }}-{{ end | num }} of {{ total | num }}</p>
+  {{ pagination(page, total_pages, sort, dir, preserve) }}
+{% endmacro %}

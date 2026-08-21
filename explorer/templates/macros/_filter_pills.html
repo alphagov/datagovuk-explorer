@@ -1,0 +1,20 @@
+{# Active-filter pills: one pill per applied facet filter, each with an ×
+   to remove it. filter_pill renders a single pill; filter_pills wraps a
+   list of pill dicts (None entries are skipped) in the pills row. #}
+{% macro filter_pill(label, value, href, aria_label) %}
+  <a class="filter-pill" href="{{ href }}" aria-label="{{ aria_label }}">
+    <span class="filter-pill-label">{{ label }}</span>
+    <span class="filter-pill-value">{{ value }}</span>
+    <span class="filter-pill-remove" aria-hidden="true">×</span>
+  </a>
+{% endmacro %}
+
+{% macro filter_pills(pills) %}
+  {% if pills | select | list %}
+    <div class="filter-pills" aria-label="Active filters">
+      {% for p in pills %}
+        {% if p %}{{ filter_pill(p.label, p.value, p.href, p.aria) }}{% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endmacro %}
