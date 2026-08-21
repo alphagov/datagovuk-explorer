@@ -179,14 +179,199 @@ def test_root_length_cutoff():
     assert exact == 0
     assert date == 0
     assert series == []
-    # exactly 5 chars passes
+    # single-word roots are also skipped (MIN_WORDS=2): "Stats 2020" /
+    # "Stats 2021" are too vague to be a series
     rows = [
         row("a1", "Stats 2020"),
         row("a2", "Stats 2021"),
     ]
     _, _, date = bs.build_all_series(rows)
+    assert date == 0
+    # a two-word root of the same length passes
+    rows = [
+        row("a1", "Farm Stats 2020"),
+        row("a2", "Farm Stats 2021"),
+    ]
+    _, _, date = bs.build_all_series(rows)
     assert date == 1
-    print("ok: Phase 2 root-length >= 5 cutoff")
+    print("ok: Phase 2 root-length >= 5 AND min-words >= 2 cutoffs")
+
+
+def test_range_patterns():
+    # year ranges: "1990 to 2018" is stripped whole, no dangling "to"
+    assert bs.strip_date("River Water Quality Monitoring 1990 to 2018") == {
+        "root": "River Water Quality Monitoring",
+        "date": "1990 to 2018",
+    }
+    # month ranges: "January 2009 to December 2009" stripped whole
+    assert bs.strip_date(
+        "Birth registrations by month since January 2009 to December 2009",
+    ) == {
+        "root": "Birth registrations by month",
+        "date": "January 2009 to December 2009",
+    }
+    rows = [
+        row("a1", "River Water Quality Monitoring 1990 to 2018"),
+        row("a2", "River Water Quality Monitoring 2000 to 2010"),
+    ]
+    series, _, date = bs.build_all_series(rows)
+    assert date == 1
+    assert series[0]["root_title"] == "River Water Quality Monitoring"
+    print("ok: date ranges strip whole, no dangling 'to'")
+
+
+def test_connector_trimming():
+    # trailing connectors left by date stripping are trimmed from the root
+    assert bs.strip_date("UK Public Procurement Notices - April 2021") == {
+        "root": "UK Public Procurement Notices",
+        "date": "April 2021",
+    }
+    assert bs.strip_date("NHS Kent and Medway CCG Expenditure for 2020/21") == {
+        "root": "NHS Kent and Medway CCG Expenditure",
+        "date": "2020/21",
+    }
+    assert bs.strip_date("LCHS Spend Over 25K as of 2020") == {
+        "root": "LCHS Spend Over 25K",
+        "date": "2020",
+    }
+    print("ok: roots trimmed of trailing connectors/punctuation")
+
+
+def test_punct_normalize_phase1():
+    # case/punctuation variants of the same title group together; the series
+    # root shows the dominant natural spelling, not the first-seen variant
+    rows = [
+        row("a1", "Conservation Areas", "council-a", "Council A"),
+        row("a2", "CONSERVATION AREAS", "council-b", "Council B"),
+        row("a3", "conservation_areas", "council-c", "Council C"),
+        row("b1", "Tree Preservation Orders", "council-d", "Council D"),
+    ]
+    series, exact, date = bs.build_all_series(rows)
+    assert exact == 1
+    assert date == 0
+    assert len(series) == 1
+    s = series[0]
+    assert s["type"] == "template"
+    assert s["root_title"] == "Conservation Areas"  # natural spelling wins
+    assert [d["id"] for d in s["datasets"]] == ["a1", "a2", "a3"]
+
+    # the dominant spelling wins over a first-seen snake_case one
+    rows = [
+        row("a1", "air_quality_management_areas", "council-a", "Council A"),
+        row("a2", "Air Quality Management Areas", "council-b", "Council B"),
+        row("a3", "Air Quality Management Areas", "council-c", "Council C"),
+    ]
+    series, _, _ = bs.build_all_series(rows)
+    assert series[0]["root_title"] == "Air Quality Management Areas"
+    print("ok: Phase 1 groups case/punct variants of a title, picks natural root")
+
+
+def test_filename_rejection_phase2():
+    # snake_case / filename roots are not date-cluster series
+    rows = [
+        row("a1", "BGS_multibeam 2009"),
+        row("a2", "BGS_multibeam 2010"),
+    ]
+    series, exact, date = bs.build_all_series(rows)
+    assert exact == 0
+    assert date == 0
+    assert series == []
+    # a bare dot is NOT filename evidence ("No.", "£25,000 per transaction.")
+    rows = [
+        row("a1", "TSE Surveillance No. of Cattle 2009"),
+        row("a2", "TSE Surveillance No. of Cattle 2010"),
+    ]
+    _, _, date = bs.build_all_series(rows)
+    assert date == 1
+    print("ok: snake_case roots rejected, bare-dot titles kept")
+
+
+def test_timeseries_growth():
+    # a decent timeseries seed (>=4 datasets, 2+ word root) pulls in
+    # residual datasets whose titles contain the root AND a year token
+    rows = [
+        row("a1", "Planning Applications 2019", "wigan", "Wigan Council"),
+        row("a2", "Planning Applications 2020", "wigan", "Wigan Council"),
+        row("a3", "Planning Applications 2021", "wigan", "Wigan Council"),
+        row("a4", "Planning Applications 2022", "wigan", "Wigan Council"),
+        # residual: contains root + year, but no recognised date suffix
+        row("b1", "Allerdale Planning Applications from 2000", "allerdale", "Allerdale"),
+        row("b2", "London Borough of Harrow Planning Applications 2014", "harrow", "Harrow"),
+        # residual WITHOUT a year must NOT join
+        row("c1", "Planning Applications Guidance", "some-org", "Some Org"),
+        # already in an exact group (template) must NOT be grown — not
+        # date-strippable either, so it would otherwise be a candidate
+        row("e1", "Camden Planning Applications (2014 data)", "camden", "Camden"),
+        row("e2", "Camden Planning Applications (2014 data)", "westminster", "Westminster"),
+    ]
+    series, exact, _ = bs.build_all_series(rows)
+    assert exact == 1  # e1/e2 template
+    ts = [s for s in series if s["type"] == "timeseries"]
+    assert len(ts) == 1
+    ids = {d["id"] for d in ts[0]["datasets"]}
+    assert ids == {"a1", "a2", "a3", "a4", "b1", "b2"}
+    grown = {d["id"]: d["date"] for d in ts[0]["datasets"] if d["id"] in ("b1", "b2")}
+    assert grown["b1"] == "2000"
+    assert grown["b2"] == "2014"
+    print("ok: decent timeseries seeds grow year-token residuals")
+
+
+def test_timeseries_growth_overlap():
+    # a dataset can be both an exact-duplicate template member AND part of a
+    # date-cluster timeseries ("Planning Applications 2023" by two councils
+    # is in the template AND Wigan's year-by-year series) — existing overlap
+    # behaviour, unchanged by growth
+    rows = [
+        row("a1", "Planning Applications 2019", "wigan", "Wigan Council"),
+        row("a2", "Planning Applications 2020", "wigan", "Wigan Council"),
+        row("a3", "Planning Applications 2021", "wigan", "Wigan Council"),
+        row("a4", "Planning Applications 2022", "wigan", "Wigan Council"),
+        row("d1", "Planning Applications 2023", "wigan", "Wigan Council"),
+        row("d2", "Planning Applications 2023", "other", "Other Council"),
+    ]
+    series, exact, _ = bs.build_all_series(rows)
+    assert exact == 1  # d1/d2 template
+    ts = [s for s in series if s["type"] == "timeseries"]
+    assert {d["id"] for d in ts[0]["datasets"]} == {"a1", "a2", "a3", "a4", "d1", "d2"}
+    print("ok: exact-duplicate members may still sit in the date cluster")
+
+
+def test_timeseries_growth_seed_threshold():
+    # a 3-dataset timeseries is not a decent seed — nothing grows
+    rows = [
+        row("a1", "Monthly Report 2020", "org-a"),
+        row("a2", "Monthly Report 2021", "org-a"),
+        row("a3", "Monthly Report 2022", "org-a"),
+        row("b1", "Monthly Report June 2020 edition", "org-b"),
+    ]
+    series, _, _ = bs.build_all_series(rows)
+    ts = [s for s in series if s["type"] == "timeseries"]
+    assert len(ts) == 1
+    assert {d["id"] for d in ts[0]["datasets"]} == {"a1", "a2", "a3"}
+    print("ok: growth needs a >=4 dataset seed")
+
+
+def test_year_tail():
+    assert bs._year_tail("TAUNTON AND SOMERSET NHS PUBLICATION OF SPEND OVER £25K JANUARY 2017") == ("JANUARY 2017")
+    assert bs._year_tail("UK (2011-2013)") == "(2011-2013)"
+    assert bs._year_tail("Flower counts 2017-2020 version 2") == "2017-2020 version 2"
+    assert bs._year_tail("No year here") is None
+    print("ok: year_tail extracts date-ish suffix")
+
+
+def test_grown_date():
+    # year-prefixed titles carry the root in the tail; it's stripped out
+    assert bs._grown_date("2019 Hazardous Waste Interrogator", "hazardous waste interrogator") == "2019"
+    assert (
+        bs._grown_date(
+            "TAUNTON AND SOMERSET NHS PUBLICATION OF SPEND OVER £25K JANUARY 2017",
+            "taunton and somerset nhs publication of spend over 25k",
+        )
+        == "JANUARY 2017"
+    )
+    assert bs._grown_date("UK (2011-2013)", "sulphur data for the uk") == "(2011-2013)"
+    assert bs._grown_date("No year", "some root") is None
+    print("ok: grown_date strips the seed root from the tail")
 
 
 def test_phase_overlap():
