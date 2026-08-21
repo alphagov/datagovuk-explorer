@@ -104,10 +104,10 @@ tunnel:
 deploy:
     railway up -d -y
 
-# Verify the deployed app is healthy (BASIC_AUTH_USER/PASS from .env).
+# Verify the deployed app is healthy — /health is exempt from basic auth
+# (see explorer/middleware.py), so no credentials are needed.
 deploy-check:
     curl -s -o /dev/null -w "health: %{http_code}\n" \
-      -u "{{env_var_or_default('BASIC_AUTH_USER', 'datagovuk')}}:{{env_var_or_default('BASIC_AUTH_PASS', '')}}" \
       "https://datagovuk-explorer-production.up.railway.app/health"
 
 # Fetch organisations from CKAN API. Writes downloads/organisations.json,

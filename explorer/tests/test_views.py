@@ -13,8 +13,11 @@ import math
 import re
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
+from django.http import HttpRequest, HttpResponse
 from markupsafe import escape
 
+import explorer.middleware as mw
 from explorer.queries.core import Query
 from explorer.queries.datasets import (
     DATASET_COUNT,
@@ -57,6 +60,43 @@ def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
     assert r.content == b"ok"
+
+
+def test_health_exempt_from_basic_auth(monkeypatch):
+    """/health must stay reachable without credentials when the gate is on
+    (Railway probes it to decide the deployment is up; auth creds there
+    would make uptime/alerting tooling brittle)."""
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("BASIC_AUTH_USER", "user")
+    monkeypatch.setenv("BASIC_AUTH_PASS", "pass")
+
+    gate = mw.BasicAuthMiddleware(lambda request: HttpResponse("ok"))
+    assert gate.enabled
+
+    req = HttpRequest()
+    req.path = "/health"
+    r = gate(req)
+    assert r.status_code == 200
+
+    req.path = "/datasets"
+    assert gate(req).status_code == 401
+
+
+def test_basic_auth_off_in_development(monkeypatch):
+    """In development the gate is off (no creds needed locally)."""
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("BASIC_AUTH_USER", "user")
+    monkeypatch.setenv("BASIC_AUTH_PASS", "pass")
+    assert not mw.BasicAuthMiddleware(lambda request: HttpResponse("ok")).enabled
+
+
+def test_production_requires_creds(monkeypatch):
+    """Production without credentials is a startup error — never run unauthenticated."""
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("BASIC_AUTH_USER", raising=False)
+    monkeypatch.delenv("BASIC_AUTH_PASS", raising=False)
+    with pytest.raises(ImproperlyConfigured):
+        mw.BasicAuthMiddleware(lambda request: HttpResponse("ok"))
 
 
 def test_unknown_route_renders_404(client):

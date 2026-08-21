@@ -57,7 +57,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    # Gates everything when APP_ENV=production and credentials are set.
+    # Gates everything in production (APP_ENV=production); missing
+    # BASIC_AUTH_USER/PASS there is a startup error, not a silent no-op.
+    # /health is exempt (see explorer/middleware.py).
     "explorer.middleware.BasicAuthMiddleware",
     # Renders templates/404.html for every 404 in both DEBUG modes (Django's
     # DEBUG technical 404 would otherwise replace it).
