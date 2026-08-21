@@ -12,7 +12,11 @@ import re
 from django.http import Http404
 from django.shortcuts import render
 
-from explorer.queries.datasets import DATASET_JSON, RELATED_BY_FTS
+from explorer.queries.datasets import (
+    DATASET_JSON,
+    DATASET_TEMPORAL_PERIODS,
+    RELATED_BY_FTS,
+)
 from explorer.queries.embeddings import EMBEDDING_TEXT, SEMANTIC_RELATED
 from explorer.queries.organisations import ORG
 from explorer.queries.reviews import get_classification, get_review
@@ -198,12 +202,20 @@ def dataset(request, org_slug, dataset_id):
         ),
     }
 
-    # Temporal coverage — see _fmt_temporal
+    # Temporal coverage — see _fmt_temporal. Declared From/To/Granularity
+    # render from the raw JSON; when the publisher declared none the build
+    # may have inferred periods from the title / resource names — those
+    # (source 'title'/'resource') render as a separate suggested section.
     temporal = {
         "from": _fmt_temporal(dataset.get("temporal_coverage-from")),
         "to": _fmt_temporal(dataset.get("temporal_coverage-to")),
         "granularity": _fmt_temporal(dataset.get("temporal_granularity")),
     }
+    suggested = [
+        {"from": r["from_year"], "to": r["to_year"], "source": r["source"]}
+        for r in DATASET_TEMPORAL_PERIODS.all(dataset_id)
+        if r["source"] != "declared"
+    ]
 
     # Harvest status — read from the full JSON so the detail page doesn't
     # depend on the summary row
@@ -254,6 +266,7 @@ def dataset(request, org_slug, dataset_id):
             "org": org,
             "dataset": dataset,
             "temporal": temporal,
+            "suggested": suggested,
             "harvested": harvested,
             "harvest_source": harvest_source,
             "sort": sort,

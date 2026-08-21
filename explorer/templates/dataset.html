@@ -119,7 +119,11 @@
       </section>
     {% endif %}
 
-    {# ── Temporal coverage (strings precomputed in the dataset view) ── #}
+    {# ── Temporal coverage — declared From/To/Granularity from the raw
+         JSON (strings precomputed in the dataset view); when the
+         publisher declared none but the build inferred periods from the
+         title / resource names, those render as a suggested section so
+         the detail page agrees with the temporal facet. ── #}
     {% if temporal.from or temporal.to or temporal.granularity %}
       <section class="section">
         <h3>Temporal coverage</h3>
@@ -127,6 +131,28 @@
           {{ detail("From", temporal.from) }}
           {{ detail("To", temporal.to) }}
           {{ detail("Granularity", temporal.granularity) }}
+        </dl>
+      </section>
+    {% elif suggested %}
+      <section class="section">
+        <h3>Temporal coverage (suggested)</h3>
+        <p class="subtitle">
+          Inferred from {{ "the dataset title" if suggested[0].source == "title" else "resource names" }} —
+          the publisher declared no temporal coverage.
+        </p>
+        <dl class="detail-list">
+          {% for p in suggested %}
+            {% if p.from and p.to %}
+              {% set label = p.from ~ "–" ~ p.to %}
+            {% elif p.from %}
+              {% set label = "From " ~ p.from %}
+            {% elif p.to %}
+              {% set label = "Up to " ~ p.to %}
+            {% else %}
+              {% set label = "—" %}
+            {% endif %}
+            {{ detail("Period " ~ loop.index, label) }}
+          {% endfor %}
         </dl>
       </section>
     {% endif %}

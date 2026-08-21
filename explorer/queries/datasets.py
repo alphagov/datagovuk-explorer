@@ -43,35 +43,33 @@ DATASETS_SORT_EXPRS = {
     "harvested": "COALESCE(d.harvested, 0)",
 }
 
-# Temporal coverage: d.temporal_periods stores JSON arrays like
-# [[1950,2000],[2010,2020]]. Each inner array is [from, to] (years).
-# jsonb_array_elements unrolls the outer array, then ->0 / ->1 access
-# the from/to elements of each inner array.
+# Temporal coverage: temporal_periods rows are [from_year, to_year]
+# (either year NULL for open-ended coverage) with a source column
+# ('declared' | 'title' | 'resource'). A dataset covers year Y when some
+# period has (from_year IS NULL OR from_year <= Y) AND (to_year IS NULL OR
+# to_year >= Y).
 COVERS_YEAR_CLAUSE = """
   EXISTS (
-    SELECT 1 FROM jsonb_array_elements(d.temporal_periods) AS p(value)
-    WHERE ((p.value->>0)::int <= %s
-       AND (p.value->>1)::int >= %s)
-       OR ((p.value->>0)::int = %s
-           AND p.value->>1 IS NULL)
-       OR (p.value->>0 IS NULL
-           AND (p.value->>1)::int = %s)
+    SELECT 1 FROM temporal_periods tp
+    WHERE tp.dataset_id = d.id
+      AND (tp.from_year IS NULL OR tp.from_year <= %s)
+      AND (tp.to_year IS NULL OR tp.to_year >= %s)
   )"""
 
 # Earliest covered year across all periods predates the window
 COVERS_BEFORE_CLAUSE = f"""
   EXISTS (
-    SELECT 1 FROM jsonb_array_elements(d.temporal_periods) AS p(value)
-    WHERE COALESCE((p.value->>0)::int,
-                   (p.value->>1)::int) < {TEMPORAL_MIN_YEAR}
+    SELECT 1 FROM temporal_periods tp
+    WHERE tp.dataset_id = d.id
+      AND COALESCE(tp.from_year, tp.to_year) < {TEMPORAL_MIN_YEAR}
   )"""
 
 # Latest covered year across all periods is beyond the window
 COVERS_AFTER_CLAUSE = f"""
   EXISTS (
-    SELECT 1 FROM jsonb_array_elements(d.temporal_periods) AS p(value)
-    WHERE COALESCE((p.value->>1)::int,
-                   (p.value->>0)::int) > {TEMPORAL_MAX_YEAR}
+    SELECT 1 FROM temporal_periods tp
+    WHERE tp.dataset_id = d.id
+      AND COALESCE(tp.to_year, tp.from_year) > {TEMPORAL_MAX_YEAR}
   )"""
 
 
@@ -145,14 +143,16 @@ def _temporal_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
         return [], []
     temporal = filters.get("temporal")
     if temporal == "none":
-        return ["(d.temporal_periods IS NULL OR d.temporal_periods = '[]')"], []
+        return [
+            "NOT EXISTS (SELECT 1 FROM temporal_periods tp WHERE tp.dataset_id = d.id)",
+        ], []
     if temporal == "pre1900":
         return [COVERS_BEFORE_CLAUSE], []
     if temporal == "post":
         return [COVERS_AFTER_CLAUSE], []
     if temporal:
         y = int(temporal)
-        return [COVERS_YEAR_CLAUSE], [y, y, y, y]
+        return [COVERS_YEAR_CLAUSE], [y, y]
     return [], []
 
 
@@ -308,23 +308,24 @@ def _facet_counts(filters: dict) -> dict:
             f" FROM datasets d{year_where}"
             " GROUP BY substr(metadata_created, 1, 4)",
         ),
-        # Per-year counts via lateral unroll + clamped expansion: a dataset
-        # covering 1981-2009 counts for every in-window year. generate_series
-        # degenerates to zero rows for periods entirely outside the window
-        # (GREATEST > LEAST → empty), and single-element periods
-        # [2005, null] collapse to generate_series(2005, 2005) via the
-        # COALESCE pairs. NULL / '[]' periods drop out of the inner lateral
-        # join, contributing to no year (they feed the `none` bucket).
+        # Per-year counts via the periods table + clamped expansion: a
+        # dataset covering 1981-2009 counts for every in-window year.
+        # generate_series degenerates to zero rows for periods entirely
+        # outside the window (GREATEST > LEAST → empty), and single-element
+        # periods [2005, null] collapse to generate_series(2005, 2005) via
+        # the COALESCE pairs. COUNT(DISTINCT d.id) keeps a dataset with
+        # several periods covering the same year from counting 3x (the old
+        # COUNT(*) over the jsonb unroll double-counted). Datasets with no
+        # rows at all contribute to no year (they feed the `none` bucket).
         "temporal_years": Query(
-            "SELECT y AS year, COUNT(*) AS count"
-            " FROM datasets d"
-            " CROSS JOIN LATERAL jsonb_array_elements(d.temporal_periods)"
-            "   AS p(value)"
+            "SELECT y AS year, COUNT(DISTINCT d.id) AS count"
+            " FROM temporal_periods tp"
+            " JOIN datasets d ON d.id = tp.dataset_id"
             " CROSS JOIN LATERAL ("
             "   SELECT generate_series("
-            "     GREATEST(COALESCE((p.value->>0)::int, (p.value->>1)::int),"
+            "     GREATEST(COALESCE(tp.from_year, tp.to_year),"
             f"              {TEMPORAL_MIN_YEAR}),"
-            "     LEAST(COALESCE((p.value->>1)::int, (p.value->>0)::int),"
+            "     LEAST(COALESCE(tp.to_year, tp.from_year),"
             f"             {TEMPORAL_MAX_YEAR})"
             "   ) AS y"
             " ) yrs"
@@ -332,13 +333,14 @@ def _facet_counts(filters: dict) -> dict:
             " GROUP BY y",
         ),
         # The three buckets in one pass. pre1900/post reuse the COVERS_*
-        # predicate bodies; `none` is temporal_periods NULL or '[]'. The
-        # pre1900 and post buckets are independent filters, so a row can
-        # land in both.
+        # predicate bodies; `none` is datasets with no period rows at all
+        # (no declared and no inferred year). The pre1900 and post buckets
+        # are independent filters, so a row can land in both.
         "temporal_buckets": Query(
             "SELECT"
-            "  COUNT(*) FILTER (WHERE d.temporal_periods IS NULL"
-            "                     OR d.temporal_periods = '[]') AS none,"
+            "  COUNT(*) FILTER (WHERE NOT EXISTS ("
+            "    SELECT 1 FROM temporal_periods tp WHERE tp.dataset_id = d.id"
+            "  )) AS none,"
             f"  COUNT(*) FILTER (WHERE {COVERS_BEFORE_CLAUSE}) AS pre1900,"
             f"  COUNT(*) FILTER (WHERE {COVERS_AFTER_CLAUSE}) AS post"
             f" FROM datasets d{temporal_where}",
@@ -419,16 +421,16 @@ THEME_COUNTS = Query(
 )
 
 # In-window covered temporal years (validation of ?temporal=) —
-# filter-independent, latest first. The lateral unroll clamps coverage to
-# [TEMPORAL_MIN_YEAR, TEMPORAL_MAX_YEAR] exactly as the facet pools do.
+# filter-independent, latest first. generate_series over the periods table
+# clamps coverage to [TEMPORAL_MIN_YEAR, TEMPORAL_MAX_YEAR] exactly as the
+# facet pools do.
 TEMPORAL_YEARS = Query(
     f"""SELECT DISTINCT y AS year FROM (
       SELECT generate_series(
-        GREATEST(COALESCE((p.value->>0)::int, (p.value->>1)::int), {TEMPORAL_MIN_YEAR}),
-        LEAST(COALESCE((p.value->>1)::int, (p.value->>0)::int), {TEMPORAL_MAX_YEAR})
+        GREATEST(COALESCE(tp.from_year, tp.to_year), {TEMPORAL_MIN_YEAR}),
+        LEAST(COALESCE(tp.to_year, tp.from_year), {TEMPORAL_MAX_YEAR})
       ) AS y
-      FROM datasets d
-      CROSS JOIN LATERAL jsonb_array_elements(d.temporal_periods) AS p(value)
+      FROM temporal_periods tp
     ) covers
     ORDER BY year DESC""",
 )
@@ -445,6 +447,13 @@ ORG_HARVESTED_COUNT = Query(
 
 # Full dataset JSON for the detail page
 DATASET_JSON = Query("SELECT json FROM dataset_json WHERE id = %s")
+
+# Normalised coverage periods for the detail page (position order). The
+# view shows declared-source rows under the raw-JSON From/To display and
+# suggested rows ('title'/'resource') as a separate "suggested" section.
+DATASET_TEMPORAL_PERIODS = Query(
+    "SELECT from_year, to_year, source FROM temporal_periods WHERE dataset_id = %s ORDER BY position",
+)
 
 # Full-text "more like this" via tsvector, with series exclusion: datasets
 # in the same detected series as the current one are not "related".

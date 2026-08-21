@@ -125,7 +125,7 @@ def temporal_year(v):
 
 
 def temporal_periods(from_val, to_val):
-    """Reduce normalised temporal from/to values to a JSON array of coverage
+    """Reduce normalised temporal from/to values to a list of coverage
     periods, each an [from_year, to_year] pair (either year null). Periods
     are paired up positionally and kept separate so non-contiguous coverage
     (e.g. [1960-1992] and [2000-2016]) can be
@@ -146,7 +146,83 @@ def temporal_periods(from_val, to_val):
         if f is None and t is None:
             continue
         periods.append([t, f] if f is not None and t is not None and f > t else [f, t])
-    return json.dumps(periods, separators=(",", ":")) if periods else None
+    return periods or None
+
+
+# Explicit year-range separators: "1838 - 1862", "2019-20", "2009 to 2010",
+# en/em-dash variants (\u2013/\u2014 — escaped so the source stays ASCII).
+# re.ASCII keeps \d and \b ASCII-only like _YEAR_RE. The tail boundary is
+# (?!\d) rather than \b so filenames like "2021 - 2023_0300_S3.pdf"
+# (reference-number suffixes glued to the year) still parse as a range — \b
+# would reject the underscore after "2023".
+_RANGE_SEP = r"(?:\s*[-\u2013\u2014]\s*|\s+to\s+)"
+_RANGE_RE = re.compile(
+    rf"\b(1[5-9]\d\d|20\d\d){_RANGE_SEP}(\d\d|\d{{4}})(?!\d)",
+    re.ASCII,
+)
+# Standalone-year pass for the text outside ranges: same relaxed trailing
+# boundary as the range tail, so a year with a suffix glued on ("2023_0300"
+# with no range, "2023data") still yields a period. The leading \b stays:
+# "data_2023" (underscore before the year) is not a year start.
+_STANDALONE_YEAR_RE = re.compile(r"\b(1[5-9]\d\d|20\d\d)(?!\d)", re.ASCII)
+# 2-digit range tails expand via their century (2019-20 -> 2020); the result
+# must land in the same window _YEAR_RE accepts (1500-2099), and 4-digit
+# tails like "0300" fail the floor check.
+_CENTURY = 100
+_YEAR_MIN = 1000
+_YEAR_MAX = 2099
+
+
+def _dedupe_periods(periods: list) -> list:
+    """Order-preserving dedupe of [from, to] pairs."""
+    seen: set = set()
+    out = []
+    for p in periods:
+        key = tuple(p)
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
+
+
+def _text_periods(text) -> list:
+    """Extract coverage periods from free text (a dataset title or a
+    resource name). Explicit year ranges first — "1838 - 1862", "2019-20"
+    (2-digit tail expanded via its century, so 2019-20 → 2019-2020),
+    "2009 to 2010" — then standalone years as closed single-year periods
+    [y, y]. Reversed ranges are swapped. Deduped, capped at 10 periods."""
+    if not text:
+        return []
+    periods = []
+    for m in _RANGE_RE.finditer(text):
+        a = int(m.group(1))
+        b = int(m.group(2))
+        if b < _CENTURY:
+            b += (a // _CENTURY) * _CENTURY  # century expansion: 2019-20 -> 2020
+        if not _YEAR_MIN <= b <= _YEAR_MAX:
+            continue
+        periods.append([min(a, b), max(a, b)])
+    # Standalone years in the text outside the matched ranges.
+    periods.extend([int(m.group(1))] * 2 for m in _STANDALONE_YEAR_RE.finditer(_RANGE_RE.sub(" ", text)))
+    return _dedupe_periods(periods)[:10]
+
+
+def _suggested_periods(ds: dict) -> tuple[list | None, str | None]:
+    """Infer coverage periods when the publisher declared none: the dataset
+    title first (high confidence), resource names as fallback (noisier,
+    lower value — filenames can carry reference numbers). Returns
+    (periods, source) with source 'title' or 'resource', or (None, None)
+    when nothing is found."""
+    periods = _text_periods(ds.get("title"))
+    if periods:
+        return periods, "title"
+    all_periods: list = []
+    for r in ds.get("resources") or []:
+        all_periods.extend(_text_periods(r.get("name")))
+    periods = _dedupe_periods(all_periods)[:10]
+    if periods:
+        return periods, "resource"
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -612,8 +688,8 @@ def resolve_date_pattern_views(patterns: dict, all_ids: list, title_ids: dict) -
 
 TRUNCATE_SQL = (
     "TRUNCATE TABLE embedding_map, dataset_embeddings, metadata_values, "
-    "metadata_keys, links, dataset_json, datasets, organisations, "
-    "harvest_sources CASCADE"
+    "metadata_keys, links, temporal_periods, dataset_json, datasets, "
+    "organisations, harvest_sources CASCADE"
 )
 
 
@@ -629,10 +705,8 @@ INSERT_DATASET_SQL = """
 INSERT INTO datasets
     (id, org_slug, org_display_name, title, name, notes, metadata_created,
      metadata_modified, resource_count, theme_primary,
-     temporal_coverage_from, temporal_coverage_to, temporal_granularity,
-     temporal_periods,
      harvested, harvest_source_title, harvest_source_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
     org_slug = EXCLUDED.org_slug, org_display_name = EXCLUDED.org_display_name,
     title = EXCLUDED.title, name = EXCLUDED.name, notes = EXCLUDED.notes,
@@ -640,13 +714,18 @@ ON CONFLICT (id) DO UPDATE SET
     metadata_modified = EXCLUDED.metadata_modified,
     resource_count = EXCLUDED.resource_count,
     theme_primary = EXCLUDED.theme_primary,
-    temporal_coverage_from = EXCLUDED.temporal_coverage_from,
-    temporal_coverage_to = EXCLUDED.temporal_coverage_to,
-    temporal_granularity = EXCLUDED.temporal_granularity,
-    temporal_periods = EXCLUDED.temporal_periods,
     harvested = EXCLUDED.harvested,
     harvest_source_title = EXCLUDED.harvest_source_title,
     harvest_source_id = EXCLUDED.harvest_source_id
+"""
+
+# One row per coverage period — bulk-loaded per batch like links (the
+# tables are truncated at build start and no dataset id repeats in the
+# file set, so a plain INSERT cannot conflict on (dataset_id, position)).
+INSERT_PERIOD_SQL = """
+INSERT INTO temporal_periods
+    (dataset_id, position, from_year, to_year, source)
+VALUES (?, ?, ?, ?, ?)
 """
 
 INSERT_JSON_SQL = """
@@ -697,9 +776,7 @@ def _extras(ds: dict) -> dict:
 
 
 def _dataset_row(ds: dict, extras: dict, org_name, org_display) -> tuple:
-    """The 17 VALUES for insert_ds, derived from one dataset dict."""
-    from_val = temporal_val(ds.get("temporal_coverage-from"))
-    to_val = temporal_val(ds.get("temporal_coverage-to"))
+    """The 13 VALUES for insert_ds, derived from one dataset dict."""
     return (
         ds.get("id"),
         org_name,
@@ -711,14 +788,34 @@ def _dataset_row(ds: dict, extras: dict, org_name, org_display) -> tuple:
         ds.get("metadata_modified"),
         len(ds.get("resources") or []),
         ds.get("theme-primary") or None,
-        from_val,
-        to_val,
-        temporal_val(ds.get("temporal_granularity")),
-        temporal_periods(from_val, to_val),
         1 if extras.get("harvest_object_id") else 0,
         extras.get("harvest_source_title") or None,
         extras.get("harvest_source_id") or None,
     )
+
+
+def _dataset_period_rows(ds: dict) -> list[tuple]:
+    """The insert_period rows for one dataset: (dataset_id, position,
+    from_year, to_year, source). Declared periods from the publisher's
+    temporal_coverage-from/to (source='declared') when they yield any;
+    otherwise suggested periods inferred from the title or a resource name
+    (source='title'/'resource'). Inference fills gaps only — never
+    alongside declared coverage. Empty when neither source yields a year."""
+    periods = temporal_periods(
+        temporal_val(ds.get("temporal_coverage-from")),
+        temporal_val(ds.get("temporal_coverage-to")),
+    )
+    source: str
+    if periods:
+        source = "declared"
+    else:
+        periods, suggested_source = _suggested_periods(ds)
+        if not periods:
+            return []
+        # _suggested_periods returns a source only together with periods
+        assert suggested_source is not None
+        source = suggested_source
+    return [(ds.get("id"), i, p[0], p[1], source) for i, p in enumerate(periods)]
 
 
 def _link_rows(ds: dict, org_name, org_display, year_created) -> list[tuple]:
@@ -827,6 +924,7 @@ def _process_batch(db, batch: list[dict], st: _BuildState) -> None:
         insert_ds = tx.prepare(INSERT_DATASET_SQL)
         insert_json = tx.prepare(INSERT_JSON_SQL)
         insert_link = tx.prepare(INSERT_LINK_SQL)
+        insert_period = tx.prepare(INSERT_PERIOD_SQL)
 
         for item in parsed:
             if item["skipped"]:
@@ -846,6 +944,11 @@ def _process_batch(db, batch: list[dict], st: _BuildState) -> None:
             insert_json.run(ds.get("id"), raw)
             for row in _link_rows(ds, org_name, org_display, year_created):
                 insert_link.run(*row)
+            # Period rows after the dataset row — the FK needs the parent
+            # to exist. Resources are already in the parsed ds, so no
+            # reordering was needed to have them here.
+            for row in _dataset_period_rows(ds):
+                insert_period.run(*row)
 
             st.all_ids.append(ds.get("id"))
             st.fts_rows.append(_fts_row(ds))

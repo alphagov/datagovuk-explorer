@@ -73,10 +73,6 @@ class Dataset(models.Model):
     metadata_modified = models.TextField(blank=True, null=True)
     resource_count = models.IntegerField(blank=True, null=True)
     theme_primary = models.TextField(blank=True, null=True)
-    temporal_coverage_from = models.TextField(blank=True, null=True)
-    temporal_coverage_to = models.TextField(blank=True, null=True)
-    temporal_granularity = models.TextField(blank=True, null=True)
-    temporal_periods = models.JSONField(blank=True, null=True)
     harvested = models.IntegerField(db_default=0)
     harvest_source_title = models.TextField(blank=True, null=True)
     # The CKAN harvest source id (the datasets→sources join key, from the
@@ -92,6 +88,34 @@ class Dataset(models.Model):
 
     def __str__(self):
         return self.title or self.name or self.id
+
+
+class TemporalPeriod(models.Model):
+    """One normalised coverage period for a dataset: [from_year, to_year]
+    (either year NULL for open-ended coverage). Rows are written by the
+    build from the publisher's temporal_coverage-from/to (source='declared')
+    or, when the publisher declared none, inferred from the dataset title
+    (source='title') or a resource name (source='resource'). The facet
+    layer queries this table directly — no jsonb anywhere."""
+
+    dataset = models.ForeignKey(
+        Dataset,
+        on_delete=models.CASCADE,
+        db_column="dataset_id",
+        db_index=False,
+    )
+    position = models.IntegerField()
+    from_year = models.IntegerField(blank=True, null=True)
+    to_year = models.IntegerField(blank=True, null=True)
+    source = models.TextField()
+    pk = models.CompositePrimaryKey("dataset", "position")
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "temporal_periods"
+
+    def __str__(self):
+        return f"{self.dataset_id} [{self.from_year}, {self.to_year}] ({self.source})"
 
 
 class DatasetJson(models.Model):

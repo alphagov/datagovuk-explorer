@@ -76,19 +76,95 @@ def test_temporal_year():
 
 def test_temporal_periods():
     # positional pairing of multiple periods
-    assert bd.temporal_periods("1960, 2000", "1992, 2016") == ("[[1960,1992],[2000,2016]]")
+    assert bd.temporal_periods("1960, 2000", "1992, 2016") == [[1960, 1992], [2000, 2016]]
     # reversed pair is swapped
-    assert bd.temporal_periods("2016", "2000") == "[[2000,2016]]"
+    assert bd.temporal_periods("2016", "2000") == [[2000, 2016]]
     # one-sided periods
-    assert bd.temporal_periods("1960", None) == "[[1960,null]]"
-    assert bd.temporal_periods(None, "1992") == "[[null,1992]]"
+    assert bd.temporal_periods("1960", None) == [[1960, None]]
+    assert bd.temporal_periods(None, "1992") == [[None, 1992]]
     # nothing on either side -> null
     assert bd.temporal_periods(None, None) is None
     assert bd.temporal_periods("", "") is None
     # junk values yield no years -> null
     assert bd.temporal_periods("present", "ongoing") is None
     # uneven pairing: extra years on one side still pair up positionally
-    assert bd.temporal_periods("1960, 2000, 2010", "1992") == ("[[1960,1992],[2000,null],[2010,null]]")
+    assert bd.temporal_periods("1960, 2000, 2010", "1992") == [
+        [1960, 1992],
+        [2000, None],
+        [2010, None],
+    ]
+
+
+def test_text_periods():
+    # explicit ranges — hyphen, spaces, "to", en/em-dash
+    assert bd._text_periods("Something 1838 - 1862") == [[1838, 1862]]
+    assert bd._text_periods("2009 to 2010") == [[2009, 2010]]
+    assert bd._text_periods("1838–1862") == [[1838, 1862]]  # en dash
+    assert bd._text_periods("1838—1862") == [[1838, 1862]]  # em dash
+    # 2-digit range tail expanded via its century: 2019-20 -> 2019-2020
+    assert bd._text_periods("2019-20 data") == [[2019, 2020]]
+    assert bd._text_periods("1990-95") == [[1990, 1995]]
+    # reversed range is swapped
+    assert bd._text_periods("2016-2000") == [[2000, 2016]]
+    # standalone years -> closed single-year periods
+    assert bd._text_periods("Road safety 2020 report") == [[2020, 2020]]
+    assert bd._text_periods("Data 1960 and 1970") == [[1960, 1960], [1970, 1970]]
+    # range years don't double-count as standalone years
+    assert bd._text_periods("1960-1970 census") == [[1960, 1970]]
+    # dedupe, order preserved
+    assert bd._text_periods("2020 and 2020 again") == [[2020, 2020]]
+    # junk / blank / None -> empty
+    assert bd._text_periods("quarterly returns") == []
+    assert bd._text_periods("data 20") == []  # 2-digit year is not a year
+    assert bd._text_periods("1400 data 2100") == []  # out of range
+    assert bd._text_periods("") == []
+    assert bd._text_periods(None) == []
+    # capped at 10 periods
+    assert len(bd._text_periods(" ".join(str(y) for y in range(1990, 2003)))) == 10
+
+
+def test_suggested_periods():
+    # title first (high confidence)
+    ds = {"title": "Road casualties 2020", "resources": [{"name": "file.csv"}]}
+    assert bd._suggested_periods(ds) == ([[2020, 2020]], "title")
+    # no title year -> resource-name fallback, union across all resources
+    ds = {
+        "title": "Quarterly returns",
+        "resources": [
+            {"name": "2021 - 2023_0300_S3.pdf"},
+            {"name": "notes 2019 to 2020.xlsx"},
+        ],
+    }
+    assert bd._suggested_periods(ds) == ([[2021, 2023], [2019, 2020]], "resource")
+    # nothing anywhere -> (None, None)
+    assert bd._suggested_periods({"title": "No years", "resources": [{"name": "file.pdf"}]}) == (None, None)
+    assert bd._suggested_periods({"title": "No years"}) == (None, None)
+
+
+def test_dataset_period_rows():
+    # declared periods win — suggested never alongside
+    ds = {
+        "id": "d1",
+        "title": "Road casualties 2020",
+        "temporal_coverage-from": "1960, 2000",
+        "temporal_coverage-to": "1992, 2016",
+        "resources": [],
+    }
+    assert bd._dataset_period_rows(ds) == [
+        ("d1", 0, 1960, 1992, "declared"),
+        ("d1", 1, 2000, 2016, "declared"),
+    ]
+    # declared junk -> suggested fallback
+    ds2 = {
+        "id": "d2",
+        "title": "Census 2021",
+        "temporal_coverage-from": "present",
+        "temporal_coverage-to": "ongoing",
+        "resources": [],
+    }
+    assert bd._dataset_period_rows(ds2) == [("d2", 0, 2021, 2021, "title")]
+    # nothing -> no rows
+    assert bd._dataset_period_rows({"id": "d3", "title": "No years", "resources": [{"name": "file.pdf"}]}) == []
 
 
 def test_extract_host():
