@@ -38,7 +38,7 @@ from explorer.queries.reports import (
     report_facet_counts,
     report_stmts,
 )
-from explorer.queries.reviews import get_review, latest_reviews
+from explorer.queries.reviews import get_review, latest_reviews, reviews_stmts
 from explorer.queries.series import SERIES_BY_ID, SERIES_COUNT, series_list_stmt
 from explorer.sort import sort_orgs
 from explorer.views.core import PAGE_SIZE
@@ -613,56 +613,24 @@ def test_series_pages(client):
 
 
 # ---------------------------------------------------------------------------
-# /reviews — row order vs an independent expectation computed from the
-# reviews table (the DB is the source of truth)
+# /reviews — row order vs the SQL builder (the DB is the source of truth)
 # ---------------------------------------------------------------------------
 _REVIEW_SORTS = ("title", "org", "overall", "findability", "metadata", "resources")
 
 
-def _subscore(r, key):
-    scores = r.get("scores")
-    if isinstance(scores, dict):
-        sub = scores.get(key)
-        if isinstance(sub, dict):
-            return sub.get("score")
-    return None
-
-
-def _review_key(r, sort):
-    if sort == "title":
-        return (r.get("title") or "").lower()
-    if sort == "org":
-        return str(r.get("org_display_name") or "").lower()
-    v = r.get("overall") if sort == "overall" else _subscore(r, sort)
-    return v if v is not None else -1
-
-
-def _review_matches(r, filters):
-    groups = [("overall", lambda x: x.get("overall"))] + [
-        (k, lambda x, k=k: _subscore(x, k)) for k in ("findability", "metadata", "resources")
-    ]
-    for key, get in groups:
-        want = filters.get(key)
-        if not want:
-            continue
-        have = get(r)
-        if want == "none":
-            if have is not None:
-                return False
-        elif str(have) != want:
-            return False
-    return True
-
-
 def expected_review_ids(sort, dir_, filters, page, page_size=PAGE_SIZE):
-    rows = latest_reviews()
-    filtered = [r for r in rows if _review_matches(r, filters)]
-    filtered.sort(key=lambda r: (r.get("title") or "").lower())
-    filtered.sort(key=lambda r: _review_key(r, sort), reverse=dir_ == "desc")
-    total_pages = max(1, math.ceil(len(filtered) / page_size))
+    """Contract test: the view page must equal the SQL builder's page.
+    The view renders reviews_stmts(filters, sort, dir_) verbatim (offset /
+    size from paginate()), so this fetches the same builder — it pins the
+    view→builder wiring, the facet WHERE, the sort/tiebreak ORDER BY and
+    the page clamp/offset arithmetic."""
+    stmts = reviews_stmts(filters, sort, dir_)
+    total = stmts["count"].get(*stmts["params"])["n"]
+    total_pages = max(1, math.ceil(total / page_size))
     page = min(max(page, 1), total_pages)
-    start = (page - 1) * page_size
-    return [r["dataset_id"] for r in filtered[start : start + page_size]]
+    offset = (page - 1) * page_size
+    rows = stmts["list"].all(*stmts["params"], page_size, offset)
+    return [r["dataset_id"] for r in rows]
 
 
 def page_ids(html):

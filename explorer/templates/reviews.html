@@ -44,9 +44,9 @@
             <td class="col-num">
               <span class="score-badge score-{{ r.overall }}">{{ r.overall }}/5</span>
             </td>
-            <td class="col-num">{{ r.scores.findability.score if r.scores.findability else "—" }}/5</td>
-            <td class="col-num">{{ r.scores.metadata.score if r.scores.metadata else "—" }}/5</td>
-            <td class="col-num">{{ r.scores.resources.score if r.scores.resources else "—" }}/5</td>
+            <td class="col-num">{{ r.findability if r.findability is not none else "—" }}/5</td>
+            <td class="col-num">{{ r.metadata if r.metadata is not none else "—" }}/5</td>
+            <td class="col-num">{{ r.resources if r.resources is not none else "—" }}/5</td>
           </tr>
         {% endfor %}
       </tbody>
