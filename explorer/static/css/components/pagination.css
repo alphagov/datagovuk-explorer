@@ -22,33 +22,24 @@
 	justify-content: center;
 	min-width: 36px;
 	padding: 6px 11px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius);
-	background: var(--color-surface);
 	color: var(--color-text);
 	font-size: var(--text-sm);
 	text-decoration: none;
-	transition:
-		border-color var(--transition),
-		color var(--transition),
-		background var(--transition);
+	border-bottom: 2px solid transparent;
 }
 
 a.page-link:hover {
 	border-color: var(--color-accent);
 	color: var(--color-accent);
+	border-bottom: 2px solid;
 }
 
 .page-link--active {
-	background: var(--color-accent);
+    border-bottom: 2px solid;
 	border-color: var(--color-accent);
-	color: var(--color-on-accent);
 }
 
 .page-link--active:hover {
-	background: var(--color-accent-hover);
-	border-color: var(--color-accent-hover);
-	color: var(--color-on-accent);
 }
 
 .page-link--ellipsis {
