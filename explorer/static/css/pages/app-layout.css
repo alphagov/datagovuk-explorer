@@ -1,6 +1,7 @@
 /* ---------------------------------------------------------------------------
  * pages/app-layout.css — app-like layout for report pages. Loaded from
- * _report.html, which also sets body.app-layout, so only report pages get
+ * _app_layout.html, which also sets body.app-layout, so only app-layout
+ * pages get
  * this (everything below is scoped under body.app-layout as a safety net).
  *
  * Model: viewport-height body, no page scroll. Header fixed. On each page:
@@ -54,7 +55,8 @@
 	}
 
 	/* Page header row — heading (and filter pills) left, count + pager
-	   right. Fixed at the top, doesn't scroll. */
+	   right, pinned to the bottom of the header row. Fixed at the top,
+	   doesn't scroll. */
 	body.app-layout .layout-header {
 		display: flex;
 		flex-wrap: wrap;
@@ -66,6 +68,8 @@
 
 	body.app-layout .layout-header__right {
 		margin-left: auto;
+		align-self: flex-end;
+		padding-bottom: 20px;
 		display: flex;
 		flex-direction: row;
 		align-items: baseline;
