@@ -71,6 +71,36 @@ just lint     # ruff check + format check
 just test     # pytest (app tests need a built DB; otherwise they skip)
 ```
 
+## Deploying to Railway
+
+The app runs on Railway. The DB is the state; the code just ships, so a
+deploy has two halves — sync the Postgres, then push the code:
+
+1. Dump the local DB:  `just dump-db`
+   → writes `db/backups/explorer-YYYY-MM-DD.dump`
+2. Open a tunnel:      `just tunnel`
+   → runs `railway connect Postgres --tunnel-only -P 5433`;
+   keep this terminal open (Ctrl+C closes it)
+3. Restore:            `just restore-db explorer.dump postgresql://postgres:PASS@127.0.0.1:5433/railway`
+
+`restore-db` drops the target schema up front and replaces everything
+(see the recipe comments in the justfile for why). The URL uses the
+tunnel's host/port; the credentials are the Railway Postgres's own —
+find the password in `railway variables --service Postgres`
+(`PGPASSWORD`). The tunnel prints the exact URL to use. The
+internal `postgres.railway.internal` host from `DATABASE_URL`
+won't resolve off-Railway, so the tunnel is required.
+
+Then ship the code and verify:
+
+```bash
+just deploy         # railway up -d -y
+just deploy-check   # GET /health on the production URL
+```
+
+Requires the directory to be linked first: `railway link --project
+datagovuk-explorer --service datagovuk-explorer`.
+
 ## Naming
 
 The project is **data.gov.uk Explorer** (the branding used on the

@@ -75,9 +75,12 @@ dump-db dump_file="db/backups/explorer-`date +%F`.dump":
 # postgres.railway.internal host doesn't resolve off-Railway):
 #   • tunnel:     railway connect Postgres --tunnel-only -P 5433
 #                 (5432 is usually your local Postgres — pick a free port)
-#   • public URL: Postgres → Connect → Public connection URL in the dashboard
-# Pass it as the second arg, or set RAILWAY_DATABASE_URL.
-restore-db dump_file railway_database_url=env_var_or_default('RAILWAY_DATABASE_URL', ''):
+#                 Credentials (user/password/db) are the same as DATABASE_URL —
+#                 get the password from `railway variables --service Postgres`
+#                 (PGPASSWORD). Only host+port change, so the URL is
+#                 postgresql://postgres:PASS@127.0.0.1:5433/railway
+# Pass it as the second arg — the tunnel prints the exact URL to use.
+restore-db dump_file railway_database_url='':
     @if [ -z "{{railway_database_url}}" ]; then \
         echo "Pass the Railway Postgres URL, e.g." >&2; \
         echo '  just restore-db explorer.dump postgresql://postgres:PASS@127.0.0.1:5433/railway' >&2; \
