@@ -260,11 +260,13 @@ def _link_errors_facet_counts(filters: dict) -> dict:
             f" FROM {_LINK_ERRORS_FROM}{harv_frag}"
             " GROUP BY 1",
         ),
+        # No cap — the sidebar renders every publisher in the pool; the view
+        # cuts the long list behind its "More publishers" toggle (all 931
+        # orgs are facets, not just the biggest error producers).
         "publishers": Query(
             "SELECT e.org_name AS value, COUNT(*) AS count"
             f" FROM {_LINK_ERRORS_FROM}{_guarded(pub_frag, _NONEMPTY_ORG)}"
-            " GROUP BY e.org_name ORDER BY count DESC, LOWER(e.org_name)"
-            " LIMIT 12",
+            " GROUP BY e.org_name ORDER BY count DESC, LOWER(e.org_name)",
         ),
     }
     return entry
@@ -280,7 +282,9 @@ def link_errors_facet_counts(filters: dict) -> dict:
       'no_response': int — rows with no HTTP status (the trailing bucket)
       'to_delete':   {'yes': n, 'no': n}
       'harvested':   {'harvested': n, 'manual': n, 'unknown': n}
-      'publishers':  [{'value': org-name, 'count': n}, ...] top 12
+      'publishers':  [{'value': org-name, 'count': n}, ...] all orgs,
+                     count desc (no cap — the view's More toggle cuts the
+                     rendered list)
 
     The six statements are six independent single-SELECT aggregates, so
     they run concurrently via core.fetch_parallel. No-filter calls return

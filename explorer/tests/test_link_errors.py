@@ -143,9 +143,9 @@ def test_harvest_state_join_includes_unknown(link_errors_loaded):
 # ---------------------------------------------------------------------------
 def test_link_errors_facet_pools_partition_list_count(link_errors_loaded):
     """Each group's pool total equals the list count with that group's
-    filter cleared. Category, status (+ the No response trailing bucket)
-    and harvest state each partition the whole pool; publisher is capped
-    at top 12 so its pool is only a floor."""
+    filter cleared. Category, status (+ the No response trailing bucket),
+    harvest state and publisher each partition the whole pool — publisher
+    is uncapped (every org is a facet), so it partitions like the rest."""
     base = link_errors_facet_counts({})
     category = base["categories"][0]["value"]
     status = base["statuses"][0]["value"]
@@ -171,10 +171,11 @@ def test_link_errors_facet_pools_partition_list_count(link_errors_loaded):
         ), filters
         assert sum(counts["to_delete"].values()) == _count(_without(filters, "to_delete")), filters
         assert sum(counts["harvested"].values()) == _count(_without(filters, "harvested")), filters
-        # publisher is capped at top 12 — its pool total is a floor on the
-        # publisher-cleared count (0 for genuinely empty combos)
-        top = sum(r["count"] for r in counts["publishers"])
-        assert 0 <= top <= _count(_without(filters, "publisher")), filters
+        # publisher is uncapped — its pool partitions the publisher-cleared
+        # count (every link_errors row carries an org name)
+        assert sum(r["count"] for r in counts["publishers"]) == _count(
+            _without(filters, "publisher"),
+        ), filters
 
     # a non-empty combo still surfaces publishers in the pool
     assert sum(r["count"] for r in link_errors_facet_counts({"category": "NOT_FOUND"})["publishers"]) > 0
@@ -267,6 +268,13 @@ def test_link_errors_view(client, link_errors_loaded):
     assert "filter-pill" in yes
     assert 'class="facet-group" aria-label="Filter by the remove-link recommendation"' in yes
     assert '<td class="col-text">No</td>' not in yes
+
+    # the Publisher facet is uncapped: every org is a facet, the sidebar
+    # starts with the top few and expands via the More toggle
+    assert 'class="facet-group" aria-label="Filter by publisher"' in html
+    assert "More publishers" in html
+    all_pubs = _squash(client.get("/links/errors?publishers=all").content.decode())
+    assert "Fewer publishers" in all_pubs
     print("ok: /links/errors view (200, sub-nav, states, resolved styling)")
 
 

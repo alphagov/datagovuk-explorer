@@ -37,6 +37,13 @@ from .core import _sort_dir, paginate
 HARVEST_LABELS = dict(HARVEST_STATES)
 TO_DELETE_LABELS = dict(TO_DELETE_VALUES)
 
+# Publishers beyond this cutoff hide behind the "More publishers" toggle —
+# every publisher with errors is a facet (931 of them, not just the biggest
+# error producers), but the sidebar starts with the top few and expands via
+# the standard More link (?publishers=all, JS-free fallback like /links
+# formats).
+PUBLISHER_FACET_CUTOFF = 15
+
 
 def _category_name(value: str) -> str:
     """Display name for a raw category code (facet items and pills)."""
@@ -74,6 +81,10 @@ def link_errors(request):
     publisher = request.GET.get("publisher")
     current_publisher = publisher if publisher in valid_publishers else None
 
+    # Publisher facet state — all publishers are facets; the long list
+    # collapses past PUBLISHER_FACET_CUTOFF behind the More toggle.
+    publisher_expanded = request.GET.get("publishers") == "all"
+
     filters = {
         "category": current_category,
         "status": current_status,
@@ -105,6 +116,7 @@ def link_errors(request):
             ("harvested", current_harvested),
             ("publisher", current_publisher),
         ],
+        {"publishers": "all"} if publisher_expanded else None,
     )
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
@@ -166,14 +178,23 @@ def link_errors(request):
                 current_harvested,
                 proportions=True,
             ),
+            # The pool returns every publisher in it (count desc), so master
+            # and counts come from the same rows — the list mirrors the
+            # current sibling-filter pool, not a global top-N.
             facets.facet_counts_group(
                 "publisher",
                 "Publisher",
                 "Filter by publisher",
-                publisher_master,
+                [(p["value"], p["value"]) for p in pool["publishers"]],
                 {p["value"]: p["count"] for p in pool["publishers"]},
                 current_publisher,
                 proportions=True,
+                cutoff=PUBLISHER_FACET_CUTOFF,
+                toggle_base=base_params,
+                toggle_param="publishers",
+                toggle_label="publishers",
+                expanded=publisher_expanded,
+                list_id="publisher-facet-list",
             ),
         )
         if group is not None
