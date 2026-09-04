@@ -11,6 +11,7 @@ from .dataset import dataset
 from .datasets import datasets
 from .harvesters import harvester, harvesters
 from .links import links
+from .links_errors import link_errors
 from .metadata import metadata_detail, metadata_overview
 from .organisation import organisation
 from .organisations import organisations
@@ -27,6 +28,7 @@ __all__ = [
     "harvester",
     "harvesters",
     "health",
+    "link_errors",
     "links",
     "metadata_detail",
     "metadata_overview",

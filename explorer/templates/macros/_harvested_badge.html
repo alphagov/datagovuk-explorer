@@ -6,3 +6,19 @@
     <span class="badge badge-manual">Manual</span>
   {% endif %}
 {% endmacro %}
+
+{# Three-state harvest badge for the /links/errors report. The row's
+   harvest_state comes from the datasets LEFT JOIN (queries/link_errors.py):
+   harvested / manual from the snapshot, unknown when the package is absent
+   from it (~3.6% of check rows). Like harvested_badge, the harvest source
+   rides the title tooltip. #}
+{% macro harvested_state_badge(row) %}
+  {% if row.harvest_state == "harvested" %}
+    <span class="badge badge-harvested"
+          {% if row.harvest_source_title %}title="Source: {{ row.harvest_source_title }}"{% endif %}>Harvested</span>
+  {% elif row.harvest_state == "manual" %}
+    <span class="badge badge-manual">Manual</span>
+  {% else %}
+    <span class="badge badge-unknown">Unknown</span>
+  {% endif %}
+{% endmacro %}

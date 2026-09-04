@@ -1,0 +1,28 @@
+{# Sub-report nav — a page group that has grown from one page into a section
+   (Links → Links + Errors; future sections — Metadata, Datasets… — reuse it
+   the same way). Rendered at the top of every child page, in place of the
+   page heading: the current report is rendered as the page's <h1> heading,
+   styled as the active nav item (exactly like the primary site nav — it
+   reuses nav-link / nav-link--active), and the other reports are links in
+   the same row. The current report is the heading rather than a link, so
+   it's not a self-referential navigation target.
+
+   Args:
+     tabs     list of {key, label, url} — the section's child reports, in
+              nav order
+     active   the active report's key — gets aria-current="page" and the
+              active nav styling
+     label    accessible name for the nav (defaults to "Section") — e.g.
+              "Links" for the Links section's nav
+#}
+{% macro subnav(tabs, active, label="Section") %}
+  <nav class="subnav" aria-label="{{ label }} sub-reports">
+    {% for t in tabs %}
+      {% if t.key == active %}
+        <h1 class="nav-link nav-link--active" aria-current="page">{{ t.label }}</h1>
+      {% else %}
+        <a href="{{ t.url }}" class="nav-link">{{ t.label }}</a>
+      {% endif %}
+    {% endfor %}
+  </nav>
+{% endmacro %}

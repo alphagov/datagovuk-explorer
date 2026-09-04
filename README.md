@@ -3,9 +3,11 @@
 A Django 6 web app that audits the quality of the data on
 [data.gov.uk](https://www.data.gov.uk): the catalogue's publisher and
 dataset inventory, data-quality issue reports (datasets with no links,
-duplicate titles, unparseable URLs, …), a browseable `/datasets` and
-`/links` index with sidebar facets, LLM-generated reviews and suggestions,
-and a `/metadata` field-adoption report.
+duplicate titles, unparseable URLs, …), a browseable `/datasets` index
+and a `/links` section with two reports — every resource link (`/links`)
+and the link-check errors report (`/links/errors`) — each with sidebar
+facets, LLM-generated reviews and suggestions, and a `/metadata`
+field-adoption report.
 
 Data is pulled from data.gov.uk's CKAN API by a standalone Python pipeline
 (`scripts/`) into PostgreSQL; the web app serves it through a raw-SQL query
@@ -19,10 +21,12 @@ config/    Django project settings, URLconf, WSGI entry point
 explorer/  The app: models, migrations, raw-SQL query layer (queries/),
            views, middleware, Jinja2 backend, templates/, shared helpers
 scripts/   Standalone pipeline: fetch/download datasets, build the DB,
-           build series, run LLM review/suggest, ingest reviews
+           build series, run LLM review/suggest, ingest reviews & link
+           errors
 explorer/static/  Static assets (collected into staticfiles/ for prod)
 tests/     pytest suite — app tests against the live DB + offline unit tests
-data/      Pipeline inputs (tracked): reviews JSONL, views CSV
+data/      Pipeline inputs (tracked): reviews JSONL, views CSV, the link
+           checker output errors-current.csv (commit it once ingested)
 db/        Local backups (gitignored)
 llm/       Embedding model (gitignored) — fetch with `just download-llm`
 ```

@@ -1,0 +1,30 @@
+/* ---------------------------------------------------------------------------
+ * components/subnav.css — sub-report nav (macros/_subnav.html), the page
+ * group that sits under a primary nav item (Links → Links + Errors; later
+ * Metadata, Datasets… reuse the macro). Rendered at the top of each child
+ * page, on the /links and /links/errors pages — loaded from their styles
+ * blocks.
+ *
+ * The links reuse .nav-link / .nav-link--active from layout.css, so the
+ * sub-nav looks exactly like the primary site nav. The current report is an
+ * <h1> (the page's heading) carrying the same active nav-link styling; this
+ * file gives the strip its flex row/spacing and resets the h1's defaults so
+ * it measures and lines up exactly like its sibling links.
+ * ------------------------------------------------------------------------- */
+
+.subnav {
+	display: flex;
+	flex-wrap: wrap;
+	column-gap: 20px; /* match .site-nav gaps */
+	row-gap: 10px;
+	margin-bottom: 18px;
+}
+
+/* The heading version of a nav item — cancel base.css's h1 line-height and
+   margin so only .nav-link's text-subheading, padding, border etc. apply
+   (the .nav-link class also out-specifies the base h1 font-size), identical
+   to the <a> siblings. */
+.subnav h1 {
+	margin: 0;
+	line-height: inherit;
+}

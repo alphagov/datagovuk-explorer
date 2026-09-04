@@ -1,0 +1,79 @@
+{% extends "_app_layout.html" %}
+
+{% block styles %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ static('css/components/subnav.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/pages/link-errors.css') }}" />
+{% endblock styles %}
+
+{% block header_left %}
+  {% set subnav_tabs = [
+    {
+      "key": "links",
+      "label": "Links",
+      "url": "/links"
+    },
+    {
+      "key": "errors",
+      "label": "Errors",
+      "url": "/links/errors"
+    }
+  ] %}
+  {{ subnav(subnav_tabs, "errors", "Links") }}
+
+  {{ filter_pills(pills) }}
+{% endblock header_left %}
+
+{% block header_right %}
+  {{ pagination(start_index, end_index, filtered_errors, page, total_pages, pager_base) }}
+{% endblock header_right %}
+
+{% block table %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th class="col-text">{{ sort_link("url", "URL", sort, dir, facet_qs) }}</th>
+          <th class="col-text">{{ sort_link("status", "Status", sort, dir, facet_qs) }}</th>
+          <th class="col-text">{{ sort_link("dataset", "Dataset", sort, dir, facet_qs) }}</th>
+          <th class="col-text">{{ sort_link("publisher", "Publisher", sort, dir, facet_qs) }}</th>
+          <th class="col-text">Harvested</th>
+          <th class="col-text">{{ sort_link("to_delete", "To delete", sort, dir, facet_qs) }}</th>
+          <th class="col-date">{{ sort_link("checked", "Checked", sort, dir, facet_qs) }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in errors %}
+          <tr class="link-errors-row{% if e.ok %} link-errors-row--ok{% endif %}">
+            <td class="col-text">
+              <a class="url-link" href="{{ e.resource_url }}" target="_blank" rel="noopener noreferrer">{{ e.resource_url }}</a>
+            </td>
+            <td class="col-text">
+              <span class="status{% if e.ok %} status--ok{% endif %}"{% if e.error_detail %} title="{{ e.error_detail }}"{% endif %}>{{ e.status_text }}</span>
+            </td>
+            <td class="col-text">
+              {%- if e.org_slug -%}
+                <a href="/dataset/{{ e.org_slug }}/{{ e.package_id }}">{{ e.package_name }}</a>
+              {%- elif e.datagovuk_url -%}
+                <a href="{{ e.datagovuk_url }}" target="_blank" rel="noopener noreferrer">{{ e.package_name }}</a>
+              {%- else -%}
+                {{ e.package_name }}
+              {%- endif -%}
+            </td>
+            <td class="col-text">
+              {%- if e.org_slug -%}
+                <a href="/organisation/{{ e.org_slug }}">{{ e.org_name }}</a>
+              {%- else -%}
+                {{ e.org_name }}
+              {%- endif -%}
+            </td>
+            <td class="col-text">{{ harvested_state_badge(e) }}</td>
+            <td class="col-text">{{ "Yes" if e.to_delete else "No" }}</td>
+            <td class="col-date">{{ e.checked_at | date_short }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+{% endblock table %}

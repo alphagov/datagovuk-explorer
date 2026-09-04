@@ -1,7 +1,24 @@
 {% extends "_app_layout.html" %}
 
+{% block styles %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ static('css/components/subnav.css') }}" />
+{% endblock styles %}
+
 {% block header_left %}
-  <h1>Links</h1>
+  {% set subnav_tabs = [
+    {
+      "key": "links",
+      "label": "Links",
+      "url": "/links"
+    },
+    {
+      "key": "errors",
+      "label": "Errors",
+      "url": "/links/errors"
+    }
+  ] %}
+  {{ subnav(subnav_tabs, "links", "Links") }}
 
   {% set host_name = "No URL" if current_host == "__none__" else current_host %}
   {% set format_name = "No format" if current_format == "__none__" else current_format %}

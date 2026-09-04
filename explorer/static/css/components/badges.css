@@ -29,6 +29,15 @@
 	color: var(--color-muted);
 }
 
+/* Harvest state on /links/errors when the dataset is absent from the
+   datasets snapshot (the package id doesn't join) — muted, deliberately
+   NOT the Manual badge: it means we don't know, not that it's manual. */
+.badge-unknown {
+	background: var(--color-resource-bg);
+	color: var(--color-muted);
+	border: 1px dashed var(--color-border);
+}
+
 .badge-pending {
 	background: var(--color-pending-bg);
 	color: var(--color-pending);

@@ -310,3 +310,42 @@ class Review(models.Model):
 
     def __str__(self):
         return self.title or str(self.dataset)
+
+
+class LinkError(models.Model):
+    """One row per link-check result from data/errors-current.csv, ingested
+    by scripts/ingest_link_errors.py (TRUNCATE + reload, like reviews).
+
+    package_id is deliberately NOT a FK: ~3.6% of rows reference packages
+    absent from the datasets snapshot (they render as Unknown on the
+    /links/errors report via the LEFT JOIN). http_status is NULL for the
+    DNS/timeout/connection rows that never got an HTTP response.
+    Timestamps are TEXT like the rest of the schema.
+    """
+
+    id = models.BigAutoField(primary_key=True)
+    datagovuk_url = models.TextField(blank=True, null=True)
+    package_id = models.TextField()
+    package_name = models.TextField(blank=True, null=True)
+    package_metadata_created = models.TextField(blank=True, null=True)
+    package_metadata_modified = models.TextField(blank=True, null=True)
+    guid = models.TextField(blank=True, null=True)
+    resource_id = models.TextField()
+    resource_url = models.TextField(blank=True, null=True)
+    resource_created = models.TextField(blank=True, null=True)
+    resource_last_modified = models.TextField(blank=True, null=True)
+    resource_metadata_modified = models.TextField(blank=True, null=True)
+    org_name = models.TextField(blank=True, null=True)
+    org_id = models.TextField(blank=True, null=True)
+    http_status = models.IntegerField(blank=True, null=True)
+    category = models.TextField(blank=True, null=True)
+    error_detail = models.TextField(blank=True, null=True)
+    to_delete = models.BooleanField()
+    checked_at = models.TextField()
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "link_errors"
+
+    def __str__(self):
+        return self.resource_url or self.resource_id
