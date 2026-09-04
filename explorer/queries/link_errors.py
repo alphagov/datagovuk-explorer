@@ -57,8 +57,9 @@ CATEGORY_LABELS = {
 }
 
 # The three harvest states (see the LEFT JOIN above): harvested/manual come
-# from the datasets snapshot, unknown is the package-absent bucket. Fixed
-# master order — facet_counts_group omits states with no rows in the pool.
+# from the datasets snapshot, unknown is the package-absent bucket. The
+# canonical value→label list for the pills/badges — the sidebar facet list
+# sorts by its pool's count order in the view, not by this order.
 HARVEST_STATES = [
     ("harvested", "Harvested"),
     ("manual", "Manual"),
@@ -66,8 +67,9 @@ HARVEST_STATES = [
 ]
 
 # The two to-delete states — the checker's remove-this-dead-link
-# recommendation behind the To delete column (true on ~45k rows). Fixed
-# master order; facet_counts_group omits a state with no rows in the pool.
+# recommendation behind the To delete column (true on ~45k rows). Canonical
+# value→label list for the pills/badges — the sidebar facet list sorts by
+# its pool's count order in the view, not by this order.
 TO_DELETE_VALUES = [
     ("yes", "Yes"),
     ("no", "No"),

@@ -14,6 +14,7 @@ import pytest
 
 from explorer.queries.core import Query
 from explorer.queries.link_errors import (
+    CATEGORY_LABELS,
     LINK_ERRORS_SORT_COLUMNS,
     link_errors_facet_counts,
     link_errors_stats,
@@ -310,6 +311,62 @@ def test_link_errors_view(client, link_errors_loaded):
     pub_rows = _squash(client.get("/links/errors", {"publisher": top["value"]}).content.decode())
     assert f'<a href="/organisation/{top["value"]}">{top["name"]}</a>' in pub_rows
     print("ok: /links/errors view (200, sub-nav, states, resolved styling)")
+
+
+def _facet_order(html: str, aria: str) -> list[str]:
+    """The facet item names inside the group with that aria-label, in
+    render order."""
+    m = re.search(
+        rf'<section class="facet-group" aria-label="{re.escape(aria)}">(.*?)</section>',
+        html,
+        re.S,
+    )
+    assert m, f"no facet group with aria-label {aria!r}"
+    return re.findall(r'class="facet-name">(.*?)</span>', m.group(1))
+
+
+def test_link_errors_facet_order_follows_filtered_pool(client, link_errors_loaded):
+    """Every facet list renders in its own pool's count order — selecting a
+    facet re-sorts the sibling Outcome / HTTP-status / To-delete / Harvested
+    lists to the counts shown, instead of freezing them to the unfiltered
+    page's order. Pinned via the largest publisher whose error mix tops on a
+    category other than the global top (NOT_FOUND)."""
+    rows = Query(
+        """SELECT org_name FROM (
+              SELECT org_name,
+                     (array_agg(category ORDER BY c DESC, category))[1] AS top_cat,
+                     SUM(c) AS n
+              FROM (SELECT org_name, category, COUNT(*) AS c
+                    FROM link_errors GROUP BY 1, 2) x
+              GROUP BY org_name
+            ) y WHERE top_cat <> 'NOT_FOUND' ORDER BY n DESC LIMIT 1""",
+    ).all()
+    if not rows:
+        pytest.skip("no publisher whose outcome tops off the global top category")
+    slug = rows[0]["org_name"]
+
+    pool = link_errors_facet_counts({"publisher": slug})
+    html = client.get("/links/errors", {"publisher": slug}).content.decode()
+
+    # Outcome re-sorts to the publisher's pool: its top category leads,
+    # ahead of the global top (Not found).
+    expected_outcome = [CATEGORY_LABELS.get(r["value"], (r["value"] or "").title()) for r in pool["categories"]]
+    assert expected_outcome
+    assert expected_outcome[0] != CATEGORY_LABELS["NOT_FOUND"]
+    assert _facet_order(html, "Filter by outcome") == expected_outcome
+
+    # HTTP status (minus the fixed No response trailing bucket), To delete
+    # and Harvested follow their pool counts too.
+    status = [n for n in _facet_order(html, "Filter by HTTP status") if n != "No response"]
+    assert status == [r["value"] for r in pool["statuses"]]
+    for aria, counts in (
+        ("Filter by the remove-link recommendation", pool["to_delete"]),
+        ("Filter by harvest status", pool["harvested"]),
+    ):
+        shown = _facet_order(html, aria)
+        # the rendered names are the value labels (No/Yes, Harvested/...)
+        assert shown == [v.title() for v in sorted(counts, key=lambda v: (-counts[v], v))], aria
+    print("ok: facet lists re-sort to the filtered pool's count order")
 
 
 def test_link_errors_filters_and_pills(client, link_errors_loaded):

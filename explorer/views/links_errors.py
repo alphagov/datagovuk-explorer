@@ -54,19 +54,26 @@ def _category_name(value: str) -> str:
     return CATEGORY_LABELS.get(value, (value or "").title())
 
 
+def _count_desc_values(counts: dict) -> list:
+    """A {value: count} pool's keys ordered by descending count (ties by
+    value) — the sidebar order for the small dict-returning facets (To
+    delete, Harvested), so the list mirrors the counts shown next to it."""
+    return sorted(counts, key=lambda value: (-counts[value], value))
+
+
 def link_errors(request):
     """GET /links/errors — the link-check report with sidebar facets."""
     stats = link_errors_stats()
 
-    # Filter-independent master pools (the validation whitelists and the
-    # sidebar item order) — the no-filter facet counts, memoised.
+    # Filter-independent base pools (the validation whitelists) — the
+    # no-filter facet counts, memoised. Only value validity is decided
+    # here: the sidebar *order* is the filtered pool's count order below,
+    # so selecting a facet re-sorts the sibling lists to the counts shown.
     base_pool = link_errors_facet_counts({})
-    category_master = [(c["value"], _category_name(c["value"])) for c in base_pool["categories"]]
-    status_master = [(s["value"], s["value"]) for s in base_pool["statuses"]]
     # value = org slug (the facet URL/filter key), name = display name.
     publisher_names = {p["value"]: p["name"] for p in base_pool["publishers"]}
-    valid_categories = {value for value, _ in category_master}
-    valid_statuses = {value for value, _ in status_master}
+    valid_categories = {c["value"] for c in base_pool["categories"]}
+    valid_statuses = {s["value"] for s in base_pool["statuses"]}
     valid_hosts = {h["value"] for h in base_pool["hosts"]}
     valid_publishers = set(publisher_names)
 
@@ -142,10 +149,19 @@ def link_errors(request):
     pager_base = facets.pager_base(base_params)
 
     # Sidebar facet groups — each group counts over the pool filtered by
-    # every other group (the standard self-excluding sidebar). To delete
-    # sits at the top: the checker's remove-from-catalogue recommendation
-    # is the first thing a user decides before drilling into why.
+    # every other group (the standard self-excluding sidebar), and each
+    # list renders in that pool's own count order (desc), so selecting a
+    # facet re-sorts the sibling lists to the counts actually shown. To
+    # delete sits at the top: the checker's remove-from-catalogue
+    # recommendation is the first thing a user decides before drilling
+    # into why.
     pool = link_errors_facet_counts(filters)
+    # The small dict-returning pools (to delete / harvested) sort by their
+    # pool count too, not the canonical label order — one rule for every
+    # facet list. Values with no rows in the pool are absent from these
+    # dicts and simply don't render (facet_counts_group drops them).
+    to_delete_master = [(value, TO_DELETE_LABELS[value]) for value in _count_desc_values(pool["to_delete"])]
+    harvested_master = [(value, HARVEST_LABELS[value]) for value in _count_desc_values(pool["harvested"])]
     facet_groups = [
         group
         for group in (
@@ -153,16 +169,19 @@ def link_errors(request):
                 "to_delete",
                 "To delete",
                 "Filter by the remove-link recommendation",
-                TO_DELETE_VALUES,
+                to_delete_master,
                 pool["to_delete"],
                 current_to_delete,
                 proportions=True,
             ),
+            # Outcome and HTTP status mirror the host/publisher pattern: the
+            # pool returns every category/status in it (count desc), so the
+            # list is built from the same filtered rows its counts come from.
             facets.facet_counts_group(
                 "category",
                 "Outcome",
                 "Filter by outcome",
-                category_master,
+                [(c["value"], _category_name(c["value"])) for c in pool["categories"]],
                 {c["value"]: c["count"] for c in pool["categories"]},
                 current_category,
                 proportions=True,
@@ -202,7 +221,7 @@ def link_errors(request):
                 "status",
                 "HTTP status",
                 "Filter by HTTP status",
-                status_master,
+                [(s["value"], s["value"]) for s in pool["statuses"]],
                 {s["value"]: s["count"] for s in pool["statuses"]},
                 current_status,
                 proportions=True,
@@ -223,7 +242,7 @@ def link_errors(request):
                 "harvested",
                 "Harvested",
                 "Filter by harvest status",
-                HARVEST_STATES,
+                harvested_master,
                 pool["harvested"],
                 current_harvested,
                 proportions=True,
