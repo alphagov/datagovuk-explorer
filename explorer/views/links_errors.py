@@ -4,14 +4,17 @@ Reads the `link_errors` table (ingested by scripts/ingest_link_errors.py
 from data/errors-current.csv): every checked resource link across all
 datasets — both check runs, and the OK/2xx rows that previously failed and
 are now resolved (shown, styled positively, not filtered out). Sortable via
-?sort= & ?dir=, filterable by outcome/category, HTTP status (with the
-"No response" bucket for the code-less DNS/timeout rows), harvest state
-(Harvested/Manual/Unknown) and publisher via the single-select sidebar
-facets, paginated (100/page). Default sort is most-recent check first.
+?sort= & ?dir=, filterable by outcome/category, domain (the broken URL's
+host), HTTP status (with the "No response" bucket for the code-less
+DNS/timeout rows), harvest state (Harvested/Manual/Unknown) and publisher
+via the single-select sidebar facets, paginated (100/page). Default sort is
+most-recent check first.
 
 The harvest state rides the datasets LEFT JOIN (queries/link_errors.py):
 harvested/manual from the snapshot, unknown when the package is absent
-from it (docs/link-errors-report.md §3 — derived, never stored).
+from it (docs/link-errors-report.md §3 — derived, never stored). The
+domain facet's host is derived too — split out of resource_url in SQL by
+the same _URL_HOST expression the URL sort uses.
 
 Sits under the top-level Links nav item (section = "links", shared sub-nav
 with /links).
@@ -32,16 +35,17 @@ from explorer.queries.link_errors import (
 
 from .core import _sort_dir, paginate
 
-# Facet-group labels (sidebar order — to delete, outcome/category, HTTP
-# status, harvest state, publisher).
+# Facet-group labels (sidebar order — to delete, outcome/category, domain,
+# HTTP status, harvest state, publisher).
 HARVEST_LABELS = dict(HARVEST_STATES)
 TO_DELETE_LABELS = dict(TO_DELETE_VALUES)
 
-# Publishers beyond this cutoff hide behind the "More publishers" toggle —
-# every publisher with errors is a facet (931 of them, not just the biggest
-# error producers), but the sidebar starts with the top few and expands via
-# the standard More link (?publishers=all, JS-free fallback like /links
-# formats).
+# Domains/publishers beyond these cutoffs hide behind the "More …" toggle —
+# every host and every publisher with errors is a facet (1602 hosts, 931
+# orgs), but the sidebar starts with the top few and expands via the
+# standard More link (?hosts=all / ?publishers=all, JS-free fallback like
+# /links formats).
+HOST_FACET_CUTOFF = 15
 PUBLISHER_FACET_CUTOFF = 15
 
 
@@ -59,10 +63,12 @@ def link_errors(request):
     base_pool = link_errors_facet_counts({})
     category_master = [(c["value"], _category_name(c["value"])) for c in base_pool["categories"]]
     status_master = [(s["value"], s["value"]) for s in base_pool["statuses"]]
-    publisher_master = [(p["value"], p["value"]) for p in base_pool["publishers"]]
+    # value = org slug (the facet URL/filter key), name = display name.
+    publisher_names = {p["value"]: p["name"] for p in base_pool["publishers"]}
     valid_categories = {value for value, _ in category_master}
     valid_statuses = {value for value, _ in status_master}
-    valid_publishers = {value for value, _ in publisher_master}
+    valid_hosts = {h["value"] for h in base_pool["hosts"]}
+    valid_publishers = set(publisher_names)
 
     # Current facet selections — single-select per group, combinable across
     # groups; unknown values fall back to no selection.
@@ -71,6 +77,9 @@ def link_errors(request):
 
     status = request.GET.get("status")
     current_status = status if status == "__none__" or status in valid_statuses else None
+
+    host = request.GET.get("host")
+    current_host = "__none__" if host == "__none__" else host if host in valid_hosts else None
 
     to_delete = request.GET.get("to_delete")
     current_to_delete = to_delete if to_delete in TO_DELETE_LABELS else None
@@ -81,13 +90,15 @@ def link_errors(request):
     publisher = request.GET.get("publisher")
     current_publisher = publisher if publisher in valid_publishers else None
 
-    # Publisher facet state — all publishers are facets; the long list
-    # collapses past PUBLISHER_FACET_CUTOFF behind the More toggle.
+    # Domain/publisher facet state — every host and publisher is a facet;
+    # the long lists collapse past their cutoffs behind the More toggles.
+    host_expanded = request.GET.get("hosts") == "all"
     publisher_expanded = request.GET.get("publishers") == "all"
 
     filters = {
         "category": current_category,
         "status": current_status,
+        "host": current_host,
         "to_delete": current_to_delete,
         "harvested": current_harvested,
         "publisher": current_publisher,
@@ -106,17 +117,25 @@ def link_errors(request):
     # Shared query-string machinery — ordered base (sort, dir, then each
     # active facet in a fixed order); facet_qs drops sort/dir for the
     # sort_link/pagination macros; facet_url sets/clears one facet value.
+    # The extras carry the expanded-lists state (?hosts=all / ?publishers=all)
+    # so facet/sort/pager links keep the lists expanded.
+    expanded_extras = {}
+    if host_expanded:
+        expanded_extras["hosts"] = "all"
+    if publisher_expanded:
+        expanded_extras["publishers"] = "all"
     base_params = facets.preserve_params(
         sort,
         dir_,
         [
             ("category", current_category),
             ("status", current_status),
+            ("host", current_host),
             ("to_delete", current_to_delete),
             ("harvested", current_harvested),
             ("publisher", current_publisher),
         ],
-        {"publishers": "all"} if publisher_expanded else None,
+        expanded_extras or None,
     )
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
@@ -147,6 +166,37 @@ def link_errors(request):
                 {c["value"]: c["count"] for c in pool["categories"]},
                 current_category,
                 proportions=True,
+            ),
+            # The pool returns every host in it (count desc), so master and
+            # counts come from the same rows — the list mirrors the current
+            # sibling-filter pool, not a global top-N. Scheme-less/malformed
+            # URLs trail as the No URL bucket.
+            facets.facet_counts_group(
+                "host",
+                "Domain",
+                "Filter by domain",
+                [(h["value"], h["value"]) for h in pool["hosts"]],
+                {h["value"]: h["count"] for h in pool["hosts"]},
+                current_host,
+                proportions=True,
+                cutoff=HOST_FACET_CUTOFF,
+                toggle_base=base_params,
+                toggle_param="hosts",
+                toggle_label="domains",
+                expanded=host_expanded,
+                list_id="host-facet-list",
+                trailing=(
+                    [
+                        {
+                            "value": "__none__",
+                            "name": "No URL",
+                            "count": pool["no_url"],
+                            "active": current_host == "__none__",
+                        },
+                    ]
+                    if pool["no_url"]
+                    else None
+                ),
             ),
             facets.facet_counts_group(
                 "status",
@@ -180,12 +230,13 @@ def link_errors(request):
             ),
             # The pool returns every publisher in it (count desc), so master
             # and counts come from the same rows — the list mirrors the
-            # current sibling-filter pool, not a global top-N.
+            # current sibling-filter pool, not a global top-N. value is the
+            # slug (the URL/filter key); name is the display name shown.
             facets.facet_counts_group(
                 "publisher",
                 "Publisher",
                 "Filter by publisher",
-                [(p["value"], p["value"]) for p in pool["publishers"]],
+                [(p["value"], p["name"]) for p in pool["publishers"]],
                 {p["value"]: p["count"] for p in pool["publishers"]},
                 current_publisher,
                 proportions=True,
@@ -209,7 +260,7 @@ def link_errors(request):
         r["status_text"] = f"{r['status']} {label}" if r["status"] is not None else label
 
     # Pill labels for the active-filter strip (header left) — same order
-    # as the sidebar facets (to delete, outcome, status, harvested,
+    # as the sidebar facets (to delete, outcome, domain, status, harvested,
     # publisher).
     pills = [
         {
@@ -229,6 +280,14 @@ def link_errors(request):
         if current_category
         else None,
         {
+            "label": "Domain",
+            "value": "No URL" if current_host == "__none__" else current_host,
+            "href": facet_url("host", ""),
+            "aria": "Remove domain filter: " + ("No URL" if current_host == "__none__" else current_host),
+        }
+        if current_host
+        else None,
+        {
             "label": "Status",
             "value": "No response" if current_status == "__none__" else current_status,
             "href": facet_url("status", ""),
@@ -246,9 +305,9 @@ def link_errors(request):
         else None,
         {
             "label": "Publisher",
-            "value": current_publisher,
+            "value": publisher_names.get(current_publisher, current_publisher),
             "href": facet_url("publisher", ""),
-            "aria": "Remove publisher filter: " + current_publisher,
+            "aria": "Remove publisher filter: " + publisher_names.get(current_publisher, current_publisher),
         }
         if current_publisher
         else None,

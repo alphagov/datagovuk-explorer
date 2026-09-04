@@ -62,9 +62,9 @@
             </td>
             <td class="col-text">
               {%- if e.org_slug -%}
-                <a href="/organisation/{{ e.org_slug }}">{{ e.org_name }}</a>
+                <a href="/organisation/{{ e.org_slug }}">{{ e.org_display_name or e.org_name }}</a>
               {%- else -%}
-                {{ e.org_name }}
+                {{ e.org_display_name or e.org_name }}
               {%- endif -%}
             </td>
             <td class="col-text">{{ harvested_state_badge(e) }}</td>

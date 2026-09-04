@@ -72,6 +72,7 @@ def test_link_errors_list_shape_and_sort_whitelist(link_errors_loaded):
         "resource_url",
         "datagovuk_url",
         "org_name",
+        "org_display_name",
         "status",
         "category",
         "error_detail",
@@ -144,12 +145,14 @@ def test_harvest_state_join_includes_unknown(link_errors_loaded):
 def test_link_errors_facet_pools_partition_list_count(link_errors_loaded):
     """Each group's pool total equals the list count with that group's
     filter cleared. Category, status (+ the No response trailing bucket),
-    harvest state and publisher each partition the whole pool — publisher
-    is uncapped (every org is a facet), so it partitions like the rest."""
+    domain (+ the No URL bucket), harvest state and publisher each
+    partition the whole pool — domain and publisher are uncapped (every
+    host / every org is a facet), so they partition like the rest."""
     base = link_errors_facet_counts({})
     category = base["categories"][0]["value"]
     status = base["statuses"][0]["value"]
     publisher = base["publishers"][0]["value"]
+    host = base["hosts"][0]["value"]
 
     combos = [
         {},
@@ -158,6 +161,8 @@ def test_link_errors_facet_pools_partition_list_count(link_errors_loaded):
         {"status": "__none__"},
         {"to_delete": "yes"},
         {"to_delete": "no", "category": "NOT_FOUND"},
+        {"host": host},
+        {"host": "__none__"},
         {"harvested": "unknown"},
         {"publisher": publisher},
         {"category": category, "status": "__none__"},
@@ -170,6 +175,10 @@ def test_link_errors_facet_pools_partition_list_count(link_errors_loaded):
             _without(filters, "status"),
         ), filters
         assert sum(counts["to_delete"].values()) == _count(_without(filters, "to_delete")), filters
+        # domain partitions into parseable hosts + the scheme-less No URL rows
+        assert sum(r["count"] for r in counts["hosts"]) + counts["no_url"] == _count(
+            _without(filters, "host"),
+        ), filters
         assert sum(counts["harvested"].values()) == _count(_without(filters, "harvested")), filters
         # publisher is uncapped — its pool partitions the publisher-cleared
         # count (every link_errors row carries an org name)
@@ -177,7 +186,8 @@ def test_link_errors_facet_pools_partition_list_count(link_errors_loaded):
             _without(filters, "publisher"),
         ), filters
 
-    # a non-empty combo still surfaces publishers in the pool
+    # a non-empty combo still surfaces hosts/publishers in the pools
+    assert sum(r["count"] for r in link_errors_facet_counts({"category": "NOT_FOUND"})["hosts"]) > 0
     assert sum(r["count"] for r in link_errors_facet_counts({"category": "NOT_FOUND"})["publishers"]) > 0
     print("ok: facet pools partition the group-cleared list count")
 
@@ -192,6 +202,12 @@ def test_link_errors_facet_value_matches_filtered_count(link_errors_loaded):
     assert ok_pool == link_errors_stats()["resolved"]
 
     assert base["no_response"] == _count({"status": "__none__"})
+
+    # No URL bucket equals the code-less list, and picking the top domain
+    # shows exactly the pool's count
+    assert base["no_url"] == _count({"host": "__none__"})
+    top_host = base["hosts"][0]["value"]
+    assert base["hosts"][0]["count"] == _count({"host": top_host})
 
     # to-delete partitions into the yes/no recommendations, covering the table
     assert base["to_delete"] == {
@@ -269,12 +285,30 @@ def test_link_errors_view(client, link_errors_loaded):
     assert 'class="facet-group" aria-label="Filter by the remove-link recommendation"' in yes
     assert '<td class="col-text">No</td>' not in yes
 
+    # the Domain facet is uncapped: every host is a facet, the sidebar
+    # starts with the top few and expands via the More toggle; scheme-less
+    # URLs trail as the No URL bucket
+    assert 'class="facet-group" aria-label="Filter by domain"' in html
+    assert "No URL" in html
+    assert "More domains" in html
+    all_hosts = _squash(client.get("/links/errors?hosts=all").content.decode())
+    assert "Fewer domains" in all_hosts
+    no_url = _squash(client.get("/links/errors?host=__none__").content.decode())
+    assert 'class="filter-pill"' in no_url
+
     # the Publisher facet is uncapped: every org is a facet, the sidebar
     # starts with the top few and expands via the More toggle
     assert 'class="facet-group" aria-label="Filter by publisher"' in html
     assert "More publishers" in html
     all_pubs = _squash(client.get("/links/errors?publishers=all").content.decode())
     assert "Fewer publishers" in all_pubs
+
+    # publisher facets and row cells show display names (from organisations),
+    # not org slugs — e.g. the top error publisher
+    top = link_errors_facet_counts({})["publishers"][0]
+    assert top["name"] in html
+    pub_rows = _squash(client.get("/links/errors", {"publisher": top["value"]}).content.decode())
+    assert f'<a href="/organisation/{top["value"]}">{top["name"]}</a>' in pub_rows
     print("ok: /links/errors view (200, sub-nav, states, resolved styling)")
 
 

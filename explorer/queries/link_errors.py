@@ -7,10 +7,13 @@ Harvested / harvest source are DERIVED, not stored (docs/link-errors-report
 .md §3): every statement LEFT JOINs `datasets` on package_id, so the
 join shape — org slug, harvested state and harvest source title — is
 defined once here. Rows whose package is absent from the datasets snapshot
-(~3.6%) have d.id NULL → harvest_state 'unknown'.
+(~3.6%) have d.id NULL → harvest_state 'unknown'. The domain facet's host
+is derived too — the ingest CSV stores only resource_url, so _URL_HOST
+pulls the host out in SQL (one shared expression for the sort, the facet
+pool and its WHERE clause).
 
 filters: { category: code | None, status: "404" | "__none__" | None,
-           to_delete: "yes" | "no" | None,
+           to_delete: "yes" | "no" | None, host: name | "__none__" | None,
            harvested: harvested|manual|unknown | None, publisher: org | None }.
 """
 
@@ -23,7 +26,17 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 # link_errors is ingested separately (like reviews) and may run against an
 # older datasets snapshot, so the report derives the datasets-owned columns
 # from this join instead of duplicating them (docs/link-errors-report.md §3).
-_LINK_ERRORS_FROM = "link_errors e LEFT JOIN datasets d ON d.id = e.package_id"
+# The organisations join resolves publisher display names: e.org_name holds
+# the CKAN org slug, and organisations is the slug → display_name registry
+# (930 of 931 error orgs; the datasets snapshot alone would miss 5). It's
+# 0-or-1 rows per error row, so it never multiplies counts.
+_LINK_ERRORS_FROM = (
+    "link_errors e LEFT JOIN datasets d ON d.id = e.package_id LEFT JOIN organisations o ON o.slug = e.org_name"
+)
+
+# Publisher display name — organisations.display_name, falling back to the
+# org slug when the org isn't in the registry (e.g. renamed/defunct orgs).
+_PUBLISHER_NAME = "COALESCE(NULLIF(o.display_name, ''), e.org_name)"
 
 # --- Facet label maps ------------------------------------------------------
 # Raw category codes from the checker -> display labels (the harvesters'
@@ -73,7 +86,9 @@ _URL_HOST = "split_part(substring(e.resource_url FROM '://([^/]+)'), ':', 1)"
 LINK_ERRORS_SORT_EXPRS = {
     "url": f"LOWER(COALESCE({_URL_HOST}, ''))",
     "dataset": "LOWER(COALESCE(e.package_name, ''))",
-    "publisher": "LOWER(COALESCE(e.org_name, ''))",
+    # Publisher sorts by display name (same value the cell shows), not the
+    # slug column — o rides the shared organisations join.
+    "publisher": f"LOWER(COALESCE({_PUBLISHER_NAME}, ''))",
     # No-response rows (http_status NULL) sort below real codes on asc,
     # above them on desc — COALESCE(-1), the reviews scores pattern.
     "status": "COALESCE(e.http_status, -1)",
@@ -142,6 +157,22 @@ def _harvested_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     return [], []
 
 
+def _host_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """Derived-host WHERE fragment + params. The host is NOT stored (the
+    ingest CSV has no host column): _URL_HOST pulls it out of resource_url
+    in SQL, so filter/facet/sort all share the one expression — same
+    derived-not-stored principle as the harvest states above. __none__ is
+    the no-host selection (scheme-less / malformed URLs)."""
+    if exclude == "host":
+        return [], []
+    host = filters.get("host")
+    if host == "__none__":
+        return [f"COALESCE({_URL_HOST}, '') = ''"], []
+    if host:
+        return [f"{_URL_HOST} = %s"], [host]
+    return [], []
+
+
 def _publisher_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     """Publisher (org-name) WHERE fragment + params. org_name rides on the
     error row itself (from the checker), not the datasets join."""
@@ -157,6 +188,7 @@ _CLAUSES = {
     "category": _category_clause,
     "status": _status_clause,
     "to_delete": _to_delete_clause,
+    "host": _host_clause,
     "harvested": _harvested_clause,
     "publisher": _publisher_clause,
 }
@@ -182,6 +214,7 @@ def link_errors_stmts(filters: dict, sort: str, dir_: str) -> dict:
             "  e.http_status AS status, e.category, e.error_detail,"
             "  e.to_delete, e.checked_at,"
             "  d.org_slug,"
+            f"  {_PUBLISHER_NAME} AS org_display_name,"
             "  CASE WHEN d.id IS NULL THEN 'unknown'"
             "       WHEN d.harvested = 1 THEN 'harvested'"
             "       ELSE 'manual' END AS harvest_state,"
@@ -209,18 +242,21 @@ def _guarded(fragment: str, guard: str) -> str:
 
 
 # Guard clauses for the facet pools that group only real values (blank
-# categories / org names never appear as facet items).
+# categories / org names / scheme-less URLs never appear as facet items).
 _NONEMPTY_CATEGORY = "e.category <> ''"
 _NONEMPTY_ORG = "e.org_name <> ''"
+_NONEMPTY_HOST = f"COALESCE({_URL_HOST}, '') <> ''"
+_NO_HOST = f"COALESCE({_URL_HOST}, '') = ''"
 
 
 def _link_errors_facet_counts(filters: dict) -> dict:
     """Compiled facet-count statements for one (category/status/to_delete/
-    harvested/publisher) combo — the seven Queries plus per-statement
+    host/harvested/publisher) combo — the eight Queries plus per-statement
     params."""
     cat_frag, cat_params = facet_where(_CLAUSES, filters, exclude="category")
     status_frag, status_params = facet_where(_CLAUSES, filters, exclude="status")
     td_frag, td_params = facet_where(_CLAUSES, filters, exclude="to_delete")
+    host_frag, host_params = facet_where(_CLAUSES, filters, exclude="host")
     harv_frag, harv_params = facet_where(_CLAUSES, filters, exclude="harvested")
     pub_frag, pub_params = facet_where(_CLAUSES, filters, exclude="publisher")
 
@@ -230,6 +266,8 @@ def _link_errors_facet_counts(filters: dict) -> dict:
             "statuses": status_params,
             "no_response": status_params,
             "to_delete": td_params,
+            "hosts": host_params,
+            "no_url": host_params,
             "harvested": harv_params,
             "publishers": pub_params,
         },
@@ -248,6 +286,18 @@ def _link_errors_facet_counts(filters: dict) -> dict:
         "no_response": Query(
             f"SELECT COUNT(*) AS n FROM {_LINK_ERRORS_FROM}{_guarded(status_frag, 'e.http_status IS NULL')}",
         ),
+        # Derived hosts — every host in the pool (no cap, the view's More
+        # toggle cuts the list); the scheme-less/malformed URL rows trail as
+        # the No URL bucket. GROUP BY 1 + a repeated LOWER(expression) order
+        # (Postgres won't resolve a bare alias inside LOWER).
+        "hosts": Query(
+            f"SELECT {_URL_HOST} AS value, COUNT(*) AS count"
+            f" FROM {_LINK_ERRORS_FROM}{_guarded(host_frag, _NONEMPTY_HOST)}"
+            f" GROUP BY 1 ORDER BY count DESC, LOWER({_URL_HOST})",
+        ),
+        "no_url": Query(
+            f"SELECT COUNT(*) AS n FROM {_LINK_ERRORS_FROM}{_guarded(host_frag, _NO_HOST)}",
+        ),
         "to_delete": Query(
             "SELECT CASE WHEN e.to_delete THEN 'yes' ELSE 'no' END AS value, COUNT(*) AS count"
             f" FROM {_LINK_ERRORS_FROM}{td_frag}"
@@ -262,11 +312,13 @@ def _link_errors_facet_counts(filters: dict) -> dict:
         ),
         # No cap — the sidebar renders every publisher in the pool; the view
         # cuts the long list behind its "More publishers" toggle (all 931
-        # orgs are facets, not just the biggest error producers).
+        # orgs are facets, not just the biggest error producers). value is
+        # the org slug (the facet URL/filter key); name is the display name.
         "publishers": Query(
-            "SELECT e.org_name AS value, COUNT(*) AS count"
+            f"SELECT e.org_name AS value, {_PUBLISHER_NAME} AS name, COUNT(*) AS count"
             f" FROM {_LINK_ERRORS_FROM}{_guarded(pub_frag, _NONEMPTY_ORG)}"
-            " GROUP BY e.org_name ORDER BY count DESC, LOWER(e.org_name)",
+            " GROUP BY e.org_name, o.display_name"
+            f" ORDER BY count DESC, LOWER({_PUBLISHER_NAME})",
         ),
     }
     return entry
@@ -280,26 +332,33 @@ def link_errors_facet_counts(filters: dict) -> dict:
       'categories':  [{'value': category-code, 'count': n}, ...] count desc
       'statuses':    [{'value': "404", 'count': n}, ...] count desc
       'no_response': int — rows with no HTTP status (the trailing bucket)
+      'hosts':       [{'value': host, 'count': n}, ...] all hosts, count
+                     desc (no cap — the view's More toggle cuts the list)
+      'no_url':      int — rows whose URL has no parseable host (the
+                     trailing bucket)
       'to_delete':   {'yes': n, 'no': n}
       'harvested':   {'harvested': n, 'manual': n, 'unknown': n}
-      'publishers':  [{'value': org-name, 'count': n}, ...] all orgs,
-                     count desc (no cap — the view's More toggle cuts the
-                     rendered list)
+      'publishers':  [{'value': org-slug, 'name': display-name,
+                     'count': n}, ...] all orgs, count desc (no cap — the
+                     view's More toggle cuts the rendered list; name falls
+                     back to the slug for orgs missing from organisations)
 
-    The six statements are six independent single-SELECT aggregates, so
+    The eight statements are eight independent single-SELECT aggregates, so
     they run concurrently via core.fetch_parallel. No-filter calls return
     the memoised pools via core.cached_unfiltered — every /links/errors
-    request calls the unfiltered version for its category/status/publisher
-    validation whitelists; filtered calls run live.
+    request calls the unfiltered version for its category/status/host/
+    publisher validation whitelists; filtered calls run live.
     """
     entry = _link_errors_facet_counts(filters)
     p = entry["params"]
-    categories, statuses, no_resp, to_delete, harvested, publishers = fetch_parallel(
+    categories, statuses, no_resp, to_delete, hosts, no_url, harvested, publishers = fetch_parallel(
         [
             lambda: entry["categories"].all(*p["categories"]),
             lambda: entry["statuses"].all(*p["statuses"]),
             lambda: (entry["no_response"].get(*p["no_response"]) or {}).get("n", 0),
             lambda: entry["to_delete"].all(*p["to_delete"]),
+            lambda: entry["hosts"].all(*p["hosts"]),
+            lambda: (entry["no_url"].get(*p["no_url"]) or {}).get("n", 0),
             lambda: entry["harvested"].all(*p["harvested"]),
             lambda: entry["publishers"].all(*p["publishers"]),
         ],
@@ -309,6 +368,8 @@ def link_errors_facet_counts(filters: dict) -> dict:
         "statuses": statuses,
         "no_response": no_resp,
         "to_delete": {row["value"]: row["count"] for row in to_delete},
+        "hosts": hosts,
+        "no_url": no_url,
         "harvested": {row["value"]: row["count"] for row in harvested},
         "publishers": publishers,
     }

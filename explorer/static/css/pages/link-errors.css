@@ -2,8 +2,8 @@
  * pages/link-errors.css — the /links/errors table. The report shows the
  * whole picture — errors AND the OK/2xx rows that previously failed a
  * check and are now resolved (docs/link-errors-report.md §1/§8) — so the
- * resolved rows get a distinct positive treatment: pale-green row tint +
- * green status text, errors left on the default styling.
+ * resolved rows get a subtle positive treatment: green status text only,
+ * the row itself stays on the default styling (no whole-row tint).
  * ------------------------------------------------------------------------- */
 
 /* The status cell — no wrap so "404 Not found" stays one token; the title
@@ -12,12 +12,9 @@
 	white-space: nowrap;
 }
 
-/* Resolved rows (category = OK): pale-green row + green status text. The
-   row class lives on the <tr>, so the tint reaches every cell. */
-.link-errors-row--ok td {
-	background: var(--color-active-bg);
-}
-
+/* Resolved rows (category = OK): green status text marks the cell without
+   colouring the whole row. The class lives on the <tr> (kept off the
+   alternating-row background in table.css). */
 .link-errors-row--ok .status {
 	color: var(--color-active);
 	font-weight: 600;
