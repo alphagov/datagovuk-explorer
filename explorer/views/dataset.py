@@ -18,6 +18,7 @@ from explorer.queries.datasets import (
     RELATED_BY_FTS,
 )
 from explorer.queries.embeddings import EMBEDDING_TEXT, SEMANTIC_RELATED
+from explorer.queries.harvesters import HARVEST_SOURCE
 from explorer.queries.organisations import ORG
 from explorer.queries.reviews import get_classification, get_review
 from explorer.queries.series import DATASET_SERIES, SERIES_DATASETS_EXCEPT
@@ -221,7 +222,21 @@ def dataset(request, org_slug, dataset_id):
     # depend on the summary row
     extras = {e["key"]: e["value"] for e in dataset.get("extras") or []}
     harvested = bool(extras.get("harvest_object_id"))
-    harvest_source = extras.get("harvest_source_title") or None
+    source_id = extras.get("harvest_source_id") or None
+    source_title = extras.get("harvest_source_title") or None
+    # The dataset's harvest_source_id only links when the source's record is
+    # still in the registry: CKAN can drop source rows while the datasets
+    # that cite them remain, and /harvester/{id} 404s for those. The source
+    # row is resolved purely to learn whether the id is a safe link target
+    # (its title also backs up datasets whose own extra is blank).
+    source_row = HARVEST_SOURCE.get(source_id) if source_id else None
+    harvest_source = None
+    if source_title or source_row:
+        harvest_source = {
+            # None (no link) when the source record is gone from the registry
+            "id": source_id if source_row else None,
+            "title": source_title or (source_row["title"] if source_row else None) or source_id,
+        }
 
     # Resources default to natural (position) order
     sort, dir_ = _sort_dir(request, RESOURCE_SORT_COLUMNS, "position")

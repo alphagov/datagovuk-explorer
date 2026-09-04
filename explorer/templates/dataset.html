@@ -79,7 +79,16 @@
         {{ detail("Created", dataset.metadata_created | date_short if dataset.metadata_created else "") }}
         {{ detail("Last modified", dataset.metadata_modified | date_short if dataset.metadata_modified else "") }}
         {{ detail("Harvested", "Yes" if harvested else "No") }}
-        {% if harvest_source %}{{ detail("Harvest source", harvest_source) }}{% endif %}
+        {% if harvest_source %}
+          <dt>Harvest source</dt>
+          <dd>
+            {% if harvest_source.id %}
+              <a href="/harvester/{{ harvest_source.id }}">{{ harvest_source.title }}</a>
+            {% else %}
+              {{ harvest_source.title }}
+            {% endif %}
+          </dd>
+        {% endif %}
       </dl>
     </section>
 
