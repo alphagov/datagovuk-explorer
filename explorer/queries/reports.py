@@ -214,7 +214,7 @@ REPORTS = [
     {
         "key": "datasets-no-links",
         "label": "Datasets with no links",
-        "description": ("Datasets that have no resources at all — an empty download section."),
+        "description": ("Datasets that have no links at all — an empty download section."),
         "kind": "datasets",
         # Single-select organisation facet (?org=<slug>), reusing the sidebar
         # + filter-pill pattern from the /links page.
@@ -310,7 +310,7 @@ REPORTS = [
     {
         "key": "links-no-url",
         "label": "Links with no URL",
-        "description": "Resources with a missing or empty download URL.",
+        "description": "Links with a missing or empty download URL.",
         "kind": "links",
         # Columns the WHERE clause guarantees to be empty — hidden so the
         # table doesn't show a column of dashes (shared links table).
@@ -333,7 +333,7 @@ REPORTS = [
         "key": "links-bad-url",
         "label": "Links with unparseable URLs",
         "description": (
-            "Resources with a URL that can't be parsed into a valid web address — "
+            "Links with a URL that can't be parsed into a valid web address — "
             "often HTML or free text pasted into the URL field."
         ),
         "kind": "links",
@@ -342,7 +342,7 @@ REPORTS = [
     {
         "key": "links-no-format",
         "label": "Links with no format",
-        "description": "Resources with no file format recorded.",
+        "description": "Links with no file format recorded.",
         "kind": "links",
         "hidden_cols": ["format"],
         **_link_report_sql("format_norm IS NULL OR format_norm = ''"),
@@ -351,7 +351,7 @@ REPORTS = [
         "key": "links-no-name",
         "label": "Links with no name",
         "description": (
-            "Resources with neither a descriptive name nor a description — nothing to tell you what they contain."
+            "Links with neither a descriptive name nor a description — nothing to tell you what they contain."
         ),
         "kind": "links",
         "hidden_cols": ["name", "description"],
@@ -411,13 +411,13 @@ REPORTS = [
         "key": "datasets-has-api",
         "label": "Datasets with an API",
         "description": (
-            "Datasets with at least one resource that offers programmatic access "
+            "Datasets with at least one link that offers programmatic access "
             "to its data — a service endpoint (ArcGIS REST, WMS, WFS, OGC API, "
-            "CSW, GeoRSS), a JSON resource whose URL is a service endpoint "
-            "(not a .json file download), or a resource named or described as "
+            "CSW, GeoRSS), a JSON link whose URL is a service endpoint "
+            "(not a .json file download), or a link named or described as "
             "an API. A positive finding: these datasets expose their data to "
-            "software, not just the download button. The API resources column "
-            "shows which resource(s) matched and why."
+            "software, not just the download button. The API links column "
+            "shows which link(s) matched and why."
         ),
         "kind": "datasets",
         # Tells the report template to render the matched-resources column

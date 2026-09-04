@@ -31,7 +31,7 @@ SCORE_GROUPS = [
     {"key": "overall", "label": "Overall"},
     {"key": "findability", "label": "Findability"},
     {"key": "metadata", "label": "Metadata"},
-    {"key": "resources", "label": "Resources"},
+    {"key": "resources", "label": "Links"},
 ]
 
 
