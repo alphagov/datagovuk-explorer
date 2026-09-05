@@ -57,6 +57,14 @@ def esc(s):
     return str(escape(s or ""))
 
 
+def _primary_nav(html: str) -> str:
+    """The site header's primary nav block — for asserting which reports
+    are (or aren't) main-nav items."""
+    m = re.search(r'<nav class="site-nav" aria-label="Primary">(.*?)</nav>', html, re.S)
+    assert m, "page should render the primary site nav"
+    return m.group(1)
+
+
 # ---------------------------------------------------------------------------
 # Health + 404s
 # ---------------------------------------------------------------------------
@@ -235,6 +243,16 @@ def test_organisations(client):
     assert r.status_code == 200
     # count header: "X-Y of Z" with the filtered total
     assert f"1-{len(page1):,} of {total:,}" in html
+
+    # Publishers group sub-nav — Harvesters is a sub-report of Publishers
+    # (the same macro as the Links group): the current report renders as
+    # the active h1 heading, with a link to the other report beside it.
+    assert '<h1 class="nav-link nav-link--active" aria-current="page">Publishers</h1>' in html
+    assert '<a href="/harvesters" class="nav-link">Harvesters</a>' in html
+    # Harvesters was removed from the main nav — it's only a sub-report now
+    primary = _primary_nav(html)
+    assert 'href="/harvesters"' not in primary
+    assert 'href="/organisations"' in primary
 
     # every sort column, both directions — page rows match the builder
     for sort in (
@@ -435,6 +453,16 @@ def test_harvesters(client):
     assert r.status_code == 200
     # count header: "X-Y of Z" with the filtered total
     assert f"1-{len(page1):,} of {total:,}" in html
+
+    # Harvesters now sits under the Publishers group: the Publishers main-nav
+    # item stays highlighted, and the sub-nav shows Publishers ↔ Harvesters
+    # with this report as the active h1 heading (no separate page heading).
+    primary = _primary_nav(html)
+    assert 'href="/organisations"' in primary
+    assert 'href="/harvesters"' not in primary
+    assert 'aria-current="page"' in primary  # Publishers is the active item
+    assert '<h1 class="nav-link nav-link--active" aria-current="page">Harvesters</h1>' in html
+    assert '<a href="/organisations" class="nav-link">Publishers</a>' in html
 
     # every sort column, both directions — page rows match the builder
     for sort in ("title", "org_name", "type", "active", "frequency", "dataset_count", "last_run"):

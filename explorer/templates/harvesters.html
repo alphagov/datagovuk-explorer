@@ -1,7 +1,25 @@
 {% extends "_app_layout.html" %}
 
+{% block styles %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ static('css/components/subnav.css') }}" />
+{% endblock styles %}
+
 {% block header_left %}
-  <h1>Harvesters</h1>
+  {% set subnav_tabs = [
+    {
+      "key": "orgs",
+      "label": "Publishers",
+      "url": "/organisations"
+    },
+    {
+      "key": "harvesters",
+      "label": "Harvesters",
+      "url": "/harvesters"
+    }
+  ] %}
+  {{ subnav(subnav_tabs, "harvesters", "Publishers") }}
+
   {% set pills = [
       {"label": "Type", "value": type_label, "href": facet_url("type", "") , "aria": "Remove type filter: " ~ type_label} if type else none,
       {"label": "Status", "value": active_label, "href": facet_url("active", "") , "aria": "Remove status filter: " ~ active_label} if active else none,
