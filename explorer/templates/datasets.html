@@ -6,6 +6,7 @@
   {% set source_name = "Harvested" if source == "harvested" else "Manual" %}
   {% set pills = [
       {"label": "Theme", "value": theme_label, "href": facet_url("theme", "") , "aria": "Remove theme filter: " ~ theme_label} if theme else none,
+      {"label": "Publisher", "value": publisher_label, "href": facet_url("publisher", "") , "aria": "Remove publisher filter: " ~ publisher_label} if publisher else none,
       {"label": "Source", "value": source_name, "href": facet_url("source", "") , "aria": "Remove source filter: " ~ source_name} if source else none,
       {"label": "Links", "value": links_label, "href": facet_url("links", "") , "aria": "Remove links filter: " ~ links_label} if links else none,
       {"label": "Year", "value": year, "href": facet_url("year", ""), "aria": "Remove year filter: " ~ year} if year else none,

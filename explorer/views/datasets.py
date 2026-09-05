@@ -1,11 +1,11 @@
 """GET /datasets — all datasets across all orgs.
 
 Server-side sortable via ?sort= & ?dir= and filterable via the sidebar
-facets — primary theme (?theme=), source (?source=harvested|manual),
-creation year (?year=), link count (?links=, the count-bucket facet),
-temporal coverage year (?temporal=) and metadata key/value
-(?metadata_key=&metadata_value=, linked from the /metadata value
-pages) — paginated (100/page).
+facets — primary theme (?theme=), publisher (?publisher=<org slug>),
+source (?source=harvested|manual), creation year (?year=), link count
+(?links=, the count-bucket facet), temporal coverage year (?temporal=)
+and metadata key/value (?metadata_key=&metadata_value=, linked from the
+/metadata value pages) — paginated (100/page).
 
 Sidebar facet counts are SQL aggregates from explorer/queries/datasets.py
 (datasets_facet_counts) over the same WHERE builder the page list/count use
@@ -41,8 +41,10 @@ from explorer.sort import DATASETS_SORT_COLUMNS
 from .core import _sort_dir, paginate
 
 # Temporal-year facet window: years above this count collapse behind a
-# "More years" toggle
+# "More years" toggle; the Publisher facet's org list does the same behind
+# a "More publishers" toggle (1176 orgs in the unfiltered pool).
 TEMPORAL_FACET_CUTOFF = 15
+PUBLISHER_FACET_CUTOFF = 15
 
 # In-window temporal years (latest first) — filter-independent, memoised at
 # module level (the DB is a build-time snapshot, so the result is stable).
@@ -78,9 +80,10 @@ def _year_master() -> list[str]:
 
 @dataclass(frozen=True)
 class DatasetsFilters:
-    """The six validated /datasets facet selections (None = not active)."""
+    """The seven validated /datasets facet selections (None = not active)."""
 
     theme: str | None
+    publisher: str | None
     source: str | None
     links: str | None
     year: str | None
@@ -89,14 +92,16 @@ class DatasetsFilters:
     metadata_value: str | None
 
 
-def _parse_filters(request, valid_slugs, valid_years, valid_temporal_years) -> DatasetsFilters:
+def _parse_filters(request, valid_slugs, valid_publishers, valid_years, valid_temporal_years) -> DatasetsFilters:
     """Validate the /datasets facet selections from request.GET.
 
     Each facet has the same shape: take request.GET, validate against a
     whitelist, return None or the value. The theme/temporal special values
     ("none", "pre1900", "post") are selections in their own right, not
-    slugs/years. The metadata filter is a key/value pair — both must be
-    present and the key must match the top:/extras: metadata sections.
+    slugs/years. The publisher value is an org slug (validated against the
+    orgs that actually own datasets). The metadata filter is a key/value
+    pair — both must be present and the key must match the top:/extras:
+    metadata sections.
     """
     theme = request.GET.get("theme")
     current_theme = None
@@ -104,6 +109,9 @@ def _parse_filters(request, valid_slugs, valid_years, valid_temporal_years) -> D
         current_theme = "none"
     elif theme in valid_slugs:
         current_theme = theme
+
+    publisher = request.GET.get("publisher")
+    current_publisher = publisher if publisher in valid_publishers else None
 
     source = request.GET.get("source")
     current_source = source if source in ("harvested", "manual") else None
@@ -135,6 +143,7 @@ def _parse_filters(request, valid_slugs, valid_years, valid_temporal_years) -> D
 
     return DatasetsFilters(
         theme=current_theme,
+        publisher=current_publisher,
         source=current_source,
         links=current_links,
         year=current_year,
@@ -187,6 +196,7 @@ def datasets(request):
     filters = _parse_filters(
         request,
         {t["slug"] for t in themes},
+        {r["org_slug"] for r in fetched_slug_rows},
         set(years),
         {str(y) for y in temporal_years},
     )
@@ -196,6 +206,7 @@ def datasets(request):
     facet_counts = datasets_facet_counts(
         {
             "theme": filters.theme,
+            "publisher": filters.publisher,
             "source": filters.source,
             "links": filters.links,
             "year": filters.year,
@@ -206,16 +217,23 @@ def datasets(request):
     sort, dir_ = _sort_dir(request, DATASETS_SORT_COLUMNS, "organisation")
 
     # Query-string base shared by sort links / facet links / pills and the
-    # temporal More-years toggle. preserve_params gives the ordered base
-    # (sort, dir, then each active facet in a fixed order, then the
-    # ?years=all extra); facet_qs drops sort/dir for the
-    # sort_link/pagination macros.
+    # temporal More-years / publisher More-publishers toggles. preserve_params
+    # gives the ordered base (sort, dir, then each active facet in a fixed
+    # order, then the expanded-lists extras — ?years=all / ?publishers=all);
+    # facet_qs drops sort/dir for the sort_link/pagination macros.
     temporal_expanded = request.GET.get("years") == "all"
+    publisher_expanded = request.GET.get("publishers") == "all"
+    expanded_extras = {}
+    if temporal_expanded:
+        expanded_extras["years"] = "all"
+    if publisher_expanded:
+        expanded_extras["publishers"] = "all"
     base_params = facets.preserve_params(
         sort,
         dir_,
         [
             ("theme", filters.theme),
+            ("publisher", filters.publisher),
             ("source", filters.source),
             ("links", filters.links),
             ("year", filters.year),
@@ -223,7 +241,7 @@ def datasets(request):
             ("metadata_key", filters.metadata_key),
             ("metadata_value", filters.metadata_value),
         ],
-        {"years": "all"} if temporal_expanded else None,
+        expanded_extras or None,
     )
 
     # --- Sidebar facet groups (pool counts + current selection -> group) ---
@@ -264,6 +282,12 @@ def datasets(request):
     theme_pool_counts = {
         ("none" if r["theme"] == "__none__" else r["theme"]): r["count"] for r in facet_counts["themes"]
     }
+    # Publisher pool returns every publisher in it (count desc) with its
+    # display name, so the same rows feed the master list, the item counts
+    # and the pill-name lookup. The value-space is the org slug — same key
+    # the row links to /organisation/<slug> with.
+    publisher_pool = facet_counts["publishers"]
+    publisher_names = {p["value"]: p["name"] for p in publisher_pool}
     facet_groups = [
         group
         for group in (
@@ -275,6 +299,25 @@ def datasets(request):
                 theme_pool_counts,
                 filters.theme,
                 proportions=True,
+            ),
+            # Every publisher with datasets is a facet — the long list
+            # collapses past its cutoff behind the standard "More
+            # publishers" toggle (?publishers=all), like the temporal
+            # years list.
+            facets.facet_counts_group(
+                "publisher",
+                "Publisher",
+                "Filter by publisher",
+                [(p["value"], p["name"]) for p in publisher_pool],
+                {p["value"]: p["count"] for p in publisher_pool},
+                filters.publisher,
+                proportions=True,
+                cutoff=PUBLISHER_FACET_CUTOFF,
+                toggle_base=base_params,
+                toggle_param="publishers",
+                toggle_label="publishers",
+                expanded=publisher_expanded,
+                list_id="publisher-facet-list",
             ),
             facets.facet_counts_group(
                 "source",
@@ -332,6 +375,12 @@ def datasets(request):
 
     labels = _active_labels(filters)
 
+    # The publisher pill shows the display name (the value-space is the
+    # slug). The pool always holds the selected publisher — its own filter
+    # is excluded from the pool — except when the other filters rule it
+    # out entirely, where the slug is the best we can do.
+    publisher_label = publisher_names.get(filters.publisher, filters.publisher) if filters.publisher else None
+
     base_facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
     pager_base = facets.pager_base(base_params)
@@ -360,6 +409,8 @@ def datasets(request):
             "harvested_count": harvested_count_value,
             "theme": filters.theme,
             "theme_label": labels["theme_label"],
+            "publisher": filters.publisher,
+            "publisher_label": publisher_label,
             "source": filters.source,
             "links": filters.links,
             "links_label": (LINK_BUCKET_NAMES[filters.links] if filters.links else None),

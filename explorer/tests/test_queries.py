@@ -339,6 +339,44 @@ def test_facet_pools_total_to_list_count(filters):
     )
 
 
+def test_publisher_facet_pools_partition_list_count():
+    """The publisher pool partitions the publisher-cleared list count —
+    every dataset carries an org slug, so the org rows always sum to the
+    whole pool, whether alone or under another active facet (the live-data
+    analogue of the static combos above, whose publisher value can't be
+    hardcoded)."""
+    base = datasets_facet_counts({})
+    publisher = base["publishers"][0]["value"]
+    theme = next(t["theme"] for t in THEME_COUNTS.all() if t["theme"] != "__none__")
+
+    for filters in (
+        {"publisher": publisher},
+        {"publisher": publisher, "theme": theme},
+        {"publisher": publisher, "source": "manual"},
+        {"publisher": publisher, "temporal": "post"},
+    ):
+        counts = datasets_facet_counts(filters)
+        assert sum(r["count"] for r in counts["publishers"]) == _datasets_count(
+            _without(filters, "publisher"),
+        ), filters
+        # every row names its org (value = slug, name = display name)
+        assert all(r["value"] and r["name"] for r in counts["publishers"])
+
+    # the picked publisher survives into its own sibling-filtered pool
+    counts = datasets_facet_counts({"publisher": publisher, "theme": theme})
+    assert any(r["value"] == publisher for r in counts["publishers"])
+    assert sum(r["count"] for r in datasets_facet_counts({"theme": theme})["publishers"]) == _datasets_count(
+        {"theme": theme},
+    )
+
+
+def test_publisher_pool_is_ordered_count_desc():
+    """The pool comes back count desc, name asc — the sidebar's render
+    order (biggest publishers first, ties alphabetical by display name)."""
+    rows = datasets_facet_counts({})["publishers"]
+    assert rows == sorted(rows, key=lambda r: (-r["count"], r["name"].lower()))
+
+
 def test_facet_counts_with_live_year_and_theme():
     """Same consistency check with a real year + theme from the live data."""
     year = YEARLY_DATASETS.all()[0]["year"]

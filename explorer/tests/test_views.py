@@ -754,6 +754,50 @@ def test_links_facet_order(client):
     assert f'<span class="facet-count">{counts[top]:,}</span>' in section
 
 
+def test_publisher_facet_order_and_toggle(client):
+    """The Publisher facet lists every publisher count desc (top first,
+    pool count next to the name), collapses past its cutoff behind the
+    standard "More publishers" toggle like the temporal years list, and
+    expands via ?publishers=all."""
+    pool = datasets_facet_counts({})["publishers"]
+    top = pool[0]
+    r = client.get("/datasets")
+    section = _facet_section(r.content.decode(), "Filter by publisher")
+    names = re.findall(r'<span class="facet-name">([^<]+)</span>', section)
+    assert names[0] == esc(top["name"])
+    assert f'<span class="facet-count">{top["count"]:,}</span>' in section
+    # long list collapses behind the toggle (1176 orgs in the live pool)
+    assert 'id="publisher-facet-list"' in section
+    assert "More publishers" in section
+
+    expanded = client.get("/datasets?publishers=all").content.decode()
+    assert "Fewer publishers" in expanded
+
+
+def test_datasets_publisher_filter(client):
+    """?publisher=<org slug> narrows the list to that org's datasets and
+    renders the display-name pill; a bogus slug falls back to the whole
+    list (validated against the orgs that own datasets)."""
+    top = datasets_facet_counts({})["publishers"][0]
+    expect = _datasets_sql_count({"publisher": top["value"]})
+    h = client.get(f"/datasets?publisher={top['value']}").content.decode()
+    assert f"of {expect:,}" in h
+    assert "Remove publisher filter" in h
+    assert esc(top["name"]) in h
+
+    # combined with another facet, the publisher pool count stays live
+    theme = next((r["theme"] for r in THEME_COUNTS.all() if r["theme"] != "__none__"), None)
+    if theme:
+        combo = _datasets_sql_count({"publisher": top["value"], "theme": theme})
+        h2 = client.get(f"/datasets?publisher={top['value']}&theme={theme}").content.decode()
+        assert f"of {combo:,}" in h2
+
+    # a bogus publisher value falls back to the unfiltered list
+    h = client.get("/datasets?publisher=bogus").content.decode()
+    assert f"of {_datasets_sql_count({}):,}" in h
+    assert "Remove publisher filter" not in h
+
+
 def test_datasets_links_filter(client):
     """?links=<bucket> narrows the list to datasets whose link count falls
     in that range, renders the filter pill, and keeps pager URLs clean."""

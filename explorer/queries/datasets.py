@@ -12,8 +12,8 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
 # --- /datasets query builder ---
 #
-# Compiled per (filters, sort, dir). filters: { theme, source, links,
-# year, temporal, metadata_key, metadata_value }.
+# Compiled per (filters, sort, dir). filters: { theme, publisher, source,
+# links, year, temporal, metadata_key, metadata_value }.
 #
 # The WHERE clauses drive the page list + count (filtering, sorting and
 # pagination happen in the database instead of sorting the whole table in
@@ -187,11 +187,33 @@ def _links_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     return [], []
 
 
-# The five /datasets clause builders, keyed by facet — the dict
+# --- /datasets Publisher facet (the owning organisation) -----------------
+# Datasets carry their org slug + display name denormalised per row, so the
+# facet needs no organisations join. value is the slug (the ?publisher=
+# URL/filter key — same value the row links to /organisation/<slug> with);
+# name is the display name shown in the Publisher column. The name
+# expression aggregates over the row group so a slug always renders once,
+# even if its display name ever varied across rows.
+_PUBLISHER_NAME = "COALESCE(NULLIF(MAX(d.org_display_name), ''), d.org_slug)"
+
+
+def _publisher_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """publisher (org slug) WHERE fragment + params, or ([], []) when
+    skipped/excluded."""
+    if exclude == "publisher":
+        return [], []
+    publisher = filters.get("publisher")
+    if publisher:
+        return ["d.org_slug = %s"], [publisher]
+    return [], []
+
+
+# The six /datasets clause builders, keyed by facet — the dict
 # core.facet_where ANDs together (minus the excluded facet) for both the
 # page list/count and the sidebar facet pools.
 _FACET_CLAUSES = {
     "theme": _theme_clause,
+    "publisher": _publisher_clause,
     "source": _source_clause,
     "links": _links_clause,
     "year": _year_clause,
@@ -200,13 +222,13 @@ _FACET_CLAUSES = {
 
 
 def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
-    """WHERE fragment + params for the theme/source/links/year/temporal
-    filters, omitting `exclude` (the facet group being counted).
+    """WHERE fragment + params for the theme/publisher/source/links/year/
+    temporal filters, omitting `exclude` (the facet group being counted).
 
     The metadata filter is deliberately not handled here — it applies to the
     page list/count only, never to the facet counts (contract item 1), so
     `datasets_stmts` adds its clause after this. Routed through the shared
-    core.facet_where helper with the five clause builders above.
+    core.facet_where helper with the six clause builders above.
     """
     return facet_where(_FACET_CLAUSES, filters, exclude)
 
@@ -304,10 +326,12 @@ def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
 
 
 def _facet_counts(filters: dict) -> dict:
-    """Compiled facet-count statements for one (theme/source/links/year/
-    temporal) combo — the {themes, source, links, years, temporal_years,
-    temporal_buckets} Queries plus the per-statement params."""
+    """Compiled facet-count statements for one (theme/publisher/source/
+    links/year/temporal) combo — the {themes, publishers, source, links,
+    years, temporal_years, temporal_buckets} Queries plus the per-statement
+    params."""
     theme_where, theme_params = _facet_where(filters, exclude="theme")
+    publisher_where, publisher_params = _facet_where(filters, exclude="publisher")
     source_where, source_params = _facet_where(filters, exclude="source")
     links_where, links_params = _facet_where(filters, exclude="links")
     year_where, year_params = _facet_where(filters, exclude="year")
@@ -321,6 +345,7 @@ def _facet_counts(filters: dict) -> dict:
     entry = {
         "params": {
             "themes": theme_params,
+            "publishers": publisher_params,
             "source": source_params,
             "links": links_params,
             "years": year_params,
@@ -331,6 +356,18 @@ def _facet_counts(filters: dict) -> dict:
             "SELECT COALESCE(theme_primary, '__none__') AS theme, COUNT(*) AS count"
             f" FROM datasets d{theme_where}"
             " GROUP BY COALESCE(theme_primary, '__none__')",
+        ),
+        # No cap — the sidebar renders every publisher in the pool; the view
+        # cuts the long list behind its "More publishers" toggle (every org
+        # with datasets is a facet, not just the biggest producers). value is
+        # the org slug (the facet URL/filter key); name is the display name
+        # (falling back to the slug for any blank-name row).
+        "publishers": Query(
+            "SELECT d.org_slug AS value,"
+            f"       {_PUBLISHER_NAME} AS name, COUNT(*) AS count"
+            f" FROM datasets d{publisher_where}"
+            " GROUP BY d.org_slug"
+            f" ORDER BY count DESC, LOWER({_PUBLISHER_NAME})",
         ),
         "source": Query(
             "SELECT COUNT(*) FILTER (WHERE harvested = 1) AS harvested,"
@@ -396,14 +433,19 @@ def datasets_facet_counts(filters: dict) -> dict:
     filtered by the other groups, ignoring the metadata filter. Returns:
 
       'themes':          [{'theme': slug | '__none__', 'count': n}, ...]
+      'publishers':      [{'value': org-slug, 'name': display-name,
+                           'count': n}, ...] every org with datasets in the
+                           pool, count desc (no cap — the view's More
+                           toggle cuts the rendered list; name falls back
+                           to the slug for blank-name rows)
       'source':          {'harvested': n, 'manual': n}
       'links':           [{'bucket': '0'|'1-10'|..., 'count': n}, ...]
       'years':           [{'year': 'YYYY', 'count': n}, ...]
       'temporal_years':  [{'year': int, 'count': n}, ...]
       'temporal_buckets': {'pre1900': n, 'post': n, 'none': n}
 
-    The six pools are six independent single-SELECT aggregates, so they run
-    concurrently via core.fetch_parallel.
+    The seven pools are seven independent single-SELECT aggregates, so they
+    run concurrently via core.fetch_parallel.
 
     No-filter calls (the common /datasets view) return the memoised
     unfiltered pools via core.cached_unfiltered — the temporal pools alone
@@ -412,9 +454,10 @@ def datasets_facet_counts(filters: dict) -> dict:
     """
     entry = _facet_counts(filters)
     p = entry["params"]
-    themes, source, links, years, temporal_years, temporal_buckets = fetch_parallel(
+    themes, publishers, source, links, years, temporal_years, temporal_buckets = fetch_parallel(
         [
             lambda: entry["themes"].all(*p["themes"]),
+            lambda: entry["publishers"].all(*p["publishers"]),
             lambda: entry["source"].get(*p["source"]),
             lambda: entry["links"].all(*p["links"]),
             lambda: entry["years"].all(*p["years"]),
@@ -424,6 +467,7 @@ def datasets_facet_counts(filters: dict) -> dict:
     )
     return {
         "themes": themes,
+        "publishers": publishers,
         "source": source,
         "links": links,
         "years": years,
