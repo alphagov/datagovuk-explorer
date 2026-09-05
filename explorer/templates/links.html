@@ -20,12 +20,12 @@
   ] %}
   {{ subnav(subnav_tabs, "links", "Links") }}
 
-  {% set host_name = "No URL" if current_host == "__none__" else current_host %}
+  {% set domain_name = "No URL" if current_domain == "__none__" else current_domain %}
   {% set format_name = "No format" if current_format == "__none__" else current_format %}
   {% set pills = [
-      {"label": "Domain", "value": host_name, "href": facet_url("host", "") , "aria": "Remove domain filter: " ~ host_name} if current_host else none,
+      {"label": "Domain", "value": domain_name, "href": facet_url("domain", "") , "aria": "Remove domain filter: " ~ domain_name} if current_domain else none,
       {"label": "Format", "value": format_name, "href": facet_url("format", "") , "aria": "Remove format filter: " ~ format_name} if current_format else none,
-      {"label": "Year", "value": current_year, "href": facet_url("year", ""), "aria": "Remove year filter: " ~ current_year} if current_year else none,
+      {"label": "Created year", "value": current_created_year, "href": facet_url("created_year", ""), "aria": "Remove created year filter: " ~ current_created_year} if current_created_year else none,
     ] %}
   {{ filter_pills(pills) }}
 {% endblock header_left %}
@@ -40,7 +40,7 @@
       <thead>
         <tr>
           <th class="col-text">{{ sort_link("name", "Name", sort, dir, facet_qs) }}</th>
-          <th>{{ sort_link("host", "Host", sort, dir, facet_qs) }}</th>
+          <th>{{ sort_link("domain", "Domain", sort, dir, facet_qs) }}</th>
           <th class="col-text">{{ sort_link("format", "Format", sort, dir, facet_qs) }}</th>
           <th class="col-text">{{ sort_link("dataset_title", "Dataset", sort, dir, facet_qs) }}</th>
           <th class="col-text">{{ sort_link("org_display_name", "Publisher", sort, dir, facet_qs) }}</th>
@@ -50,7 +50,7 @@
         {% for l in links %}
           <tr>
             <th scope="row" class="col-text">{{ resource_name(l.name, l.description, l.url, title=l.url) }}</th>
-            <td class="host-cell" title="{{ l.host or '' }}">{{ l.host or "—" }}</td>
+            <td class="domain-cell" title="{{ l.host or '' }}">{{ l.host or "—" }}</td>
             <td class="col-text">{{ format_badge(l.format, l.format_raw) }}</td>
             <td class="col-text">
               <a href="/dataset/{{ l.org_slug }}/{{ l.dataset_id }}">{{ l.dataset_title }}</a>

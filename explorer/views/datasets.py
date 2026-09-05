@@ -73,8 +73,8 @@ def _theme_master() -> list[dict]:
 
 
 @functools.cache
-def _year_master() -> list[str]:
-    """Year facet master list — latest first (filter-independent)."""
+def _created_year_master() -> list[str]:
+    """Created-year facet master list — latest first (filter-independent)."""
     return [y["year"] for y in yearly_dataset_counts()][::-1]
 
 
@@ -86,13 +86,19 @@ class DatasetsFilters:
     publisher: str | None
     source: str | None
     links: str | None
-    year: str | None
-    temporal: str | None
+    created_year: str | None
+    temporal_year: str | None
     metadata_key: str | None
     metadata_value: str | None
 
 
-def _parse_filters(request, valid_slugs, valid_publishers, valid_years, valid_temporal_years) -> DatasetsFilters:
+def _parse_filters(
+    request,
+    valid_slugs,
+    valid_publishers,
+    valid_created_years,
+    valid_temporal_years,
+) -> DatasetsFilters:
     """Validate the /datasets facet selections from request.GET.
 
     Each facet has the same shape: take request.GET, validate against a
@@ -119,19 +125,19 @@ def _parse_filters(request, valid_slugs, valid_publishers, valid_years, valid_te
     links = request.GET.get("links")
     current_links = links if links in VALID_LINK_BUCKETS else None
 
-    year = request.GET.get("year")
-    current_year = year if year in valid_years else None
+    created_year = request.GET.get("created_year")
+    current_created_year = created_year if created_year in valid_created_years else None
 
-    temporal = request.GET.get("temporal")
-    current_temporal = None
-    if temporal == "none":
-        current_temporal = "none"
-    elif temporal == "pre1900":
-        current_temporal = "pre1900"
-    elif temporal == "post":
-        current_temporal = "post"
-    elif temporal in valid_temporal_years:
-        current_temporal = temporal
+    temporal_year = request.GET.get("temporal_year")
+    current_temporal_year = None
+    if temporal_year == "none":
+        current_temporal_year = "none"
+    elif temporal_year == "pre1900":
+        current_temporal_year = "pre1900"
+    elif temporal_year == "post":
+        current_temporal_year = "post"
+    elif temporal_year in valid_temporal_years:
+        current_temporal_year = temporal_year
 
     metadata_key = request.GET.get("metadata_key")
     metadata_value = request.GET.get("metadata_value")
@@ -146,8 +152,8 @@ def _parse_filters(request, valid_slugs, valid_publishers, valid_years, valid_te
         publisher=current_publisher,
         source=current_source,
         links=current_links,
-        year=current_year,
-        temporal=current_temporal,
+        created_year=current_created_year,
+        temporal_year=current_temporal_year,
         metadata_key=current_metadata_key,
         metadata_value=current_metadata_value,
     )
@@ -162,12 +168,12 @@ def _active_labels(filters: DatasetsFilters) -> dict[str, str | None]:
 
     temporal_label = (
         "No temporal year"
-        if filters.temporal == "none"
+        if filters.temporal_year == "none"
         else f"Before {TEMPORAL_MIN_YEAR}"
-        if filters.temporal == "pre1900"
+        if filters.temporal_year == "pre1900"
         else f"After {TEMPORAL_MAX_YEAR}"
-        if filters.temporal == "post"
-        else filters.temporal
+        if filters.temporal_year == "post"
+        else filters.temporal_year
     )
 
     metadata_label = (
@@ -191,13 +197,13 @@ def datasets(request):
     # Filter-independent master lists — the validation whitelists and the
     # facet builders consume these (computed once, not per consumer).
     themes = _theme_master()
-    years = _year_master()
+    created_years = _created_year_master()
     temporal_years = _in_window_temporal_years()
     filters = _parse_filters(
         request,
         {t["slug"] for t in themes},
         {r["org_slug"] for r in fetched_slug_rows},
-        set(years),
+        set(created_years),
         {str(y) for y in temporal_years},
     )
 
@@ -209,23 +215,23 @@ def datasets(request):
             "publisher": filters.publisher,
             "source": filters.source,
             "links": filters.links,
-            "year": filters.year,
-            "temporal": filters.temporal,
+            "created_year": filters.created_year,
+            "temporal_year": filters.temporal_year,
         },
     )
 
     sort, dir_ = _sort_dir(request, DATASETS_SORT_COLUMNS, "organisation")
 
     # Query-string base shared by sort links / facet links / pills and the
-    # temporal More-years / publisher More-publishers toggles. preserve_params
-    # gives the ordered base (sort, dir, then each active facet in a fixed
-    # order, then the expanded-lists extras — ?years=all / ?publishers=all);
+    # temporal-year / publisher More toggles. preserve_params gives the
+    # ordered base (sort, dir, then each active facet in a fixed order, then
+    # the expanded-lists extras — ?temporal_years=all / ?publishers=all);
     # facet_qs drops sort/dir for the sort_link/pagination macros.
-    temporal_expanded = request.GET.get("years") == "all"
+    temporal_year_expanded = request.GET.get("temporal_years") == "all"
     publisher_expanded = request.GET.get("publishers") == "all"
     expanded_extras = {}
-    if temporal_expanded:
-        expanded_extras["years"] = "all"
+    if temporal_year_expanded:
+        expanded_extras["temporal_years"] = "all"
     if publisher_expanded:
         expanded_extras["publishers"] = "all"
     base_params = facets.preserve_params(
@@ -236,8 +242,8 @@ def datasets(request):
             ("publisher", filters.publisher),
             ("source", filters.source),
             ("links", filters.links),
-            ("year", filters.year),
-            ("temporal", filters.temporal),
+            ("created_year", filters.created_year),
+            ("temporal_year", filters.temporal_year),
             ("metadata_key", filters.metadata_key),
             ("metadata_value", filters.metadata_value),
         ],
@@ -245,8 +251,8 @@ def datasets(request):
     )
 
     # --- Sidebar facet groups (pool counts + current selection -> group) ---
-    # The temporal facet's trailing buckets — After/Before/No-year — trail
-    # the year list and only render when their pools are non-empty.
+    # The temporal-year facet's trailing buckets — After/Before/No-year —
+    # trail the year list and only render when their pools are non-empty.
     temporal_buckets = facet_counts["temporal_buckets"]
     trailing_items = []
     if temporal_buckets["post"]:
@@ -255,7 +261,7 @@ def datasets(request):
                 "value": "post",
                 "name": f"After {TEMPORAL_MAX_YEAR}",
                 "count": temporal_buckets["post"],
-                "active": filters.temporal == "post",
+                "active": filters.temporal_year == "post",
             },
         )
     if temporal_buckets["pre1900"]:
@@ -264,7 +270,7 @@ def datasets(request):
                 "value": "pre1900",
                 "name": f"Before {TEMPORAL_MIN_YEAR}",
                 "count": temporal_buckets["pre1900"],
-                "active": filters.temporal == "pre1900",
+                "active": filters.temporal_year == "pre1900",
             },
         )
     if temporal_buckets["none"]:
@@ -273,7 +279,7 @@ def datasets(request):
                 "value": "none",
                 "name": "No temporal year",
                 "count": temporal_buckets["none"],
-                "active": filters.temporal == "none",
+                "active": filters.temporal_year == "none",
             },
         )
 
@@ -339,26 +345,26 @@ def datasets(request):
                 proportions=True,
             ),
             facets.facet_counts_group(
-                "year",
+                "created_year",
                 "Year created",
                 "Filter by year created",
-                [(y, y) for y in years],
-                {r["year"]: r["count"] for r in facet_counts["years"]},
-                filters.year,
+                [(y, y) for y in created_years],
+                {r["created_year"]: r["count"] for r in facet_counts["created_years"]},
+                filters.created_year,
                 proportions=True,
             ),
             facets.facet_counts_group(
-                "temporal",
+                "temporal_year",
                 "Temporal year",
                 "Filter by temporal year",
                 [(str(y), str(y)) for y in temporal_years],
                 {str(r["year"]): r["count"] for r in facet_counts["temporal_years"]},
-                filters.temporal,
+                filters.temporal_year,
                 cutoff=TEMPORAL_FACET_CUTOFF,
                 toggle_base=base_params,
-                toggle_param="years",
-                toggle_label="years",
-                expanded=temporal_expanded,
+                toggle_param="temporal_years",
+                toggle_label="temporal years",
+                expanded=temporal_year_expanded,
                 list_id="temporal-facet-list",
                 trailing=trailing_items,
                 always_render=True,
@@ -415,8 +421,8 @@ def datasets(request):
             "source": filters.source,
             "links": filters.links,
             "links_label": (LINK_BUCKET_NAMES[filters.links] if filters.links else None),
-            "year": filters.year,
-            "temporal": filters.temporal,
+            "created_year": filters.created_year,
+            "temporal_year": filters.temporal_year,
             "temporal_label": labels["temporal_label"],
             "metadata_key": filters.metadata_key,
             "metadata_value": filters.metadata_value,

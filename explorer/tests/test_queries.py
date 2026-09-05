@@ -221,7 +221,7 @@ DATASET_COMBOS = [
     ({}, "title", "desc"),
     ({"theme": "none"}, "organisation", "asc"),
     ({"source": "harvested"}, "metadata_created", "desc"),
-    ({"temporal": "pre1900"}, "organisation", "asc"),
+    ({"temporal_year": "pre1900"}, "organisation", "asc"),
     ({"metadata_key": "top:type", "metadata_value": "dataset"}, "title", "desc"),
 ]
 
@@ -281,10 +281,10 @@ FACET_CONSISTENCY_COMBOS = [
     {"links": "0"},
     {"links": "1-10"},
     {"links": "1000+"},
-    {"temporal": "pre1900"},
-    {"temporal": "post"},
-    {"temporal": "none"},
-    {"theme": "none", "source": "manual", "temporal": "post"},
+    {"temporal_year": "pre1900"},
+    {"temporal_year": "post"},
+    {"temporal_year": "none"},
+    {"theme": "none", "source": "manual", "temporal_year": "post"},
     {"theme": "none", "source": "harvested", "links": "0"},
 ]
 
@@ -315,10 +315,10 @@ def test_facet_pools_total_to_list_count(filters):
         _without(filters, "source"),
     )
 
-    # years: every dataset has metadata_created (no NULLs), so the
+    # created years: every dataset has metadata_created (no NULLs), so the
     # per-year counts sum to the full pool
-    assert sum(r["count"] for r in counts["years"]) == _datasets_count(
-        _without(filters, "year"),
+    assert sum(r["count"] for r in counts["created_years"]) == _datasets_count(
+        _without(filters, "created_year"),
     )
 
     # temporal: rows with no periods feed the `none` bucket; every row WITH
@@ -327,7 +327,7 @@ def test_facet_pools_total_to_list_count(filters):
     # sum is a lower bound on nothing in particular — the invariant is that
     # it covers every period row at least once.
     buckets = counts["temporal_buckets"]
-    period_rows = _datasets_count(_without(filters, "temporal")) - buckets["none"]
+    period_rows = _datasets_count(_without(filters, "temporal_year")) - buckets["none"]
     in_window = sum(r["count"] for r in counts["temporal_years"])
     assert in_window + buckets["pre1900"] + buckets["post"] >= period_rows
 
@@ -353,7 +353,7 @@ def test_publisher_facet_pools_partition_list_count():
         {"publisher": publisher},
         {"publisher": publisher, "theme": theme},
         {"publisher": publisher, "source": "manual"},
-        {"publisher": publisher, "temporal": "post"},
+        {"publisher": publisher, "temporal_year": "post"},
     ):
         counts = datasets_facet_counts(filters)
         assert sum(r["count"] for r in counts["publishers"]) == _datasets_count(
@@ -378,19 +378,20 @@ def test_publisher_pool_is_ordered_count_desc():
 
 
 def test_facet_counts_with_live_year_and_theme():
-    """Same consistency check with a real year + theme from the live data."""
+    """Same consistency check with a real created year + theme from the
+    live data."""
     year = YEARLY_DATASETS.all()[0]["year"]
     theme = next(t["theme"] for t in THEME_COUNTS.all() if t["theme"] != "__none__")
-    filters = {"year": year, "theme": theme, "temporal": "none"}
+    filters = {"created_year": year, "theme": theme, "temporal_year": "none"}
     counts = datasets_facet_counts(filters)
     assert sum(r["count"] for r in counts["themes"]) == _datasets_count(
         _without(filters, "theme"),
     )
-    assert sum(r["count"] for r in counts["years"]) == _datasets_count(
-        _without(filters, "year"),
+    assert sum(r["count"] for r in counts["created_years"]) == _datasets_count(
+        _without(filters, "created_year"),
     )
     buckets = counts["temporal_buckets"]
-    period_rows = _datasets_count(_without(filters, "temporal")) - buckets["none"]
+    period_rows = _datasets_count(_without(filters, "temporal_year")) - buckets["none"]
     assert sum(r["count"] for r in counts["temporal_years"]) + buckets["pre1900"] + buckets["post"] >= period_rows
 
 
@@ -462,29 +463,38 @@ def _org_rows():
 
 
 def _pub_year_match(o, pub_years):
-    """Reference pub-year match — the rule the SQL pubyear clause mirrors.
-    Inlined here (workstream F) since the view's Python-side list filter
-    was replaced by the SQL builder: __none__ matches orgs with no
-    last-published year, a real year list matches those years."""
+    """Reference last-published-year match — the rule the SQL
+    last_published_year clause mirrors. Inlined here (workstream F) since
+    the view's Python-side list filter was replaced by the SQL builder:
+    __none__ matches orgs with no last-published year, a real year list
+    matches those years."""
     if "__none__" in pub_years:
         return o["last_published_year"] is None
     return o["last_published_year"] in pub_years
 
 
 def _org_ref_pools(filters):
-    r"""(year, pubyear, no_pubyear, datasets) reference pools — each group
-    counts the rows matching every filter except its own, counted exactly
-    as the Python reference does (dataset_count = package_count or 0, the
-    \d{4} created guard, the `if y` last-published skip). The pubyear pool
-    splits into the year list + the never-published (no last-published)
-    bucket."""
+    r"""(created_years, last_published_years, no_last_published_year,
+    datasets) reference pools — each group counts the rows matching every
+    filter except its own, counted exactly as the Python reference does
+    (dataset_count = package_count or 0, the \d{4} created guard, the
+    `if y` last-published skip). The last-published pool splits into the
+    year list + the never-published (no last-published) bucket."""
 
     def kept(exclude):
         return [
             o
             for o in _org_rows()
-            if (filters.get("year") is None or exclude == "year" or o["created_year"] == filters["year"])
-            and (not filters.get("pubyear") or exclude == "pubyear" or _pub_year_match(o, filters["pubyear"]))
+            if (
+                filters.get("created_year") is None
+                or exclude == "created_year"
+                or o["created_year"] == filters["created_year"]
+            )
+            and (
+                not filters.get("last_published_year")
+                or exclude == "last_published_year"
+                or _pub_year_match(o, filters["last_published_year"])
+            )
             and (
                 filters.get("datasets") is None
                 or exclude == "datasets"
@@ -493,14 +503,14 @@ def _org_ref_pools(filters):
         ]
 
     year_pool: dict[str, int] = {}
-    for o in kept("year"):
+    for o in kept("created_year"):
         y = o["created_year"]
         if re.fullmatch(r"\d{4}", y):
             year_pool[y] = year_pool.get(y, 0) + 1
 
     pub_pool: dict[str, int] = {}
     no_pub_pool = 0
-    for o in kept("pubyear"):
+    for o in kept("last_published_year"):
         y = o["last_published_year"]
         if y:
             pub_pool[y] = pub_pool.get(y, 0) + 1
@@ -531,15 +541,15 @@ def _org_facet_combos():
         {"datasets": "1000+"},
     ]
     if years:
-        combos.append({"year": years[0]})
+        combos.append({"created_year": years[0]})
     if pub_years:
-        combos.append({"pubyear": (pub_years[0],)})
-    combos.append({"pubyear": ("__none__",)})
+        combos.append({"last_published_year": (pub_years[0],)})
+    combos.append({"last_published_year": ("__none__",)})
     if len(pub_years) > 1:
-        combos.append({"pubyear": tuple(pub_years[:2])})
+        combos.append({"last_published_year": tuple(pub_years[:2])})
     if len(years) > 1 and len(pub_years) > 1:
         combos.append(
-            {"year": years[-1], "pubyear": tuple(pub_years[:2]), "datasets": "1-10"},
+            {"created_year": years[-1], "last_published_year": tuple(pub_years[:2]), "datasets": "1-10"},
         )
     return combos
 
@@ -553,27 +563,31 @@ def test_org_facet_pools_match_python_reference():
     for filters in _org_facet_combos():
         counts = organisations_facet_counts(filters)
         year_ref, pub_ref, no_pub_ref, bucket_ref = _org_ref_pools(filters)
-        assert {r["year"]: r["count"] for r in counts["year"]} == year_ref, filters
-        assert {r["year"]: r["count"] for r in counts["pubyear"]} == pub_ref, filters
-        assert counts["no_pubyear"] == no_pub_ref, filters
+        assert {r["created_year"]: r["count"] for r in counts["created_years"]} == year_ref, filters
+        assert {
+            r["last_published_year"]: r["count"] for r in counts["last_published_years"]
+        } == pub_ref, filters
+        assert counts["no_last_published_year"] == no_pub_ref, filters
         assert {r["bucket"]: r["count"] for r in counts["datasets"]} == bucket_ref, filters
 
 
 def test_org_facet_counts_with_live_year_and_pubyear():
-    """Same consistency check with a real year + pubyear + bucket from the
-    live data — the multi-facet self-exclusion case (mirrors the /datasets
-    live-year-and-theme test)."""
+    """Same consistency check with a real created year + last-published
+    year + bucket from the live data — the multi-facet self-exclusion case
+    (mirrors the /datasets live-year-and-theme test)."""
     rows = _org_rows()
     year = next((o["created_year"] for o in rows if o["created_year"]), None)
     pub_year = next((o["last_published_year"] for o in rows if o["last_published_year"]), None)
     if not year or not pub_year:
         pytest.skip("no valid year/pubyear in live data")
-    filters = {"year": year, "pubyear": (pub_year,), "datasets": "1-10"}
+    filters = {"created_year": year, "last_published_year": (pub_year,), "datasets": "1-10"}
     counts = organisations_facet_counts(filters)
     year_ref, pub_ref, no_pub_ref, bucket_ref = _org_ref_pools(filters)
-    assert {r["year"]: r["count"] for r in counts["year"]} == year_ref
-    assert {r["year"]: r["count"] for r in counts["pubyear"]} == pub_ref
-    assert counts["no_pubyear"] == no_pub_ref
+    assert {r["created_year"]: r["count"] for r in counts["created_years"]} == year_ref
+    assert {
+        r["last_published_year"]: r["count"] for r in counts["last_published_years"]
+    } == pub_ref
+    assert counts["no_last_published_year"] == no_pub_ref
     assert {r["bucket"]: r["count"] for r in counts["datasets"]} == bucket_ref
 
 
@@ -633,10 +647,10 @@ def test_organisations_stmts_consistency():
         {},
         {"datasets": "0"},
         {"datasets": "1000+"},
-        {"pubyear": ("__none__",)},
+        {"last_published_year": ("__none__",)},
     ]
     if top_year:
-        combos.append({"year": top_year})
+        combos.append({"created_year": top_year})
 
     for filters in combos:
         for sort, dir_ in (("name", "asc"), ("dataset_count", "desc"), ("last_published", "desc")):
@@ -673,10 +687,10 @@ def test_organisations_stmts_consistency():
 # /links builder
 # ---------------------------------------------------------------------------
 LINK_COMBOS = [
-    ({}, "host", "asc"),
-    ({"host": "__none__"}, "host", "asc"),
+    ({}, "domain", "asc"),
+    ({"domain": "__none__"}, "domain", "asc"),
     ({"format": "CSV"}, "dataset_title", "desc"),
-    ({"format": "__none__"}, "host", "asc"),
+    ({"format": "__none__"}, "domain", "asc"),
 ]
 
 
@@ -706,26 +720,26 @@ def test_links_stmts_count_matches_list(filters, sort, dir_):
 # Each group counts over the pool filtered by the *other* groups (the
 # /datasets self-exclusion contract). The pools deliberately exclude
 # NULL/'' values — so the pool total equals the list count with that
-# group's filter cleared, minus the excluded rows. The host and format
-# groups each split their pool into two halves (all hosts + the "No URL"
+# group's filter cleared, minus the excluded rows. The domain and format
+# groups each split their pool into two halves (all domains + the "No URL"
 # trailing bucket; all formats + the "No format" trailing bucket) that
 # partition it.
 
 
 def _assert_links_pool_consistency(filters):
     counts = links_facet_counts(filters)
-    pool_keys = {"host": "hosts", "format": "formats", "year": "years"}
-    for group in ("host", "format", "year"):
+    pool_keys = {"domain": "domains", "format": "formats", "created_year": "created_years"}
+    for group in ("domain", "format", "created_year"):
         total = _links_count(_without(filters, group))
         frag, params = facet_where(_LINKS_CLAUSES, filters, exclude=group)
-        if group == "host":
-            hosts_total = sum(r["count"] for r in counts["hosts"])
+        if group == "domain":
+            domains_total = sum(r["count"] for r in counts["domains"])
             no_value = counts["no_url"]
             non_null_where = f"{frag} AND l.host IS NOT NULL" if frag else " WHERE l.host IS NOT NULL"
             non_null = Query(f"SELECT COUNT(*) AS n FROM links l{non_null_where}").get(*params)["n"]
             assert no_value + non_null == total, (filters, group)
-            # the hosts pool is uncapped — it covers every non-NULL host
-            assert hosts_total == non_null, (filters, group)
+            # the domains pool is uncapped — it covers every non-NULL host
+            assert domains_total == non_null, (filters, group)
         else:
             pool = sum(r["count"] for r in counts[pool_keys[group]])
             col = "format_norm" if group == "format" else "year_created"
@@ -741,52 +755,53 @@ def _assert_links_pool_consistency(filters):
 
 
 def _links_count(filters):
-    out = links_stmts(filters, "host", "asc")
+    out = links_stmts(filters, "domain", "asc")
     return out["count"].get(*out["params"])["n"]
 
 
 def test_links_facet_pools_total_to_list_count():
     """Each group's pool total equals the list count with that group's
     filter cleared, minus the rows the pool deliberately excludes — the
-    NULL/'' values, and (host) the no-URL bucket (the hosts pool itself
-    is uncapped). Combos use real hosts/formats/years from the live pools."""
+    NULL/'' values, and (domain) the no-URL bucket (the domains pool
+    itself is uncapped). Combos use real domains/formats/years from the
+    live pools."""
     base = links_facet_counts({})
-    host = base["hosts"][0]["host"]
+    domain = base["domains"][0]["domain"]
     fmt = base["formats"][0]["fmt"]
-    year = base["years"][0]["year"]
+    year = base["created_years"][0]["created_year"]
     for filters in (
         {},
-        {"host": "__none__"},
+        {"domain": "__none__"},
         {"format": "__none__"},
-        {"host": host},
+        {"domain": domain},
         {"format": fmt},
-        {"year": year},
-        {"host": host, "format": fmt, "year": year},
+        {"created_year": year},
+        {"domain": domain, "format": fmt, "created_year": year},
     ):
         _assert_links_pool_consistency(filters)
 
 
 def test_links_facet_counts_with_live_filters():
-    """Same consistency check with a real host+format+year combo — the
+    """Same consistency check with a real domain+format+year combo — the
     multi-facet self-exclusion case (mirrors the /datasets live-year-and-
     theme test): sibling pools shrink under the other active filters."""
     base = links_facet_counts({})
-    host = base["hosts"][0]["host"]
+    domain = base["domains"][0]["domain"]
     fmt = base["formats"][0]["fmt"]
-    year = base["years"][0]["year"]
-    filters = {"host": host, "format": fmt, "year": year}
+    year = base["created_years"][0]["created_year"]
+    filters = {"domain": domain, "format": fmt, "created_year": year}
     _assert_links_pool_consistency(filters)
     counts = links_facet_counts(filters)
 
     def pool_total(p, group):
-        pool_keys = {"host": "hosts", "format": "formats", "year": "years"}
-        if group == "host":
-            return sum(r["count"] for r in p["hosts"]) + p["no_url"]
+        pool_keys = {"domain": "domains", "format": "formats", "created_year": "created_years"}
+        if group == "domain":
+            return sum(r["count"] for r in p["domains"]) + p["no_url"]
         if group == "format":
             return sum(r["count"] for r in p["formats"]) + p["no_format"]
         return sum(r["count"] for r in p[pool_keys[group]])
 
-    for group in ("host", "format", "year"):
+    for group in ("domain", "format", "created_year"):
         assert pool_total(counts, group) <= pool_total(base, group), group
 
 

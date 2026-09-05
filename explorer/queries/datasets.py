@@ -13,7 +13,7 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 # --- /datasets query builder ---
 #
 # Compiled per (filters, sort, dir). filters: { theme, publisher, source,
-# links, year, temporal, metadata_key, metadata_value }.
+# links, created_year, temporal_year, metadata_key, metadata_value }.
 #
 # The WHERE clauses drive the page list + count (filtering, sorting and
 # pagination happen in the database instead of sorting the whole table in
@@ -128,21 +128,23 @@ def _source_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     return [], []
 
 
-def _year_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """year WHERE fragment + params, or ([], []) when skipped/excluded."""
-    if exclude == "year":
+def _created_year_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """created_year WHERE fragment + params, or ([], []) when skipped/
+    excluded (the dataset's metadata_created year)."""
+    if exclude == "created_year":
         return [], []
-    year = filters.get("year")
+    year = filters.get("created_year")
     if year:
         return ["substr(d.metadata_created, 1, 4) = %s"], [year]
     return [], []
 
 
-def _temporal_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """temporal WHERE fragment + params, or ([], []) when skipped/excluded."""
-    if exclude == "temporal":
+def _temporal_year_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """temporal_year WHERE fragment + params, or ([], []) when skipped/
+    excluded (whether a dataset's temporal coverage includes the year)."""
+    if exclude == "temporal_year":
         return [], []
-    temporal = filters.get("temporal")
+    temporal = filters.get("temporal_year")
     if temporal == "none":
         return [
             "NOT EXISTS (SELECT 1 FROM temporal_periods tp WHERE tp.dataset_id = d.id)",
@@ -216,14 +218,15 @@ _FACET_CLAUSES = {
     "publisher": _publisher_clause,
     "source": _source_clause,
     "links": _links_clause,
-    "year": _year_clause,
-    "temporal": _temporal_clause,
+    "created_year": _created_year_clause,
+    "temporal_year": _temporal_year_clause,
 }
 
 
 def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
-    """WHERE fragment + params for the theme/publisher/source/links/year/
-    temporal filters, omitting `exclude` (the facet group being counted).
+    """WHERE fragment + params for the theme/publisher/source/links/
+    created_year/temporal_year filters, omitting `exclude` (the facet
+    group being counted).
 
     The metadata filter is deliberately not handled here — it applies to the
     page list/count only, never to the facet counts (contract item 1), so
@@ -327,15 +330,15 @@ def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
 
 def _facet_counts(filters: dict) -> dict:
     """Compiled facet-count statements for one (theme/publisher/source/
-    links/year/temporal) combo — the {themes, publishers, source, links,
-    years, temporal_years, temporal_buckets} Queries plus the per-statement
-    params."""
+    links/created_year/temporal_year) combo — the {themes, publishers,
+    source, links, created_years, temporal_years, temporal_buckets}
+    Queries plus the per-statement params."""
     theme_where, theme_params = _facet_where(filters, exclude="theme")
     publisher_where, publisher_params = _facet_where(filters, exclude="publisher")
     source_where, source_params = _facet_where(filters, exclude="source")
     links_where, links_params = _facet_where(filters, exclude="links")
-    year_where, year_params = _facet_where(filters, exclude="year")
-    temporal_where, temporal_params = _facet_where(filters, exclude="temporal")
+    year_where, year_params = _facet_where(filters, exclude="created_year")
+    temporal_where, temporal_params = _facet_where(filters, exclude="temporal_year")
 
     # metadata_created IS NOT NULL joins the (possibly empty) where fragment
     year_where = (
@@ -348,7 +351,7 @@ def _facet_counts(filters: dict) -> dict:
             "publishers": publisher_params,
             "source": source_params,
             "links": links_params,
-            "years": year_params,
+            "created_years": year_params,
             "temporal_years": temporal_params,
             "temporal_buckets": temporal_params,
         },
@@ -381,8 +384,8 @@ def _facet_counts(filters: dict) -> dict:
         "links": Query(
             f"SELECT {_LINK_BUCKET_CASE} AS bucket, COUNT(*) AS count FROM datasets d{links_where} GROUP BY 1",
         ),
-        "years": Query(
-            "SELECT substr(metadata_created, 1, 4) AS year, COUNT(*) AS count"
+        "created_years": Query(
+            "SELECT substr(metadata_created, 1, 4) AS created_year, COUNT(*) AS count"
             f" FROM datasets d{year_where}"
             " GROUP BY substr(metadata_created, 1, 4)",
         ),
@@ -440,7 +443,7 @@ def datasets_facet_counts(filters: dict) -> dict:
                            to the slug for blank-name rows)
       'source':          {'harvested': n, 'manual': n}
       'links':           [{'bucket': '0'|'1-10'|..., 'count': n}, ...]
-      'years':           [{'year': 'YYYY', 'count': n}, ...]
+      'created_years':   [{'created_year': 'YYYY', 'count': n}, ...]
       'temporal_years':  [{'year': int, 'count': n}, ...]
       'temporal_buckets': {'pre1900': n, 'post': n, 'none': n}
 
@@ -454,13 +457,13 @@ def datasets_facet_counts(filters: dict) -> dict:
     """
     entry = _facet_counts(filters)
     p = entry["params"]
-    themes, publishers, source, links, years, temporal_years, temporal_buckets = fetch_parallel(
+    themes, publishers, source, links, created_years, temporal_years, temporal_buckets = fetch_parallel(
         [
             lambda: entry["themes"].all(*p["themes"]),
             lambda: entry["publishers"].all(*p["publishers"]),
             lambda: entry["source"].get(*p["source"]),
             lambda: entry["links"].all(*p["links"]),
-            lambda: entry["years"].all(*p["years"]),
+            lambda: entry["created_years"].all(*p["created_years"]),
             lambda: entry["temporal_years"].all(*p["temporal_years"]),
             lambda: entry["temporal_buckets"].get(*p["temporal_buckets"]),
         ],
@@ -470,7 +473,7 @@ def datasets_facet_counts(filters: dict) -> dict:
         "publishers": publishers,
         "source": source,
         "links": links,
-        "years": years,
+        "created_years": created_years,
         "temporal_years": temporal_years,
         "temporal_buckets": temporal_buckets,
     }

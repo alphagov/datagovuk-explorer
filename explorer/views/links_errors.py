@@ -4,8 +4,8 @@ Reads the `link_errors` table (ingested by scripts/ingest_link_errors.py
 from data/errors-current.csv): every checked resource link across all
 datasets — both check runs, and the OK/2xx rows that previously failed and
 are now resolved (shown, styled positively, not filtered out). Sortable via
-?sort= & ?dir=, filterable by outcome/category, domain (the broken URL's
-host), HTTP status (with the "No response" bucket for the code-less
+?sort= & ?dir=, filterable by outcome/category, domain (the host of the
+broken URL), HTTP status (with the "No response" bucket for the code-less
 DNS/timeout rows), harvest state (Harvested/Manual/Unknown) and publisher
 via the single-select sidebar facets, paginated (100/page). Default sort is
 URL (host) first.
@@ -43,9 +43,9 @@ TO_DELETE_LABELS = dict(TO_DELETE_VALUES)
 # Domains/publishers beyond these cutoffs hide behind the "More …" toggle —
 # every host and every publisher with errors is a facet (1602 hosts, 931
 # orgs), but the sidebar starts with the top few and expands via the
-# standard More link (?hosts=all / ?publishers=all, JS-free fallback like
+# standard More link (?domains=all / ?publishers=all, JS-free fallback like
 # /links formats).
-HOST_FACET_CUTOFF = 10
+DOMAIN_FACET_CUTOFF = 10
 PUBLISHER_FACET_CUTOFF = 10
 
 
@@ -74,7 +74,7 @@ def link_errors(request):
     publisher_names = {p["value"]: p["name"] for p in base_pool["publishers"]}
     valid_categories = {c["value"] for c in base_pool["categories"]}
     valid_statuses = {s["value"] for s in base_pool["statuses"]}
-    valid_hosts = {h["value"] for h in base_pool["hosts"]}
+    valid_domains = {h["value"] for h in base_pool["domains"]}
     valid_publishers = set(publisher_names)
 
     # Current facet selections — single-select per group, combinable across
@@ -85,8 +85,8 @@ def link_errors(request):
     status = request.GET.get("status")
     current_status = status if status == "__none__" or status in valid_statuses else None
 
-    host = request.GET.get("host")
-    current_host = "__none__" if host == "__none__" else host if host in valid_hosts else None
+    domain = request.GET.get("domain")
+    current_domain = "__none__" if domain == "__none__" else domain if domain in valid_domains else None
 
     to_delete = request.GET.get("to_delete")
     current_to_delete = to_delete if to_delete in TO_DELETE_LABELS else None
@@ -99,13 +99,13 @@ def link_errors(request):
 
     # Domain/publisher facet state — every host and publisher is a facet;
     # the long lists collapse past their cutoffs behind the More toggles.
-    host_expanded = request.GET.get("hosts") == "all"
+    domain_expanded = request.GET.get("domains") == "all"
     publisher_expanded = request.GET.get("publishers") == "all"
 
     filters = {
         "category": current_category,
         "status": current_status,
-        "host": current_host,
+        "domain": current_domain,
         "to_delete": current_to_delete,
         "harvested": current_harvested,
         "publisher": current_publisher,
@@ -124,11 +124,11 @@ def link_errors(request):
     # Shared query-string machinery — ordered base (sort, dir, then each
     # active facet in a fixed order); facet_qs drops sort/dir for the
     # sort_link/pagination macros; facet_url sets/clears one facet value.
-    # The extras carry the expanded-lists state (?hosts=all / ?publishers=all)
-    # so facet/sort/pager links keep the lists expanded.
+    # The extras carry the expanded-lists state (?domains=all /
+    # ?publishers=all) so facet/sort/pager links keep the lists expanded.
     expanded_extras = {}
-    if host_expanded:
-        expanded_extras["hosts"] = "all"
+    if domain_expanded:
+        expanded_extras["domains"] = "all"
     if publisher_expanded:
         expanded_extras["publishers"] = "all"
     base_params = facets.preserve_params(
@@ -137,7 +137,7 @@ def link_errors(request):
         [
             ("category", current_category),
             ("status", current_status),
-            ("host", current_host),
+            ("domain", current_domain),
             ("to_delete", current_to_delete),
             ("harvested", current_harvested),
             ("publisher", current_publisher),
@@ -186,24 +186,24 @@ def link_errors(request):
                 current_category,
                 proportions=True,
             ),
-            # The pool returns every host in it (count desc), so master and
-            # counts come from the same rows — the list mirrors the current
-            # sibling-filter pool, not a global top-N. Scheme-less/malformed
-            # URLs trail as the No URL bucket.
+            # The pool returns every domain in it (count desc), so master
+            # and counts come from the same rows — the list mirrors the
+            # current sibling-filter pool, not a global top-N.
+            # Scheme-less/malformed URLs trail as the No URL bucket.
             facets.facet_counts_group(
-                "host",
+                "domain",
                 "Domain",
                 "Filter by domain",
-                [(h["value"], h["value"]) for h in pool["hosts"]],
-                {h["value"]: h["count"] for h in pool["hosts"]},
-                current_host,
+                [(h["value"], h["value"]) for h in pool["domains"]],
+                {h["value"]: h["count"] for h in pool["domains"]},
+                current_domain,
                 proportions=True,
-                cutoff=HOST_FACET_CUTOFF,
+                cutoff=DOMAIN_FACET_CUTOFF,
                 toggle_base=base_params,
-                toggle_param="hosts",
+                toggle_param="domains",
                 toggle_label="domains",
-                expanded=host_expanded,
-                list_id="host-facet-list",
+                expanded=domain_expanded,
+                list_id="domain-facet-list",
                 search="Search domains",
                 trailing=(
                     [
@@ -211,7 +211,7 @@ def link_errors(request):
                             "value": "__none__",
                             "name": "No URL",
                             "count": pool["no_url"],
-                            "active": current_host == "__none__",
+                            "active": current_domain == "__none__",
                         },
                     ]
                     if pool["no_url"]
@@ -302,11 +302,11 @@ def link_errors(request):
         else None,
         {
             "label": "Domain",
-            "value": "No URL" if current_host == "__none__" else current_host,
-            "href": facet_url("host", ""),
-            "aria": "Remove domain filter: " + ("No URL" if current_host == "__none__" else current_host),
+            "value": "No URL" if current_domain == "__none__" else current_domain,
+            "href": facet_url("domain", ""),
+            "aria": "Remove domain filter: " + ("No URL" if current_domain == "__none__" else current_domain),
         }
-        if current_host
+        if current_domain
         else None,
         {
             "label": "Status",

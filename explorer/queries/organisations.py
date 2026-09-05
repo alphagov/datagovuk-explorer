@@ -7,13 +7,13 @@ The DB is a build-time snapshot, so the fixed parameterless fetches
 (org rows, per-org dataset aggregates, yearly counts) are memoised via
 functools.cache — computed once per process, then served from memory.
 The /organisations page is the slowest of the facet pages because its
-per-org aggregate over datasets (ORG_AGGREGATES) and the pubyear pool's
+per-org aggregate over datasets (ORG_AGGREGATES) and the last-published-year pool's
 embedded subquery each scan the whole datasets table (~290ms per
 request before memoisation). Restart the process to refresh after a DB
 rebuild (same contract as the dashboard's cards() cache).
 
 Only the *fixed* fetches are memoised: filtered facet pools stay live
-because their filter key space is unbounded (pubyear is a multi-select).
+because their filter key space is unbounded (last_published_year is a multi-select).
 The raw Query objects (ORGS, ORG_AGGREGATES, ...) stay uncached so any
 parameterised use elsewhere is unaffected.
 
@@ -156,30 +156,32 @@ _ORG_AGG = (
 
 # Pool guards: the \d{4} created-year skip (created is always ISO) and
 # the last-published IS NOT NULL skip (orgs with no datasets land in no
-# pubyear bucket).
+# last-published-year bucket).
 _YEAR_CREATED_GUARD = r"substr(o.created, 1, 4) ~ '^\d{4}'"
 _PUB_YEAR_GUARD = "a.last_published IS NOT NULL"
 
 
-def _year_created_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """year (created) WHERE fragment + params, or ([], []) when skipped/excluded."""
-    if exclude == "year":
+def _created_year_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """created_year WHERE fragment + params, or ([], []) when skipped/
+    excluded (the org's creation year, o.created)."""
+    if exclude == "created_year":
         return [], []
-    year = filters.get("year")
+    year = filters.get("created_year")
     if year:
         return ["substr(o.created, 1, 4) = %s"], [year]
     return [], []
 
 
-def _pub_year_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """pubyear (last published year, multi-select) WHERE fragment + params,
-    or ([], []) when skipped/excluded. Matches orgs whose MAX(metadata_created)
+def _last_published_year_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """last_published_year (multi-select) WHERE fragment + params, or
+    ([], []) when skipped/excluded. Matches orgs whose MAX(metadata_created)
     year is one of the selected years — the view's
-    o["last_published_year"] in filters.pub_years check. __none__ is the
-    never-published selection (orgs with no datasets → a.last_published NULL)."""
-    if exclude == "pubyear":
+    o["last_published_year"] in filters.last_published_years check. __none__
+    is the never-published selection (orgs with no datasets →
+    a.last_published NULL)."""
+    if exclude == "last_published_year":
         return [], []
-    pub_years = filters.get("pubyear")
+    pub_years = filters.get("last_published_year")
     if pub_years:
         if "__none__" in pub_years:
             return ["a.last_published IS NULL"], []
@@ -207,24 +209,29 @@ def _datasets_bucket_clause(filters: dict, exclude: str | None) -> tuple[list, l
 # The three clause builders keyed by facet — the dict core.facet_where
 # ANDs together (minus the excluded facet) for the pools.
 _ORG_FACET_CLAUSES = {
-    "year": _year_created_clause,
-    "pubyear": _pub_year_clause,
+    "created_year": _created_year_clause,
+    "last_published_year": _last_published_year_clause,
     "datasets": _datasets_bucket_clause,
 }
 
 
 def _org_facet_counts(filters: dict) -> dict:
-    """Compiled facet-count statements for one (year/pubyear/datasets) combo
-    — the {year, pubyear, no_pubyear, datasets} Queries plus per-statement
-    params."""
-    year_where, year_params = facet_where(_ORG_FACET_CLAUSES, filters, exclude="year")
-    pubyear_frag, pubyear_params = facet_where(_ORG_FACET_CLAUSES, filters, exclude="pubyear")
+    """Compiled facet-count statements for one (created_year/
+    last_published_year/datasets) combo — the {created_years,
+    last_published_years, no_last_published_year, datasets} Queries plus
+    per-statement params."""
+    year_where, year_params = facet_where(_ORG_FACET_CLAUSES, filters, exclude="created_year")
+    pubyear_frag, pubyear_params = facet_where(
+        _ORG_FACET_CLAUSES,
+        filters,
+        exclude="last_published_year",
+    )
     datasets_where, datasets_params = facet_where(_ORG_FACET_CLAUSES, filters, exclude="datasets")
 
-    # The pool guards join the (possibly empty) WHERE fragments. `no_pubyear`
-    # reuses the pubyear fragment (the other groups' filters) with the guard
-    # flipped — last_published IS NULL (orgs with no datasets) instead of the
-    # year-list guard's IS NOT NULL.
+    # The pool guards join the (possibly empty) WHERE fragments. `no_last_\
+    # published_year` reuses the pubyear fragment (the other groups'
+    # filters) with the guard flipped — last_published IS NULL (orgs with
+    # no datasets) instead of the year-list guard's IS NOT NULL.
     year_where = f"{year_where} AND {_YEAR_CREATED_GUARD}" if year_where else f" WHERE {_YEAR_CREATED_GUARD}"
     pubyear_where = f"{pubyear_frag} AND {_PUB_YEAR_GUARD}" if pubyear_frag else f" WHERE {_PUB_YEAR_GUARD}"
     no_pubyear_where = (
@@ -233,22 +240,24 @@ def _org_facet_counts(filters: dict) -> dict:
 
     entry = {
         "params": {
-            "year": year_params,
-            "pubyear": pubyear_params,
-            "no_pubyear": pubyear_params,
+            "created_years": year_params,
+            "last_published_years": pubyear_params,
+            "no_last_published_year": pubyear_params,
             "datasets": datasets_params,
         },
-        "year": Query(
-            "SELECT substr(o.created, 1, 4) AS year, COUNT(*) AS count"
+        "created_years": Query(
+            "SELECT substr(o.created, 1, 4) AS created_year, COUNT(*) AS count"
             f" FROM organisations o {_ORG_AGG}{year_where}"
             " GROUP BY substr(o.created, 1, 4)",
         ),
-        "pubyear": Query(
-            "SELECT substr(a.last_published, 1, 4) AS year, COUNT(*) AS count"
+        "last_published_years": Query(
+            "SELECT substr(a.last_published, 1, 4) AS last_published_year, COUNT(*) AS count"
             f" FROM organisations o {_ORG_AGG}{pubyear_where}"
             " GROUP BY substr(a.last_published, 1, 4)",
         ),
-        "no_pubyear": Query(f"SELECT COUNT(*) AS n FROM organisations o {_ORG_AGG}{no_pubyear_where}"),
+        "no_last_published_year": Query(
+            f"SELECT COUNT(*) AS n FROM organisations o {_ORG_AGG}{no_pubyear_where}",
+        ),
         # One pass over the (1:1-joined) org rows; every org lands in exactly
         # one bucket via the ELSE top.
         "datasets": Query(
@@ -262,13 +271,13 @@ def _org_facet_counts(filters: dict) -> dict:
 
 def _run_facet_counts(filters: dict) -> dict:
     """Compile + fetch the three self-excluding sidebar pools for one
-    (year/pubyear/datasets) filter combo."""
+    (created_year/last_published_year/datasets) filter combo."""
     entry = _org_facet_counts(filters)
     p = entry["params"]
     return {
-        "year": entry["year"].all(*p["year"]),
-        "pubyear": entry["pubyear"].all(*p["pubyear"]),
-        "no_pubyear": (entry["no_pubyear"].get(*p["no_pubyear"]) or {}).get("n", 0),
+        "created_years": entry["created_years"].all(*p["created_years"]),
+        "last_published_years": entry["last_published_years"].all(*p["last_published_years"]),
+        "no_last_published_year": (entry["no_last_published_year"].get(*p["no_last_published_year"]) or {}).get("n", 0),
         "datasets": entry["datasets"].all(*p["datasets"]),
     }
 
@@ -278,11 +287,11 @@ def organisations_facet_counts(filters: dict) -> dict:
     """Sidebar facet counts for /organisations — each group counts over the
     pool filtered by the other two groups (self-excluding). Returns:
 
-      'year':        [{'year': 'YYYY', 'count': n}, ...]
-      'pubyear':     [{'year': 'YYYY', 'count': n}, ...]
-      'no_pubyear':  int — orgs with no last-published year (the
-                     "Never published" trailing bucket)
-      'datasets':    [{'bucket': '0'|'1-10'|..., 'count': n}, ...]
+      'created_years':         [{'created_year': 'YYYY', 'count': n}, ...]
+      'last_published_years':  [{'last_published_year': 'YYYY', 'count': n}, ...]
+      'no_last_published_year': int — orgs with no last-published year (the
+                               "Never published" trailing bucket)
+      'datasets':              [{'bucket': '0'|'1-10'|..., 'count': n}, ...]
 
     No-filter calls (the common view) return the memoised unfiltered pools
     via core.cached_unfiltered; only calls with an active filter run the SQL
@@ -297,7 +306,8 @@ def organisations_facet_counts(filters: dict) -> dict:
 # fetch (1,480 orgs, docs/pagination-plan.md workstream F); now the page
 # list/count are SQL — the ORGS rows LEFT JOINed to the per-org aggregate,
 # with the view's old Python _apply_filters rules as WHERE clauses
-# (year/pubyear/datasets via the shared _ORG_FACET_CLAUSES) and the
+# (created_year/last_published_year/datasets via the shared
+# _ORG_FACET_CLAUSES) and the
 # sort_orgs column exprs as ORDER BY.
 #
 # The `, LOWER(o.display_name), o.slug` tail reproduces the old

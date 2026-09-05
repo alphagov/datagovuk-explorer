@@ -22,8 +22,8 @@
 
   {% set pills = [
       {"label": "Datasets", "value": datasets_label, "href": facet_url("datasets", "") , "aria": "Remove datasets filter: " ~ datasets_label} if datasets else none,
-      {"label": "Year", "value": year, "href": facet_url("year", ""), "aria": "Remove year filter: " ~ year} if year else none,
-      {"label": "Published in", "value": pubyear, "href": facet_url("pubyear", "") , "aria": "Remove year-last-published filter: " ~ pubyear} if pubyear else none,
+      {"label": "Created year", "value": created_year, "href": facet_url("created_year", ""), "aria": "Remove created year filter: " ~ created_year} if created_year else none,
+      {"label": "Published in", "value": last_published_year, "href": facet_url("last_published_year", "") , "aria": "Remove year-last-published filter: " ~ last_published_year} if last_published_year else none,
     ] %}
   {{ filter_pills(pills) }}
 {% endblock header_left %}

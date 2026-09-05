@@ -298,16 +298,16 @@ def test_organisations(client):
     expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
     assert esc(expect[0]["display_name"] or expect[0]["name"]) in r3.content.decode()
 
-    # one facet combo: ?year=<latest org-creation year>
+    # one facet combo: ?created_year=<latest org-creation year>
     years = sorted(
         {(o["created"] or "")[:4] for o in orgs if o["created"]},
         reverse=True,
     )
     if years:
         year = years[0]
-        out = organisations_stmts({"year": year}, "name", "asc")
+        out = organisations_stmts({"created_year": year}, "name", "asc")
         year_count = out["count"].get(*out["params"])["n"]
-        r4 = client.get(f"/organisations?year={year}")
+        r4 = client.get(f"/organisations?created_year={year}")
         assert f"1-{min(year_count, PAGE_SIZE):,} of {year_count:,}" in r4.content.decode()
 
     # page 2 exists (1,480 orgs > 100); pager links keep sort/dir
@@ -329,8 +329,9 @@ def test_organisations(client):
     # out-of-range page clamps rather than erroring
     assert client.get("/organisations?page=99999").status_code == 200
 
-    # ?pubyear=__none__ renders the Never published pill + trailing bucket
-    r5 = client.get("/organisations?pubyear=__none__")
+    # ?last_published_year=__none__ renders the Never published pill +
+    # trailing bucket
+    r5 = client.get("/organisations?last_published_year=__none__")
     h5 = r5.content.decode()
     assert r5.status_code == 200
     assert 'class="filter-pill"' in h5
@@ -356,25 +357,25 @@ def test_organisations_facets(client):
 
     rows = _merge_org_rows(all_org_rows(), org_aggregate_rows())
 
-    # ?year=<most common creation year>
+    # ?created_year=<most common creation year>
     year_counts = Counter(o["created_year"] for o in rows if o["created_year"])
     top_year, _ = year_counts.most_common(1)[0]
     n_year = sum(1 for o in rows if o["created_year"] == top_year)
-    out = organisations_stmts({"year": top_year}, "name", "asc")
+    out = organisations_stmts({"created_year": top_year}, "name", "asc")
     assert out["count"].get(*out["params"])["n"] == n_year
-    r4 = client.get(f"/organisations?year={top_year}")
+    r4 = client.get(f"/organisations?created_year={top_year}")
     h4 = r4.content.decode()
     assert r4.status_code == 200
     assert f"1-{min(n_year, PAGE_SIZE):,} of {n_year:,}" in h4
     assert 'class="filter-pill"' in h4
 
-    # ?pubyear=<most common last-published year>
+    # ?last_published_year=<most common last-published year>
     pubyear_counts = Counter(o["last_published_year"] for o in rows if o["last_published_year"])
     top_pub, _ = pubyear_counts.most_common(1)[0]
     n_pub = sum(1 for o in rows if o["last_published_year"] == top_pub)
-    out = organisations_stmts({"pubyear": (top_pub,)}, "name", "asc")
+    out = organisations_stmts({"last_published_year": (top_pub,)}, "name", "asc")
     assert out["count"].get(*out["params"])["n"] == n_pub
-    r5 = client.get(f"/organisations?pubyear={top_pub}")
+    r5 = client.get(f"/organisations?last_published_year={top_pub}")
     h5 = r5.content.decode()
     assert r5.status_code == 200
     assert f"1-{min(n_pub, PAGE_SIZE):,} of {n_pub:,}" in h5
@@ -668,29 +669,29 @@ def test_links(client):
     assert f"{total:,}" in html
     assert 'id="format-facet-list"' in html
 
-    out = links_stmts({}, "host", "asc")
+    out = links_stmts({}, "domain", "asc")
     assert out["count"].get(*out["params"])["n"] == total
     first_page = out["list"].all(*out["params"], PAGE_SIZE, 0)
     assert esc(first_page[0]["name"]) in html
     assert f"1-{len(first_page):,} of {total:,}" in html
 
-    # one facet combo: first host + first format (from the unfiltered pools)
+    # one facet combo: first domain + first format (from the unfiltered pools)
     pool = links_facet_counts({})
-    if pool["hosts"] and pool["formats"]:
-        filters = {"host": pool["hosts"][0]["host"], "format": pool["formats"][0]["fmt"]}
+    if pool["domains"] and pool["formats"]:
+        filters = {"domain": pool["domains"][0]["domain"], "format": pool["formats"][0]["fmt"]}
         out2 = links_stmts(filters, "name", "desc")
         n2 = out2["count"].get(*out2["params"])["n"]
         page2 = out2["list"].all(*out2["params"], PAGE_SIZE, 0)
         r2 = client.get(
-            f"/links?host={pool['hosts'][0]['host']}&format={pool['formats'][0]['fmt']}&sort=name&dir=desc",
+            f"/links?domain={pool['domains'][0]['domain']}&format={pool['formats'][0]['fmt']}&sort=name&dir=desc",
         )
         h2 = r2.content.decode()
         assert r2.status_code == 200
         assert esc(page2[0]["name"]) in h2
         assert f"of {n2:,}" in h2
 
-    # ?host=__none__ renders the No URL pill
-    r3 = client.get("/links?host=__none__")
+    # ?domain=__none__ renders the No URL pill
+    r3 = client.get("/links?domain=__none__")
     h3 = r3.content.decode()
     assert 'class="filter-pill"' in h3
     assert "No URL" in h3
@@ -709,11 +710,11 @@ def test_links(client):
     # the Domain facet is uncapped: every host is a facet, the sidebar
     # starts with the top few and expands via the More toggle (same as the
     # /links/errors domain facet); scheme-less URLs trail as No URL
-    assert 'id="host-facet-list"' in h5
+    assert 'id="domain-facet-list"' in h5
     assert "More domains" in h5
     host_section = _facet_section(h5, "Filter by domain")
     assert ">No URL<" in host_section
-    expanded = client.get("/links?hosts=all").content.decode()
+    expanded = client.get("/links?domains=all").content.decode()
     assert "Fewer domains" in expanded
 
     # out-of-range page clamps
@@ -778,7 +779,7 @@ def test_temporal_toggle_keeps_metadata(client):
     # The More-years toggle keeps every active facet — including metadata
     # (regression: a previous version of the toggle URL dropped it).
     for url in (
-        "/datasets?metadata_key=top:type&metadata_value=dataset&years=all",
+        "/datasets?metadata_key=top:type&metadata_value=dataset&temporal_years=all",
         "/datasets?metadata_key=top:type&metadata_value=dataset",
     ):
         html = client.get(url).content.decode()
@@ -787,7 +788,7 @@ def test_temporal_toggle_keeps_metadata(client):
         assert "metadata_key=top%3Atype" in m.group(1)
         assert "metadata_value=dataset" in m.group(1)
     # and with no metadata filter, the toggle URL stays clean
-    html = client.get("/datasets?years=all").content.decode()
+    html = client.get("/datasets?temporal_years=all").content.decode()
     m = re.search(r'<a href="([^"]*)"\s+class="facet-more-link facet-toggle"', html)
     assert m
     assert "metadata" not in m.group(1)

@@ -12,7 +12,7 @@
  *                the header keeps the shared .data-table th label style)
  * Badges and format chips have their own nowrap (components/badges.css);
  * long single-value cells that need truncation/breaking are handled by
- * dedicated classes (e.g. .host-cell, .url-cell).
+ * dedicated classes (e.g. .domain-cell, .url-cell).
  *
  * Variants:
  *   .data-table--wide-first  wider first column for name/title tables
@@ -167,7 +167,7 @@
 /* Cap the host column (links report) — some hosts come from malformed URLs
    (e.g. "http://Table 1 …", or HTML fragments), and an uncapped nowrap
    cell makes the whole table far too wide. Full host is in the title. */
-.data-table td.host-cell {
+.data-table td.domain-cell {
 	max-width: 280px;
 	overflow: hidden;
 	text-overflow: ellipsis;
