@@ -131,7 +131,7 @@ fetch-harvest-sources:
 unused-css:
     npx -y purgecss \
       --css 'explorer/static/css/**/*.css' \
-      --content 'explorer/templates/**/*.html' 'explorer/static/links.js' \
+      --content 'explorer/templates/**/*.html' 'explorer/static/links.js' 'explorer/static/facet-search.js' \
       --rejected \
       --safelist score-0 score-1 score-2 score-3 score-4 score-5 \
                  suggestion--low suggestion--med suggestion--high \

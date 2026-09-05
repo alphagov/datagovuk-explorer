@@ -299,6 +299,12 @@ def test_link_errors_view(client, link_errors_loaded):
     assert 'class="facet-group" aria-label="Filter by domain"' in html
     assert "No URL" in html
     assert "More domains" in html
+    # the Domain facet also opts into the live JS search (like /links and
+    # /datasets) — a search box above the domain and publisher lists only
+    assert 'aria-label="Search domains"' in html
+    assert 'aria-label="Search publishers"' in html
+    assert html.count('class="facet-search-input"') == 2
+    assert "/static/facet-search.js" in html
     all_hosts = _squash(client.get("/links/errors?hosts=all").content.decode())
     assert "Fewer domains" in all_hosts
     no_url = _squash(client.get("/links/errors?host=__none__").content.decode())

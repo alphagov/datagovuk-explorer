@@ -130,6 +130,7 @@ def links(request):
                 toggle_label="domains",
                 expanded=host_expanded,
                 list_id="host-facet-list",
+                search="Search domains",
                 trailing=(
                     [
                         {

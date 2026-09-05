@@ -204,6 +204,7 @@ def link_errors(request):
                 toggle_label="domains",
                 expanded=host_expanded,
                 list_id="host-facet-list",
+                search="Search domains",
                 trailing=(
                     [
                         {
@@ -265,6 +266,7 @@ def link_errors(request):
                 toggle_label="publishers",
                 expanded=publisher_expanded,
                 list_id="publisher-facet-list",
+                search="Search publishers",
             ),
         )
         if group is not None

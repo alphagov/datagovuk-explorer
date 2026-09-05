@@ -53,6 +53,11 @@
 	--color-text: #1a1a2e;
 	--color-muted: #6b7280;
 	--color-border: #e5e7eb;
+	/* UI-component boundaries (text inputs, …) — must clear WCAG 1.4.11's
+	   3:1 non-text contrast against a white/light surface, which the
+	   structural --color-border above does not. #767676 is ~4.5:1 vs
+	   white. */
+	--color-border-strong: #767676;
 	--color-accent: #1d70b8;
 	--color-accent-hover: color-mix(in srgb, var(--color-accent) 85%, black);
 	--color-active: #00703c;

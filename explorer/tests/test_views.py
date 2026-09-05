@@ -720,6 +720,21 @@ def test_links(client):
     assert client.get("/links?page=99999").status_code == 200
 
 
+def test_domain_facet_live_search_box(client):
+    """The /links Domain facet opts into the live JS search (search box
+    above its list, like the datasets Publisher facet); the other /links
+    facets render no search box."""
+    html = client.get("/links").content.decode()
+    domain = _facet_section(html, "Filter by domain")
+    assert 'class="facet-search-input"' in domain
+    assert 'aria-label="Search domains"' in domain
+    assert 'class="facet-search-icon" aria-hidden="true"' in domain
+    # the search box is opt-in — exactly one (the domain group) on the page
+    assert html.count('class="facet-search-input"') == 1
+    # the driving script ships with the page
+    assert "/static/facet-search.js" in html
+
+
 # ---------------------------------------------------------------------------
 # /datasets (facet page)
 # ---------------------------------------------------------------------------
@@ -819,6 +834,27 @@ def test_publisher_facet_order_and_toggle(client):
 
     expanded = client.get("/datasets?publishers=all").content.decode()
     assert "Fewer publishers" in expanded
+
+
+def test_publisher_facet_live_search_box(client):
+    """The Publisher facet opts into the live JS search: a search box above
+    the list (lucide search icon + aria-label from the group config — no
+    placeholder text), a no-match line and the sr-only role="status"
+    feedback line, plus the driving script on the page. Opt-in only — the
+    other /datasets facets render no search box."""
+    html = client.get("/datasets").content.decode()
+    section = _facet_section(html, "Filter by publisher")
+    assert 'class="facet-search-input"' in section
+    assert 'aria-label="Search publishers"' in section
+    assert 'class="facet-search-icon" aria-hidden="true"' in section
+    assert "placeholder=" not in section
+    assert "No results matched your search" in section
+    assert 'class="facet-search-live" role="status"' in section
+    # other facet groups stay plain
+    theme = _facet_section(html, "Filter by primary theme")
+    assert "facet-search-input" not in theme
+    # the driving script ships with the page
+    assert "/static/facet-search.js" in html
 
 
 def test_datasets_publisher_filter(client):

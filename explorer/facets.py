@@ -148,6 +148,7 @@ def facet_counts_group(
     list_id=None,
     trailing=None,
     always_render=False,
+    search=None,
 ):
     """Single-select facet group: ordered master + pool counts → group dict.
 
@@ -177,6 +178,12 @@ def facet_counts_group(
       Before/No-year buckets on /datasets
     - always_render: return the group even when the pool is empty (the
       /datasets temporal facet always renders)
+    - search: a placeholder string (e.g. "Search publishers") that opts
+      the group into a live client-side search box above the list (driven
+      by explorer/static/facet-search.js). While a search term is active
+      the list shows every matching value regardless of the More-toggle
+      collapse, so searching covers all values in the pool, not just the
+      visible cut-off; the group gains the `search` key verbatim.
     """
     pool_max = max(counts.values(), default=1)
     items = []
@@ -200,6 +207,8 @@ def facet_counts_group(
         return None
 
     group = facet_group(key, label, aria_label, items)
+    if search:
+        group["search"] = search
     if cutoff is not None and len(items) > cutoff:
         group["list_id"] = list_id
         group["expanded"] = expanded

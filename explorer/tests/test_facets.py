@@ -186,6 +186,26 @@ def test_always_render_returns_empty_group():
     assert group["items"] == []
 
 
+def test_search_config_lands_on_group():
+    """search placeholder → the group gains a `search` key for the macro
+    (opt-in: absent by default, so the other facet pages stay unchanged)."""
+    group = facets.facet_counts_group(
+        "publisher",
+        "Publisher",
+        "Filter by publisher",
+        [("a", "A"), ("b", "B")],
+        {"a": 5, "b": 2},
+        None,
+        search="Search publishers",
+    )
+    assert group is not None
+    assert group["search"] == "Search publishers"
+
+    plain = facets.facet_counts_group("k", "L", "aria", [("a", "A")], {"a": 1}, None)
+    assert plain is not None
+    assert "search" not in plain
+
+
 # ---------------------------------------------------------------------------
 # facet_counts_multiselect_group — organisations pubyear
 # ---------------------------------------------------------------------------

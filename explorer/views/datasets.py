@@ -318,6 +318,7 @@ def datasets(request):
                 toggle_label="publishers",
                 expanded=publisher_expanded,
                 list_id="publisher-facet-list",
+                search="Search publishers",
             ),
             facets.facet_counts_group(
                 "source",
