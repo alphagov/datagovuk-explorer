@@ -42,8 +42,16 @@ just fetch-organisations      # downloads/organisations.json from the CKAN API
 just fetch-harvest-sources   # downloads/harvest_sources.json (walks publishers, per-publisher filter)
 just download-datasets        # dataset JSON under downloads/ (gitignored)
 just build-db --skip-embeddings   # populate the database (offline build)
+just ingest-reviews           # load the LLM reviews into the reviews table
 just dev                      # runserver on :3000
 ```
+
+`ingest-reviews` is a required step after every `build-db` (or full
+rebuild): the build only populates the pipeline tables and leaves
+`reviews` empty, so the Reviews, Suggestions and dataset-review UI all
+show nothing until it's run. It's idempotent (TRUNCATE + reload from
+data/dataset-reviews-suggestions.jsonl), so running it again is always
+safe.
 
 Embeddings (semantic search over datasets) are optional: run
 `just download-llm` once to fetch the bge-base-en-v1.5 GGUF model into
