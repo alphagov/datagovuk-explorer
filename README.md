@@ -41,10 +41,16 @@ cp .env.example .env          # then set DATABASE_URL (and secrets)
 just fetch-organisations      # downloads/organisations.json from the CKAN API
 just fetch-harvest-sources   # downloads/harvest_sources.json (walks publishers, per-publisher filter)
 just download-datasets        # dataset JSON under downloads/ (gitignored)
-just build-db --skip-embeddings   # populate the database (offline build)
+just fresh-db                 # create DB if missing + apply schema + populate (offline build)
 just ingest-reviews           # load the LLM reviews into the reviews table
 just dev                      # runserver on :3000
 ```
+
+`fresh-db` is the new-machine path: it creates the database if missing,
+runs `migrate` to apply the schema, then populates it (offline, no
+embeddings). If the database already exists you can run `just build-db
+--skip-embeddings` instead — `build-db` runs `migrate` first too, so
+missing tables are never a thing to remember.
 
 `ingest-reviews` is a required step after every `build-db` (or full
 rebuild): the build only populates the pipeline tables and leaves

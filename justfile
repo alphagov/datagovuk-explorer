@@ -42,10 +42,29 @@ setup:
 download-llm:
     uv run python -m scripts.download_llm
 
+# Apply any pending schema migrations (idempotent — a no-op when the
+# database is already up to date). Schema is migration-owned, so this is
+# the step that turns a bare Postgres (or an older dump) into the schema
+# the code expects.
+migrate:
+    uv run --env-file .env python manage.py migrate
+
 # Rebuild the PostgreSQL database from downloads/ (pass --skip-embeddings
-# for a fully offline build; DATABASE_URL comes from .env)
-build-db *args:
+# for a fully offline build; DATABASE_URL comes from .env). Runs migrate
+# first, so a fresh checkout or a DB restored from an older dump can't hit
+# missing tables — the schema is applied before the build populates.
+build-db *args: migrate
     uv run --env-file .env python -m scripts.build_db {{args}}
+
+# One-shot fresh local database: create it if missing, apply the schema,
+# then populate it (offline — pass --skip-embeddings). The path for a
+# fresh checkout. db_name must be the database DATABASE_URL names (default
+# postgresql://localhost:5432/datagovuk_explorer); if your Postgres needs
+# credentials, create the database yourself and run `just build-db`.
+fresh-db db_name="datagovuk_explorer":
+    @createdb "{{db_name}}" 2>/dev/null && echo "created {{db_name}}" || echo "{{db_name}} already exists"
+    uv run --env-file .env python manage.py migrate
+    uv run --env-file .env python -m scripts.build_db --skip-embeddings
 
 # Build series data from dataset titles (DATABASE_URL from .env)
 build-series:
