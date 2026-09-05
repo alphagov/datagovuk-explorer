@@ -45,6 +45,21 @@ Two layers live here:
 
 from urllib.parse import urlencode
 
+# Default number of items a facet list shows before collapsing behind its
+# "More …" toggle (every facet list that opts into a toggle). Callers can
+# override per group — cutoff=<n> for a different window, cutoff=None to
+# keep a list always fully shown.
+DEFAULT_CUTOFF = 10
+
+
+def _toggle_param(plural: str) -> str:
+    """The ?…=all query param that expands a facet list — the explicit
+    plural noun phrase slugged (spaces → underscores): "temporal years" →
+    temporal_years. Views read request.GET.get(<param>) == "all" to set the
+    initial expanded state; the builder derives the same param from the same
+    plural, so the toggle hrefs and the expanded reads can't drift."""
+    return plural.replace(" ", "_")
+
 
 def preserve_params(sort, dir_, facets, extras=None):
     """Ordered query-string base: ?sort= & ?dir= first, then each active
@@ -131,6 +146,20 @@ def _master_pairs(master):
             yield m[0], m[1]
 
 
+def _toggle_wiring(key, plural, toggle_param, toggle_label, list_id):
+    """Resolve a facet's toggle wiring — the explicit plural (when given)
+    supplies the defaults for the expand param/label (plural slugged, spaces
+    → underscores, and the plural noun), and the key supplies the list id.
+    Returns (toggleable, toggle_param, toggle_label, list_id). A facet is
+    toggleable when it ends up with a param: passing plural opts a list into
+    the default cutoff collapse; toggle_param/toggle_label/list_id override
+    the derived values."""
+    if plural:
+        toggle_param = toggle_param if toggle_param is not None else _toggle_param(plural)
+        toggle_label = toggle_label if toggle_label is not None else plural
+    return toggle_param is not None, toggle_param, toggle_label, list_id or f"{key}-facet-list"
+
+
 def facet_counts_group(
     key,
     label,
@@ -140,7 +169,8 @@ def facet_counts_group(
     current,
     *,
     proportions=False,
-    cutoff=None,
+    cutoff=DEFAULT_CUTOFF,
+    plural=None,
     toggle_base=None,
     toggle_param=None,
     toggle_label=None,
@@ -165,14 +195,25 @@ def facet_counts_group(
     Options:
     - proportions: each item gains proportion = count / max pool count
       (the --facet-prop CSS bar; opt-in — /links doesn't use it)
-    - cutoff + toggle_base/toggle_param/toggle_label/expanded/list_id:
-      when the items list is longer than cutoff, the items beyond it get
-      the `extra` flag (hidden until expanded) and the group gains
-      list_id/expanded plus a `more` toggle dict whose href comes from
-      facet_toggle_url(toggle_base, toggle_param, expanded=not expanded)
-      and whose label/param (e.g. "years" / "formats") feed the toggle
-      text and the JS data attributes — the plural noun differs from the
-      group label, so it's passed in rather than derived
+    - plural: the facet's explicit plural noun phrase ("domains",
+      "temporal years") — the "More …" text and, slugged, the
+      ?<plural>_param=all toggle query param. Opts the list into the
+      default cutoff behaviour: when it holds more than `cutoff` values
+      (default DEFAULT_CUTOFF) the items beyond it get the `extra` flag
+      (hidden until expanded) and the group gains list_id/expanded plus a
+      `more` toggle dict. Lists that don't pass a plural render fully
+      shown whatever their length — the toggle machinery is opt-in per
+      facet, so a facet can never strand values behind nothing.
+    - cutoff: the collapse window — defaults to DEFAULT_CUTOFF; None
+      keeps the list fully shown even when a plural is given. The list_id,
+      toggle param and toggle label all default from key/plural, so most
+      callers only pass plural, toggle_base and expanded.
+    - toggle_base/toggle_param/toggle_label/expanded/list_id: explicit
+      overrides — toggle_base is the page's ordered base params (the href
+      is facet_toggle_url(toggle_base, param, expanded=not expanded));
+      toggle_param/toggle_label override the plural-derived defaults;
+      list_id defaults to f"{key}-facet-list"; expanded is the initial
+      state (the view reads ?<param>=all).
     - trailing: item dicts rendered after the items (and after the more
       toggle) — the "No URL" bucket on /links, the temporal After/
       Before/No-year buckets on /datasets
@@ -186,6 +227,14 @@ def facet_counts_group(
       visible cut-off; the group gains the `search` key verbatim.
     """
     pool_max = max(counts.values(), default=1)
+    toggleable, toggle_param, toggle_label, list_id = _toggle_wiring(
+        key,
+        plural,
+        toggle_param,
+        toggle_label,
+        list_id,
+    )
+
     items = []
     for i, (value, name) in enumerate(_master_pairs(master)):
         count = counts.get(value, 0)
@@ -199,7 +248,7 @@ def facet_counts_group(
         }
         if proportions:
             item["proportion"] = count / pool_max
-        if cutoff is not None:
+        if toggleable and cutoff is not None:
             item["extra"] = not expanded and i >= cutoff
         items.append(item)
 
@@ -209,11 +258,11 @@ def facet_counts_group(
     group = facet_group(key, label, aria_label, items)
     if search:
         group["search"] = search
-    if cutoff is not None and len(items) > cutoff:
+    if toggleable and cutoff is not None and len(items) > cutoff:
         group["list_id"] = list_id
         group["expanded"] = expanded
         group["more"] = {
-            "href": facet_toggle_url(toggle_base, toggle_param, expanded=not expanded),
+            "href": facet_toggle_url(toggle_base or {}, toggle_param, expanded=not expanded),
             "expanded": expanded,
             "count": len(items) - cutoff,
             "label": toggle_label,
@@ -234,9 +283,16 @@ def facet_counts_multiselect_group(
     *,
     facet_url,
     proportions=False,
+    cutoff=DEFAULT_CUTOFF,
+    plural=None,
+    toggle_base=None,
+    toggle_param=None,
+    toggle_label=None,
+    expanded=False,
+    list_id=None,
     trailing=None,
 ):
-    """Multi-select facet group — the organisations pubyear case.
+    """Multi-select facet group — the organisations year-last-published case.
 
     Same inputs as facet_counts_group, but current is a collection and
     every item carries a per-item toggle href built from the passed-in
@@ -244,13 +300,24 @@ def facet_counts_multiselect_group(
     from the selection (clearing the facet when it was the last one),
     clicking an unselected value adds it. When nothing is selected no
     hrefs are set (the template falls back to the plain facet_url).
-    trailing lands on the group verbatim — post-list buckets rendered
-    after the items (the "Never published" bucket), each carrying its own
-    href (the plain facet_url fallback would replace the selection, not
-    clear it when active)."""
+    plural + cutoff behave exactly as in facet_counts_group: lists longer
+    than the cutoff collapse behind the shared More toggle (derived
+    param/label/list_id), expanded is the initial state. trailing lands on
+    the group verbatim — post-list buckets rendered after the items (the
+    "Never published" bucket), each carrying its own href (the plain
+    facet_url fallback would replace the selection, not clear it when
+    active)."""
     pool_max = max(counts.values(), default=1)
+    toggleable, toggle_param, toggle_label, list_id = _toggle_wiring(
+        key,
+        plural,
+        toggle_param,
+        toggle_label,
+        list_id,
+    )
+
     items = []
-    for value, name in _master_pairs(master):
+    for i, (value, name) in enumerate(_master_pairs(master)):
         count = counts.get(value, 0)
         if count <= 0:
             continue
@@ -269,11 +336,23 @@ def facet_counts_multiselect_group(
                 item["href"] = facet_url(key, value)
         if proportions:
             item["proportion"] = count / pool_max
+        if toggleable and cutoff is not None:
+            item["extra"] = not expanded and i >= cutoff
         items.append(item)
 
     if not items and not trailing:
         return None
     group = facet_group(key, label, aria_label, items)
+    if toggleable and cutoff is not None and len(items) > cutoff:
+        group["list_id"] = list_id
+        group["expanded"] = expanded
+        group["more"] = {
+            "href": facet_toggle_url(toggle_base or {}, toggle_param, expanded=not expanded),
+            "expanded": expanded,
+            "count": len(items) - cutoff,
+            "label": toggle_label,
+            "param": toggle_param,
+        }
     if trailing:
         group["trailing"] = trailing
     return group

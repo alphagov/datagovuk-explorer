@@ -25,6 +25,14 @@ from explorer.queries.reports import (
 
 from .core import paginate
 
+# Facet plural noun phrases — the "More …" text and, slugged (spaces →
+# underscores), the ?<plural>=all expand param for each report facet key.
+# Facets without an entry render fully shown (no collapse).
+REPORT_FACET_PLURALS = {
+    "org": "publishers",
+    "api_type": "api types",
+}
+
 
 def _duplicate_url_report(request, report, url):
     """Duplicate-URLs detail mode (?url=<encoded-url>) — every dataset that
@@ -59,7 +67,7 @@ def _duplicate_url_report(request, report, url):
     )
 
 
-def _report_facets(report, query_params) -> tuple[list, dict, list]:
+def _report_facets(report, query_params, expanded) -> tuple[list, dict, list, dict]:
     """Compile the report's single-select facet groups + active selections,
     validated against the report's own unfiltered facet options.
 
@@ -67,7 +75,13 @@ def _report_facets(report, query_params) -> tuple[list, dict, list]:
     report_facet_counts): they apply every other active facet's filter,
     omitting their own — a no-op for the single-facet reports, and the real
     case for datasets-has-api (?org= + ?api_type=, where org counts shrink
-    under an api_type selection and vice versa)."""
+    under an api_type selection and vice versa).
+
+    expanded: {facet key: True} — which facet lists are expanded past the
+    default cutoff (?<plural>=all). Long option lists (the Publisher org
+    pool can run to hundreds) collapse behind the shared More toggle; the
+    base params are built here so the group toggles can use them, and
+    returned for the caller's facet_url/pager links."""
     facet_groups = []
     active_filters: dict[str, str] = {}
     active_facets: list[dict] = []
@@ -93,6 +107,20 @@ def _report_facets(report, query_params) -> tuple[list, dict, list]:
                     },
                 )
 
+    # Query-string base — built before the groups so the More toggles can
+    # use it. Report pages have no sort UI: sort/dir are fixed placeholders
+    # and the pager base is facets + the expanded-lists extras only.
+    extras = {}
+    for key, plural in REPORT_FACET_PLURALS.items():
+        if expanded.get(key):
+            extras[plural.replace(" ", "_")] = "all"
+    base_params = facets.preserve_params(
+        "name",
+        "asc",
+        list(active_filters.items()),
+        extras or None,
+    )
+
     # Pass 2 — self-excluding counts with the complete active-filter set.
     # No active filters → the pools are the memoised unfiltered ones; with
     # filters the counts are computed live (self-excluding, per-combo SQL).
@@ -113,9 +141,12 @@ def _report_facets(report, query_params) -> tuple[list, dict, list]:
                 {o["slug"]: o["count"] for o in options},
                 current,
                 proportions=True,
+                plural=REPORT_FACET_PLURALS.get(facet["key"]),
+                toggle_base=base_params,
+                expanded=bool(expanded.get(facet["key"])),
             ),
         )
-    return facet_groups, active_filters, active_facets
+    return facet_groups, active_filters, active_facets, base_params
 
 
 def report(request, key):
@@ -139,22 +170,22 @@ def report(request, key):
     # Optional single-select facets (?org=<slug>, ?api_type=<slug>...). Each
     # report defines its own `facets` list; the selected values are validated
     # against the compiled facet options before being used as filters.
-    facet_groups, active_filters, active_facets = _report_facets(
+    expanded = {}
+    for facet_key, plural in REPORT_FACET_PLURALS.items():
+        if request.GET.get(plural.replace(" ", "_")) == "all":
+            expanded[facet_key] = True
+    facet_groups, active_filters, active_facets, base_params = _report_facets(
         report,
         {
             "org": request.GET.get("org"),
             "api_type": request.GET.get("api_type"),
         },
+        expanded,
     )
 
     # Query-string machinery — same pattern as the other facet pages: a
     # preserve_params base (report pages have no sort UI, so the pager
     # base is facets only), facet_url_for for the facet links and pills.
-    base_params = facets.preserve_params(
-        "name",
-        "asc",
-        [(key, value) for key, value in active_filters.items()],
-    )
     facet_url = facets.facet_url_for(base_params)
     pager_base = facets.pager_base(base_params, include_sort=False)
 

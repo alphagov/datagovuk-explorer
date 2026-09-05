@@ -40,12 +40,6 @@ from explorer.sort import DATASETS_SORT_COLUMNS
 
 from .core import _sort_dir, paginate
 
-# Temporal-year facet window: years above this count collapse behind a
-# "More years" toggle; the Publisher facet's org list does the same behind
-# a "More publishers" toggle (1176 orgs in the unfiltered pool).
-TEMPORAL_FACET_CUTOFF = 10
-PUBLISHER_FACET_CUTOFF = 10
-
 # In-window temporal years (latest first) — filter-independent, memoised at
 # module level (the DB is a build-time snapshot, so the result is stable).
 
@@ -229,11 +223,20 @@ def datasets(request):
     # facet_qs drops sort/dir for the sort_link/pagination macros.
     temporal_year_expanded = request.GET.get("temporal_years") == "all"
     publisher_expanded = request.GET.get("publishers") == "all"
+    # Theme (14 values) and the created-year list (17) also collapse past
+    # the default cutoff behind their own More toggles (?themes=all /
+    # ?created_years=all).
+    theme_expanded = request.GET.get("themes") == "all"
+    created_year_expanded = request.GET.get("created_years") == "all"
     expanded_extras = {}
     if temporal_year_expanded:
         expanded_extras["temporal_years"] = "all"
     if publisher_expanded:
         expanded_extras["publishers"] = "all"
+    if theme_expanded:
+        expanded_extras["themes"] = "all"
+    if created_year_expanded:
+        expanded_extras["created_years"] = "all"
     base_params = facets.preserve_params(
         sort,
         dir_,
@@ -305,9 +308,12 @@ def datasets(request):
                 theme_pool_counts,
                 filters.theme,
                 proportions=True,
+                plural="themes",
+                toggle_base=base_params,
+                expanded=theme_expanded,
             ),
             # Every publisher with datasets is a facet — the long list
-            # collapses past its cutoff behind the standard "More
+            # collapses past the default cutoff behind the standard "More
             # publishers" toggle (?publishers=all), like the temporal
             # years list.
             facets.facet_counts_group(
@@ -318,12 +324,9 @@ def datasets(request):
                 {p["value"]: p["count"] for p in publisher_pool},
                 filters.publisher,
                 proportions=True,
-                cutoff=PUBLISHER_FACET_CUTOFF,
+                plural="publishers",
                 toggle_base=base_params,
-                toggle_param="publishers",
-                toggle_label="publishers",
                 expanded=publisher_expanded,
-                list_id="publisher-facet-list",
                 search="Search publishers",
             ),
             facets.facet_counts_group(
@@ -352,6 +355,9 @@ def datasets(request):
                 {r["created_year"]: r["count"] for r in facet_counts["created_years"]},
                 filters.created_year,
                 proportions=True,
+                plural="created years",
+                toggle_base=base_params,
+                expanded=created_year_expanded,
             ),
             facets.facet_counts_group(
                 "temporal_year",
@@ -360,12 +366,9 @@ def datasets(request):
                 [(str(y), str(y)) for y in temporal_years],
                 {str(r["year"]): r["count"] for r in facet_counts["temporal_years"]},
                 filters.temporal_year,
-                cutoff=TEMPORAL_FACET_CUTOFF,
+                plural="temporal years",
                 toggle_base=base_params,
-                toggle_param="temporal_years",
-                toggle_label="temporal years",
                 expanded=temporal_year_expanded,
-                list_id="temporal-facet-list",
                 trailing=trailing_items,
                 always_render=True,
             ),

@@ -23,12 +23,6 @@ from explorer.queries.links import (
 
 from .core import _sort_dir, paginate
 
-# Facet sidebar cutoffs — formats/domains beyond these hide behind their
-# "More …" toggles (the standard facet-list expand/collapse; all other facet
-# lists are always shown).
-FORMAT_FACET_CUTOFF = 10
-DOMAIN_FACET_CUTOFF = 10
-
 # Hostnames — RFC 1035/2181 caps a fully-qualified name at 253 chars.
 MAX_DOMAIN_LENGTH = 253
 
@@ -46,15 +40,19 @@ def links(request):
     valid_formats = {f["fmt"] for f in base_pool["formats"]}
     valid_created_years = {r["created_year"] for r in base_pool["created_years"]}
 
-    # Format facet — all formats are rendered to the page; the "More formats"
-    # toggle expands/collapses the list client-side (with a ?formats=all
-    # fallback when JS is off). formats_expanded only sets the initial state.
+    # Format facet — the list collapses past the default cutoff behind the
+    # "More formats" toggle (with a ?formats=all fallback when JS is off).
+    # formats_expanded only sets the initial state.
     formats_expanded = request.GET.get("formats") == "all"
 
     # Domain facet state — every host is a facet; the long list collapses
-    # past DOMAIN_FACET_CUTOFF behind the same "More domains" toggle the
+    # past the default cutoff behind the "More domains" toggle the
     # /links/errors domain facet uses (?domains=all, JS-free fallback).
     domain_expanded = request.GET.get("domains") == "all"
+
+    # Created-year facet — the year list also collapses past 10 (17 years
+    # in the pool) behind its "More created years" toggle (?created_years=all).
+    created_year_expanded = request.GET.get("created_years") == "all"
 
     # Validate against the full list so any format can be filtered even when
     # it's beyond the top 10 shown by default.
@@ -86,14 +84,16 @@ def links(request):
     # Query-string fragments shared by sort links / facet links / pills.
     # Dicts preserve insertion order, so urlencode emits the fixed
     # parameter order: sort, dir, then domain, format, created_year,
-    # formats, domains. The extras carry the expanded-lists state
-    # (?formats=all / ?domains=all) so facet/sort/pager links keep the
-    # lists expanded.
+    # formats, domains, created_years. The extras carry the expanded-lists
+    # state (?formats=all / ?domains=all / ?created_years=all) so
+    # facet/sort/pager links keep the lists expanded.
     expanded_extras = {}
     if formats_expanded:
         expanded_extras["formats"] = "all"
     if domain_expanded:
         expanded_extras["domains"] = "all"
+    if created_year_expanded:
+        expanded_extras["created_years"] = "all"
     base_params = facets.preserve_params(
         sort,
         dir_,
@@ -127,12 +127,9 @@ def links(request):
                 {d["domain"]: d["count"] for d in pool["domains"]},
                 current_domain,
                 proportions=True,
-                cutoff=DOMAIN_FACET_CUTOFF,
+                plural="domains",
                 toggle_base=base_params,
-                toggle_param="domains",
-                toggle_label="domains",
                 expanded=domain_expanded,
-                list_id="domain-facet-list",
                 search="Search domains",
                 trailing=(
                     [
@@ -155,12 +152,9 @@ def links(request):
                 {f["fmt"]: f["count"] for f in pool["formats"]},
                 current_format,
                 proportions=True,
-                cutoff=FORMAT_FACET_CUTOFF,
+                plural="formats",
                 toggle_base=base_params,
-                toggle_param="formats",
-                toggle_label="formats",
                 expanded=formats_expanded,
-                list_id="format-facet-list",
                 trailing=(
                     [
                         {
@@ -182,6 +176,9 @@ def links(request):
                 {r["created_year"]: r["count"] for r in pool["created_years"]},
                 current_created_year,
                 proportions=True,
+                plural="created years",
+                toggle_base=base_params,
+                expanded=created_year_expanded,
             ),
         )
         if group is not None

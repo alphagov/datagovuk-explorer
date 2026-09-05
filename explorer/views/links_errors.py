@@ -40,15 +40,6 @@ from .core import _sort_dir, paginate
 HARVEST_LABELS = dict(HARVEST_STATES)
 TO_DELETE_LABELS = dict(TO_DELETE_VALUES)
 
-# Domains/publishers beyond these cutoffs hide behind the "More …" toggle —
-# every host and every publisher with errors is a facet (1602 hosts, 931
-# orgs), but the sidebar starts with the top few and expands via the
-# standard More link (?domains=all / ?publishers=all, JS-free fallback like
-# /links formats).
-DOMAIN_FACET_CUTOFF = 10
-PUBLISHER_FACET_CUTOFF = 10
-
-
 def _category_name(value: str) -> str:
     """Display name for a raw category code (facet items and pills)."""
     return CATEGORY_LABELS.get(value, (value or "").title())
@@ -101,6 +92,9 @@ def link_errors(request):
     # the long lists collapse past their cutoffs behind the More toggles.
     domain_expanded = request.GET.get("domains") == "all"
     publisher_expanded = request.GET.get("publishers") == "all"
+    # HTTP status — 17 distinct codes in the pool; the list collapses past
+    # the default cutoff behind its "More statuses" toggle (?statuses=all).
+    status_expanded = request.GET.get("statuses") == "all"
 
     filters = {
         "category": current_category,
@@ -131,6 +125,8 @@ def link_errors(request):
         expanded_extras["domains"] = "all"
     if publisher_expanded:
         expanded_extras["publishers"] = "all"
+    if status_expanded:
+        expanded_extras["statuses"] = "all"
     base_params = facets.preserve_params(
         sort,
         dir_,
@@ -198,12 +194,9 @@ def link_errors(request):
                 {h["value"]: h["count"] for h in pool["domains"]},
                 current_domain,
                 proportions=True,
-                cutoff=DOMAIN_FACET_CUTOFF,
+                plural="domains",
                 toggle_base=base_params,
-                toggle_param="domains",
-                toggle_label="domains",
                 expanded=domain_expanded,
-                list_id="domain-facet-list",
                 search="Search domains",
                 trailing=(
                     [
@@ -226,6 +219,9 @@ def link_errors(request):
                 {s["value"]: s["count"] for s in pool["statuses"]},
                 current_status,
                 proportions=True,
+                plural="statuses",
+                toggle_base=base_params,
+                expanded=status_expanded,
                 trailing=(
                     [
                         {
@@ -260,12 +256,9 @@ def link_errors(request):
                 {p["value"]: p["count"] for p in pool["publishers"]},
                 current_publisher,
                 proportions=True,
-                cutoff=PUBLISHER_FACET_CUTOFF,
+                plural="publishers",
                 toggle_base=base_params,
-                toggle_param="publishers",
-                toggle_label="publishers",
                 expanded=publisher_expanded,
-                list_id="publisher-facet-list",
                 search="Search publishers",
             ),
         )

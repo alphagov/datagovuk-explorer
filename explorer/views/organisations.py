@@ -186,8 +186,20 @@ def organisations(request):
 
     last_published_param = ",".join(filters.last_published_years) if filters.last_published_years else None
 
+    # Both year lists are longer than the default cutoff (15 created years,
+    # 17 last-published), so each collapses behind its own More toggle
+    # (?created_years=all / ?last_published_years=all).
+    created_year_expanded = request.GET.get("created_years") == "all"
+    last_published_year_expanded = request.GET.get("last_published_years") == "all"
+    expanded_extras = {}
+    if created_year_expanded:
+        expanded_extras["created_years"] = "all"
+    if last_published_year_expanded:
+        expanded_extras["last_published_years"] = "all"
+
     # Shared query-string base: sort, dir, then the active facets (created
-    # year, last published year, datasets) in a fixed order.
+    # year, last published year, datasets) in a fixed order, then the
+    # expanded-lists extras so facet/sort/pager links keep the lists open.
     base_params = facets.preserve_params(
         sort,
         dir_,
@@ -196,6 +208,7 @@ def organisations(request):
             ("last_published_year", last_published_param),
             ("datasets", filters.datasets),
         ],
+        expanded_extras or None,
     )
     facet_url = facets.facet_url_for(base_params)
 
@@ -262,6 +275,9 @@ def organisations(request):
                 year_pool_counts,
                 filters.created_year,
                 proportions=True,
+                plural="created years",
+                toggle_base=base_params,
+                expanded=created_year_expanded,
             ),
             facets.facet_counts_multiselect_group(
                 "last_published_year",
@@ -272,6 +288,9 @@ def organisations(request):
                 filters.last_published_years,
                 facet_url=facet_url,
                 proportions=True,
+                plural="last published years",
+                toggle_base=base_params,
+                expanded=last_published_year_expanded,
                 trailing=pubyear_trailing or None,
             ),
         )
