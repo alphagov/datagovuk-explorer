@@ -40,9 +40,8 @@ def links(request):
     valid_formats = {f["fmt"] for f in base_pool["formats"]}
     valid_created_years = {r["created_year"] for r in base_pool["created_years"]}
 
-    # Format facet — the list collapses past the default cutoff behind the
-    # "More formats" toggle (with a ?formats=all fallback when JS is off).
-    # formats_expanded only sets the initial state.
+    # Format list — collapses past the default cutoff behind its "More
+    # formats" toggle (?formats=all fallback when JS is off).
     formats_expanded = request.GET.get("formats") == "all"
 
     # Domain facet state — every host is a facet; the long list collapses
@@ -50,8 +49,8 @@ def links(request):
     # /links/errors domain facet uses (?domains=all, JS-free fallback).
     domain_expanded = request.GET.get("domains") == "all"
 
-    # Created-year facet — the year list also collapses past 10 (17 years
-    # in the pool) behind its "More created years" toggle (?created_years=all).
+    # Created-year list also collapses past the default cutoff behind its
+    # "More created years" toggle (?created_years=all).
     created_year_expanded = request.GET.get("created_years") == "all"
 
     # Validate against the full list so any format can be filtered even when

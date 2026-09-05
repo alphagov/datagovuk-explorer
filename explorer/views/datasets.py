@@ -223,9 +223,8 @@ def datasets(request):
     # facet_qs drops sort/dir for the sort_link/pagination macros.
     temporal_year_expanded = request.GET.get("temporal_years") == "all"
     publisher_expanded = request.GET.get("publishers") == "all"
-    # Theme (14 values) and the created-year list (17) also collapse past
-    # the default cutoff behind their own More toggles (?themes=all /
-    # ?created_years=all).
+    # Theme and created-year lists also collapse past the default cutoff
+    # behind their own More toggles (?themes=all / ?created_years=all).
     theme_expanded = request.GET.get("themes") == "all"
     created_year_expanded = request.GET.get("created_years") == "all"
     expanded_extras = {}

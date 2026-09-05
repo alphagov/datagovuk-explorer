@@ -92,8 +92,8 @@ def link_errors(request):
     # the long lists collapse past their cutoffs behind the More toggles.
     domain_expanded = request.GET.get("domains") == "all"
     publisher_expanded = request.GET.get("publishers") == "all"
-    # HTTP status — 17 distinct codes in the pool; the list collapses past
-    # the default cutoff behind its "More statuses" toggle (?statuses=all).
+    # HTTP status list also collapses past the default cutoff behind its
+    # "More statuses" toggle (?statuses=all).
     status_expanded = request.GET.get("statuses") == "all"
 
     filters = {

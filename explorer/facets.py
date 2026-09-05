@@ -45,19 +45,16 @@ Two layers live here:
 
 from urllib.parse import urlencode
 
-# Default number of items a facet list shows before collapsing behind its
-# "More …" toggle (every facet list that opts into a toggle). Callers can
-# override per group — cutoff=<n> for a different window, cutoff=None to
-# keep a list always fully shown.
+# Items a toggled facet list shows before collapsing — override per group
+# with cutoff=<n>, or None to keep the list fully shown.
 DEFAULT_CUTOFF = 10
 
 
 def _toggle_param(plural: str) -> str:
-    """The ?…=all query param that expands a facet list — the explicit
-    plural noun phrase slugged (spaces → underscores): "temporal years" →
-    temporal_years. Views read request.GET.get(<param>) == "all" to set the
-    initial expanded state; the builder derives the same param from the same
-    plural, so the toggle hrefs and the expanded reads can't drift."""
+    """The ?…=all expand param for a facet list — the plural slugged
+    (spaces → underscores: "temporal years" → temporal_years). Views read it
+    for the initial expanded state; the builder derives the same slug from
+    the same plural, so the toggle hrefs and the reads can't drift."""
     return plural.replace(" ", "_")
 
 
@@ -147,13 +144,10 @@ def _master_pairs(master):
 
 
 def _toggle_wiring(key, plural, toggle_param, toggle_label, list_id):
-    """Resolve a facet's toggle wiring — the explicit plural (when given)
-    supplies the defaults for the expand param/label (plural slugged, spaces
-    → underscores, and the plural noun), and the key supplies the list id.
-    Returns (toggleable, toggle_param, toggle_label, list_id). A facet is
-    toggleable when it ends up with a param: passing plural opts a list into
-    the default cutoff collapse; toggle_param/toggle_label/list_id override
-    the derived values."""
+    """Toggle defaults from the facet's explicit plural (expand param =
+    slug, label = plural) and key (list id); explicit toggle_param/
+    toggle_label/list_id take precedence. Returns (toggleable, param, label,
+    list_id) — toggleable when a param resolved."""
     if plural:
         toggle_param = toggle_param if toggle_param is not None else _toggle_param(plural)
         toggle_label = toggle_label if toggle_label is not None else plural
@@ -195,25 +189,19 @@ def facet_counts_group(
     Options:
     - proportions: each item gains proportion = count / max pool count
       (the --facet-prop CSS bar; opt-in — /links doesn't use it)
-    - plural: the facet's explicit plural noun phrase ("domains",
-      "temporal years") — the "More …" text and, slugged, the
-      ?<plural>_param=all toggle query param. Opts the list into the
-      default cutoff behaviour: when it holds more than `cutoff` values
-      (default DEFAULT_CUTOFF) the items beyond it get the `extra` flag
-      (hidden until expanded) and the group gains list_id/expanded plus a
-      `more` toggle dict. Lists that don't pass a plural render fully
-      shown whatever their length — the toggle machinery is opt-in per
-      facet, so a facet can never strand values behind nothing.
-    - cutoff: the collapse window — defaults to DEFAULT_CUTOFF; None
-      keeps the list fully shown even when a plural is given. The list_id,
-      toggle param and toggle label all default from key/plural, so most
-      callers only pass plural, toggle_base and expanded.
-    - toggle_base/toggle_param/toggle_label/expanded/list_id: explicit
-      overrides — toggle_base is the page's ordered base params (the href
-      is facet_toggle_url(toggle_base, param, expanded=not expanded));
-      toggle_param/toggle_label override the plural-derived defaults;
-      list_id defaults to f"{key}-facet-list"; expanded is the initial
-      state (the view reads ?<param>=all).
+    - plural + cutoff: opts the list into the toggle machinery. plural is
+      the facet's explicit plural noun ("domains", "temporal years") — the
+      "More …" text and, slugged (spaces → underscores), the ?<plural>=all
+      expand param. A list longer than cutoff (default DEFAULT_CUTOFF;
+      None = always fully shown) marks items from cutoff on as `extra`
+      (hidden until expanded) and gains list_id/expanded plus the `more`
+      toggle dict. Lists without a plural never collapse, so values can't
+      be stranded behind nothing.
+    - toggle_base/toggle_param/toggle_label/expanded/list_id: overrides.
+      toggle_base is the page's ordered base params the toggle href keeps
+      (facet_toggle_url); toggle_param/toggle_label and list_id default
+      from plural/key; expanded is the initial state (views read
+      ?<param>=all).
     - trailing: item dicts rendered after the items (and after the more
       toggle) — the "No URL" bucket on /links, the temporal After/
       Before/No-year buckets on /datasets

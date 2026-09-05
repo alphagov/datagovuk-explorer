@@ -186,9 +186,8 @@ def organisations(request):
 
     last_published_param = ",".join(filters.last_published_years) if filters.last_published_years else None
 
-    # Both year lists are longer than the default cutoff (15 created years,
-    # 17 last-published), so each collapses behind its own More toggle
-    # (?created_years=all / ?last_published_years=all).
+    # Both year lists also collapse past the default cutoff behind their
+    # own More toggles (?created_years=all / ?last_published_years=all).
     created_year_expanded = request.GET.get("created_years") == "all"
     last_published_year_expanded = request.GET.get("last_published_years") == "all"
     expanded_extras = {}
