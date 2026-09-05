@@ -7,6 +7,10 @@ writes, no migrations, no changes to production code. The point is to try
 ideas cheaply against real data and see the effect before committing
 anything to scripts/build_series.py (and its schema + tests).
 
+Several detection ideas below were folded into build_series when they
+landed (range patterns, connector trim, min-words, filename rejection,
+normalised exact keys); keep that in mind when reading the v1/v2 totals.
+
 Experiments:
   E1 roots    — date-range patterns + trailing-connector trim + min-words
                 + filename rejection. Shows fixed garbage roots, new drops,
@@ -68,15 +72,17 @@ TWO_GROUPINGS = 2
 _ROOT_WS = re.compile(r"\s+")
 _MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
 
-# "January 2010 to December 2010" — the v1 tail patterns only match one
-# trailing "Month YYYY", leaving "… to" in the root. Also "1994 to 2010".
+# Whole-range suffixes — "January 2010 to December 2010", "1994 to
+# 2010". These now live in build_series' DATE_PATTERNS itself; the
+# range_patterns flag below just re-tries them at the front of the list.
 RANGE_MONTH = re.compile(
     rf"\s+({_MONTHS})\s+\d{{4}}\s+to\s+({_MONTHS})\s+\d{{4}}\s*$",
     re.ASCII,
 )
 RANGE_YEAR = re.compile(r"\s+\d{4}\s+to\s+\d{4}\s*$", re.ASCII)
 
-# v1's five patterns, with the two range patterns prepended (first match wins).
+# build_series' DATE_PATTERNS, with the two range patterns first (first
+# match wins).
 DATE_PATTERNS_V2 = [RANGE_MONTH, RANGE_YEAR, *DATE_PATTERNS]
 
 # Trailing connector words / punctuation left behind by date stripping

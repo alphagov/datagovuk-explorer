@@ -3,8 +3,7 @@
 
 Reads datasets from the quality index, sends a curated digest to the
 model, and appends a single structured JSON record per dataset to
-data/dataset-reviews-suggestions.jsonl. The output schema merges both
-earlier outputs:
+data/dataset-reviews-suggestions.jsonl. Each record has:
 
   scores   — overall, findability, metadata, resources (0-5 + explanation)
   theme    — suggested primary theme from the 14-theme vocabulary
@@ -69,7 +68,7 @@ MAX_DIGEST_RESOURCES = 8
 class ReviewError(RuntimeError):
     """LLM/HTTP error carrying an optional HTTP status (for the 429 retry).
 
-    status is set only for HTTP errors; process_one checks status ==
+    status is set only for HTTP errors; the retry loop checks status ==
     HTTPStatus.TOO_MANY_REQUESTS to decide the backoff.
     """
 
@@ -451,8 +450,7 @@ def load_processed_ids(out_file: Path) -> tuple[set, set]:
 
 
 def append_record(out_file: Path, record: dict) -> None:
-    """appendFileSync(outFile, JSON.stringify(record) + '\n') — compact
-    separators, raw unicode."""
+    """Append one compact-JSON record per line (no spaces, raw unicode)."""
 
     with out_file.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
@@ -508,12 +506,11 @@ def _fetch_record(config: ReviewConfig, base: dict, digest: dict) -> dict:
             content = send_request(config.client, config.base_url, config.api_key, config.model, digest)
             parsed = extract_json(content)
 
-            # Validate theme
+            # Validate theme / tags before accepting the record.
             if parsed.get("theme") and parsed["theme"] not in THEMES:
                 raise ReviewError(  # noqa: TRY301 — validation errors are caught by the same try to record failed records
                     f'invalid theme "{parsed["theme"]}" — not in vocabulary',
                 )
-            # Validate tags
             if not isinstance(parsed.get("tags"), list):
                 raise ReviewError("tags must be an array")  # noqa: TRY301 — validation, caught by the same try
 
@@ -778,9 +775,7 @@ def main(
         "--concurrency",
         help="parallel requests (default 50 for remote APIs, 1 for local llama)",
     ),
-    # Annotated style for this one parameter: a `Path` annotation with the
-    # classic typer.Option(...) default trips ruff B008 (function call in
-    # default); the Annotated form keeps the default as a module singleton.
+    # Annotated form avoids ruff B008 (a typer.Option() call as a default).
     out: Annotated[Path, typer.Option("--out", help="output JSONL file")] = DEFAULT_OUT,
     include_reviewed: bool = typer.Option(
         False,  # noqa: FBT003 — typer.Option's default is the first positional

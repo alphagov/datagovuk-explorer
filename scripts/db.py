@@ -10,25 +10,20 @@ escaped `\?` literals (URL regexes in the report SQL) are left untouched.
 The app-side query layer (explorer/queries) writes native `%s` directly;
 the scripts keep `?` so the statements carry over unchanged.
 
-Design notes (consequences of sync + one connection):
+Design consequences of one sync connection:
 
-- One connection, autocommit on: each top-level statement commits itself.
-  transaction() wraps an explicit BEGIN/COMMIT/ROLLBACK on that same
-  connection.
+- autocommit on: each top-level statement commits itself; transaction()
+  wraps an explicit BEGIN/COMMIT/ROLLBACK on that same connection.
 - Rows come back as dicts (psycopg dict_row) — row["n"] key access.
-- jsonb columns come back as *parsed Python objects* with raw psycopg3
-  (its default JsonbLoader), whereas Django's connection registers string
-  loaders and returns JSON strings. The current schema has jsonb columns
-  (dataset_json.json, datasets.temporal_periods — migrations 0005/0006),
-  so a script that reads one gets a parsed object, not a string; the
-  scripts that write them pass JSON-encoded text, which psycopg parses on
-  the way in. If a script ever needs string consistency with the app,
-  register JsonbTextLoader on the connection in connect().
+- psycopg parses jsonb columns into Python objects (its default
+  JsonbLoader); Django's connection returns JSON strings. Scripts reading
+  jsonb get objects; scripts writing them pass JSON-encoded text, which
+  psycopg parses on the way in. Register JsonbTextLoader in connect() if a
+  script ever needs string parity with the app.
 - A literal `%` in a statement that carries params raises in psycopg, so
-  the _execute paths use single-arg execute (no placeholder parsing) when
-  params is empty. No script SQL currently has a literal `%`; if one is
-  ever added to a parameterized statement it must be written doubled
-  (%%), as the app's explorer/queries package does for its LIKE clauses.
+  no-param statements use plain execute (no placeholder parsing), and any
+  literal `%` added to a parameterized statement must be doubled (%%), as
+  in explorer/queries.
 """
 
 import os
@@ -89,8 +84,7 @@ class Query:
             if params:
                 cur.execute(self._sql, params)
             else:
-                # Single-arg execute skips psycopg's placeholder parsing —
-                # the belt-and-braces guard for literal % in no-param SQL.
+                # Plain execute skips psycopg's placeholder parsing.
                 cur.execute(self._sql)
             if one:
                 return cur.fetchone()

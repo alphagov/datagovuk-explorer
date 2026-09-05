@@ -2,7 +2,7 @@
 WHERE builder every facet page's query module uses.
 
 Hand-built clause builders only, no live DB (unlike test_queries.py, which
-needs the populated dev DB): these pin the exclusion semantics themselves —
+needs the populated dev DB): these lock in the exclusion semantics themselves —
 normal exclusion, exclude=None (all clauses), skipped filters, and multiple
 simultaneously-active filters.
 """

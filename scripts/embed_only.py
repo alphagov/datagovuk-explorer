@@ -47,11 +47,6 @@ def build_texts(rows: list[dict]) -> list[str | None]:
     rows: [{id, title, notes}, ...]. Per row: notes truncated to 500
     chars, whitespace collapsed to single spaces, trimmed. Empty texts
     become None (a row with an empty title embeds the bare prefix).
-
-    Notes: the [:500] slice cuts code points where a UTF-16 slice cuts
-    units, which only differs for astral characters past position 500 (an
-    accepted corner). A NULL title would render as the literal "null"; the
-    datasets table never has NULL titles, so the raw value is interpolated.
     """
 
     texts: list[str | None] = []
@@ -96,8 +91,7 @@ def embed_batch(
 
     Null texts are skipped in the request and stored as zero vectors; every
     other row gets embedding = the response vector and vector_text = the
-    JSON-serialized array (float formatting may differ between runs — the
-    stored values are compared with float tolerance, not bytes).
+    JSON-serialized array.
     """
 
     if batch_start >= batch_end:
@@ -134,14 +128,12 @@ def embed_batch(
                 emb_idx += 1
             else:
                 vec_arr = [0] * DIM  # zero vector for null texts
-            # pgvector expects the '[...]' array literal. str(float) is the
-            # shortest round-trip repr; any formatting differences parse
-            # back to the same double.
+            # pgvector expects the '[...]' literal; str(float) is the
+            # shortest round-trip repr.
             insert_emb.run(rowid, f"[{','.join(str(v) for v in vec_arr)}]")
-            # Compact separators; the only remaining byte quirk is float
-            # exponent formatting (1e-7 vs 1e-07), accepted (values compare
-            # with float
-            # tolerance, not bytes).
+            # json.dumps compact separators, raw unicode. Float formatting
+            # may differ between runs (1e-7 vs 1e-07) — the stored values
+            # are compared with float tolerance, not bytes.
             insert_map.run(
                 rowid,
                 rows[i]["id"],

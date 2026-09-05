@@ -1,9 +1,9 @@
 """Unit tests for scripts/review_suggest.py (offline — no live LLM, no DB).
 
 Covers the deterministic parts per the plan:
-- constants: THEMES (14) / EXTRAS_WHITELIST (17), plus sha256 pins on the
-  three verbatim prompt strings (the model contract — the hashes stop
-  accidental edits)
+- constants: THEMES (14) / EXTRAS_WHITELIST (17), plus sha256 hashes of the
+  three verbatim prompt strings (the model contract — an accidental edit
+  fails the hash tests)
 - truncate / strip_html / digest_resource / build_digest (whitelist
   filtering, truncation, resource digest + _note, org fallback chain, tags
   object-vs-string, key order)
@@ -148,8 +148,8 @@ def test_constants():
 
 
 def test_prompt_contract_hashes():
-    # The hashes pin the prompt strings so an accidental edit can't
-    # silently change the model contract.
+    # A hash mismatch flags any accidental edit to the prompt strings (they
+    # are the model contract).
     assert hashlib.sha256(rs.SYSTEM_CONTENT.encode()).hexdigest() == (
         "0f165ea394be82a52af1b587037c66dd4bded3e753192a30822d51720742db87"
     )
@@ -162,7 +162,7 @@ def test_prompt_contract_hashes():
     # structure sanity: the placeholder appears in both rubric and schema
     assert rs.RUBRIC.count("${themeList}") == 1
     assert rs.SCHEMA.count("${themeList}") == 1
-    print("ok: prompt strings pinned by sha256 (model contract)")
+    print("ok: prompt strings sha256-hashed (model contract)")
 
 
 # ---------------------------------------------------------------------------

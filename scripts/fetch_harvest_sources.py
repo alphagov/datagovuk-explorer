@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Fetch all harvest sources from data.gov.uk (CKAN API).
 
-The unfiltered harvest_source_list endpoint caps at 100 sources (the site
-has ~474), but it accepts an organization_id filter, so this script walks
-every organisation and fetches its harvest sources per-org, then writes
-the deduped union to downloads/harvest_sources.json (the gitignored API
-cache, alongside the dataset files).
+The unfiltered harvest_source_list endpoint caps at 100 sources, but it
+accepts an organization_id filter, so this script walks every organisation
+and fetches its harvest sources per-org, then writes the deduped union to
+downloads/harvest_sources.json (the gitignored API cache, alongside the
+dataset files).
 
 Each record is tagged with the organization_id it was fetched under,
 because the API's own publisher_id/publisher_title fields are often empty.

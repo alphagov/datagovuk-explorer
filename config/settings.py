@@ -42,16 +42,12 @@ ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h]
 
 
 INSTALLED_APPS = [
-    # whitenoise.runserver_nostatic replaces runserver's stock staticfiles
-    # handler with WhiteNoise (already in MIDDLEWARE), so in dev /static/
-    # goes through the middleware chain too — that's what lets WhiteNoise's
-    # Cache-Control settings below apply locally instead of runserver
-    # short-circuiting static before any middleware runs. Must come before
-    # django.contrib.staticfiles so this runserver command wins.
+    # Uses WhiteNoise for dev /static/ too (see MIDDLEWARE), so its
+    # Cache-Control settings below apply under runserver. Must precede
+    # django.contrib.staticfiles so this command wins.
     "whitenoise.runserver_nostatic",
-    # Static files — stock Django setup. Templates reference assets via
-    # {{ static(...) }}; dev serves /static/ through WhiteNoise, prod needs
-    # collectstatic into STATIC_ROOT.
+    # Stock Django static files — templates reference assets via
+    # {{ static(...) }}.
     "django.contrib.staticfiles",
     "explorer",
 ]
@@ -65,9 +61,8 @@ MIDDLEWARE = [
     # DEBUG technical 404 would otherwise replace it).
     "explorer.middleware.NotFoundMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    # WhiteNoise serves collectstatic output (STATIC_URL "/static/") in
-    # production; in dev it just passes through to the staticfiles handler.
-    # Missing static falls through to routing and renders 404.html.
+    # Serves collectstatic output in production; passes through to the
+    # staticfiles handler in dev. Missing static renders 404.html.
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -110,21 +105,16 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files — stock Django: STATIC_URL="/static/" is served by the
-# staticfiles handler in dev (runserver) and by WhiteNoise in prod
-# (collectstatic into STATIC_ROOT). Templates reference assets through
-# {{ static('...') }} (the `static` Jinja2 global registered in
-# explorer/jinja2.py). No MEDIA_URL override — we serve no media, and the
-# Django default ("") normalises to "/", distinct from "/static/".
+# Static files — served by WhiteNoise in prod (collectstatic output) and
+# the staticfiles handler in dev. Templates reference assets via
+# {{ static('...') }}. No MEDIA_URL override: we serve no media, and the
+# Django default ("") stays distinct from "/static/".
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "explorer" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Caching — in dev WhiteNoise serves /static/ from STATICFILES_DIRS
-# (finders) with max-age=0, so an edited CSS/JS file shows up on the next
-# refresh instead of the browser's heuristic cache. Prod keeps WhiteNoise's
-# default (60s): asset filenames have no content hashes, so a short max-age
-# is the safe default there.
+# Caching — dev max-age=0 so an edited CSS/JS file shows on refresh; prod
+# keeps WhiteNoise's default (60s), since asset filenames have no hashes.
 if DEBUG:
     WHITENOISE_USE_FINDERS = True
     WHITENOISE_MAX_AGE = 0

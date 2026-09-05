@@ -10,14 +10,13 @@ LLAMA_SERVER = (
     "--embeddings --pooling cls --embd-normalize 2 --gpu-layers all --port 8080"
 )
 
-# bge-base-en-v1.5 via llama-server — keep these in sync with any
-# llama-server flags you change.
+# Keep in sync with the llama-server flags above.
 EMBED_URL = "http://localhost:8080/v1/embeddings"
 DIM = 768
 BATCH = 256
 MODEL = "bge-base-en-v1.5"
-# Generous timeout — big batches are slow (a 256-text batch through
-# llama-server can take ~a minute even on Metal).
+# Generous timeout — a 256-text batch through llama-server can take
+# ~a minute even on Metal.
 TIMEOUT = 600
 
 # BGE instruction prefix — matches the format bge-base-en-v1.5 was trained

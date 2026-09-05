@@ -32,9 +32,9 @@ from scripts.db import connect, database_url
 DATABASE_URL = database_url()
 
 # ---- Date stripping patterns ----
-# Applied in order; first match wins. Each strips a date-like suffix from the
-# end of the title, returning (root_title, date_string). re.ASCII keeps \d and
-# \b ASCII-only.
+# Applied in order; first match wins. Each matches a date-like suffix at
+# the end of a title, which strip_date cuts off. re.ASCII keeps \d and \b
+# ASCII-only.
 _MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
 
 DATE_PATTERNS = [
@@ -78,9 +78,8 @@ _FILENAME_RE = re.compile(r"_\w|\.(?:csv|xlsx?|json|geojson|zip|txt|pdf)$", re.I
 # Date-suffix roots shorter than this are too vague to be series titles.
 MIN_ROOT_LENGTH = 5
 
-# Date-cluster roots need at least this many words ("Boundary" x36, "Image"
-# x12 are single-word *exact* duplicates, not date clusters — this only gates
-# Phase 2).
+# Date-cluster roots need at least this many words. Single-word roots
+# are Phase-1 exact duplicates, not date clusters — this only gates Phase 2.
 MIN_WORDS = 2
 
 
@@ -146,9 +145,9 @@ def _keep_date_root(root: str) -> bool:
 
 
 def _display_title(datasets: list[dict]) -> str:
-    """Best title to show for an exact group: the most common spelling,
-    tie-broken toward natural titles (not all-caps, not all-lowercase, no
-    underscores, starts upper), then first-seen. Keeps "Air Quality
+    """Best title to show for an exact group: the most common spelling; on
+    a tie, the most natural (not all-caps, not all-lowercase, no
+    underscores, starts upper); then first-seen. Keeps "Air Quality
     Management Areas" over "air_quality_management_areas" when both
     spellings are in the group."""
     counts = Counter(d["title"].strip() for d in datasets)
@@ -280,8 +279,7 @@ def _grow_timeseries(
 
     Known false-positive pattern: roots that are substrings of a longer,
     different concept ("Somerset NHS Foundation Trust Expenditure" matching
-    "Taunton and Somerset NHS Foundation Trust Expenditure Over £25k"). A
-    notes/resource-similarity gate is the planned follow-up.
+    "Taunton and Somerset NHS Foundation Trust Expenditure Over £25k").
     """
     in_series = _in_series_ids(exact_groups, root_groups)
     seeds = [g for g in root_groups.values() if _is_grow_seed(g)]
@@ -319,8 +317,8 @@ def build_all_series(rows: list[dict]) -> tuple[list[dict], int, int]:
     Returns (all_series, exact_series, date_series):
       all_series   — [{root_title, type, datasets}, ...]; Phase 1 exact
                      duplicate groups first, then Phase 2 date-suffix
-                     clusters, both in insertion order (this fixes the
-                     SERIAL ids assigned at insert time).
+                     clusters, both in insertion order (SERIAL ids are
+                     assigned in this order at insert time).
       exact_series — count of Phase 1 groups (2+ datasets)
       date_series  — count of Phase 2 clusters (2+ items)
 
@@ -328,10 +326,9 @@ def build_all_series(rows: list[dict]) -> tuple[list[dict], int, int]:
     """
 
     # ---- Phase 1: Exact duplicate titles ----
-    # Keyed on the case/punct-normalised title so every spelling variant of
-    # a known template ("conservation_areas" from a publisher that types its
-    # titles differently) lands in the same group. The root_title shown for
-    # the series is the first-seen original title.
+    # Keyed on the case/punct-normalised title so spelling variants of a
+    # known template ("conservation_areas" vs "Conservation Areas") land in
+    # the same group; the shown root_title is picked in _exact_series_groups.
     exact_groups: dict[str, list[dict]] = {}
     for r in rows:
         exact_groups.setdefault(_norm_title(r["title"]), []).append(r)
@@ -351,20 +348,18 @@ def build_all_series(rows: list[dict]) -> tuple[list[dict], int, int]:
         root_groups[key]["items"].append({**dict(r), "date": result["date"]})
 
     # ---- Phase 3: seed-and-grow timeseries ----
-    # Decent date-cluster timeseries pull in residual datasets that carry a
-    # year token but no recognised date suffix (all-caps months, year
-    # prefixes, parenthetical years). Mutates root_groups in place.
+    # Decent date clusters pull in residual datasets that carry a year
+    # token but no recognised date suffix. Mutates root_groups in place.
     _grow_timeseries(exact_groups, root_groups, rows)
 
     # ---- Assemble ----
     exact_series_list, exact_series = _exact_series_groups(exact_groups)
     date_series_list, date_series = _date_series_groups(root_groups)
 
-    # Phase 2 results: date-suffix clusters become timeseries. Some roots
-    # overlap with Phase 1 exact-match groups (e.g. "Planning Applications"
-    # exists both as an exact-match template across 14 councils AND as a
-    # Wigan year-by-year timeseries). That's fine — they become separate
-    # series entries with different types.
+    # Phase 2 date clusters become timeseries. The same root can also exist
+    # as a Phase 1 exact group (e.g. "Planning Applications" is both a
+    # multi-council template and Wigan's year-by-year series) — they stay
+    # separate rows with different types.
     return exact_series_list + date_series_list, exact_series, date_series
 
 

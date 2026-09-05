@@ -1,6 +1,6 @@
 """Query-layer shape + consistency tests against the live DB.
 
-Pins the query layer: statement shapes, count/list consistency,
+Locks in the query layer: statement shapes, count/list consistency,
 deterministic ordering, and the reviews helpers' dedup semantics.
 
 App tests read the *live* dev DB read-only (see tests/conftest.py) — they
@@ -261,7 +261,7 @@ def test_datasets_stmts_pagination():
 
 
 def test_datasets_tiebreak_deterministic():
-    """The `, d.id` tiebreak pins tied rows — two runs give the same order."""
+    """Two runs give the same order — when sort values tie, order by d.id."""
     out = datasets_stmts({}, "organisation", "asc")
     a = [r["id"] for r in out["list"].all(*out["params"], 500, 0)]
     b = [r["id"] for r in out["list"].all(*out["params"], 500, 0)]
@@ -399,7 +399,7 @@ def test_links_facet_pool_matches_python_reference():
     """The links pool equals the Python reference buckets over the same
     datasets — the shared bucket tests applied to COALESCE(resource_count,
     0) — for no filter and under another active facet (self-exclusion: the
-    links group's own filter never narrows its pool). Pins the 0 /
+    links group's own filter never narrows its pool). Locks in the 0 /
     open-ended-top bucket boundaries and the COALESCE-into-0 fallback, the
     same way the orgs bucket reference does for package_count."""
     from explorer.buckets import bucket_tests  # noqa: PLC0415
@@ -433,7 +433,7 @@ def test_links_facet_pool_matches_python_reference():
 def test_theme_none_counts_only_theme_primary_null():
     """Contract item 3: `theme=none` counts theme_primary IS NULL — the SQL
     semantics (an '' theme would NOT count as none). No '' rows exist, so
-    the assertion pins the semantics, not the data."""
+    the assertion checks the SQL semantics, not the data."""
     none_count = Query(
         "SELECT COUNT(*) AS n FROM datasets WHERE theme_primary IS NULL",
     ).get()
@@ -464,10 +464,9 @@ def _org_rows():
 
 def _pub_year_match(o, pub_years):
     """Reference last-published-year match — the rule the SQL
-    last_published_year clause mirrors. Inlined here (workstream F) since
-    the view's Python-side list filter was replaced by the SQL builder:
-    __none__ matches orgs with no last-published year, a real year list
-    matches those years."""
+    last_published_year clause mirrors, kept here so the Python reference
+    sits next to its tests: __none__ matches orgs with no last-published
+    year, a real year list matches those years."""
     if "__none__" in pub_years:
         return o["last_published_year"] is None
     return o["last_published_year"] in pub_years
@@ -594,8 +593,8 @@ def test_org_facet_counts_with_live_year_and_pubyear():
 def test_harvest_sources_stmts_consistency():
     """/harvesters list builder: count == page-list total across every
     filter/sort combo, the row shape the template reads, and
-    deterministic pages (the `, LOWER(h.title), h.id` tiebreak pins
-    ties to the stable base order)."""
+    deterministic pages (when sort values tie, order by
+    `LOWER(h.title), h.id`)."""
     from collections import Counter  # noqa: PLC0415
 
     from explorer.queries.harvesters import harvest_source_rows  # noqa: PLC0415
@@ -626,7 +625,7 @@ def test_harvest_sources_stmts_consistency():
     for col in ("id", "title", "type", "active", "frequency", "last_run", "org_name", "dataset_count"):
         assert col in row, f"harvester list row missing {col}"
 
-    # Deterministic order — the tiebreak pins pages between runs
+    # Deterministic order — two runs give identical pages
     a = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]
     b = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]
     assert a == b
@@ -635,8 +634,7 @@ def test_harvest_sources_stmts_consistency():
 def test_organisations_stmts_consistency():
     """/organisations list builder: count == page-list total across every
     filter/sort combo, the row shape the template reads, and deterministic
-    pages (the `, LOWER(o.display_name), o.slug` tiebreak pins ties to the
-    stable base order)."""
+    pages (when sort values tie, order by `LOWER(o.display_name), o.slug`)."""
     from collections import Counter  # noqa: PLC0415
 
     rows = _org_rows()
@@ -677,7 +675,7 @@ def test_organisations_stmts_consistency():
     ):
         assert col in row, f"organisation list row missing {col}"
 
-    # Deterministic order — the tiebreak pins pages between runs
+    # Deterministic order — two runs give identical pages
     a = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]
     b = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]
     assert a == b
@@ -806,8 +804,8 @@ def test_links_facet_counts_with_live_filters():
 
 
 # ---------------------------------------------------------------------------
-# Reports — count/list consistency + deterministic ordering (the
-# `, id` tiebreak in the list statements)
+# Reports — count/list consistency + deterministic ordering (list
+# statements order by `, id` when sort values tie)
 # ---------------------------------------------------------------------------
 def test_every_report_count_matches_list():
     for report in REPORTS:
@@ -819,7 +817,8 @@ def test_every_report_count_matches_list():
 
 
 def test_every_report_deterministic_order():
-    """No ties shuffle between runs — the regression the , id tiebreak fixed."""
+    """Two runs give the same order — when sort values tie, the list
+    statements order by `, id`."""
     for report in REPORTS:
         out = report_stmts(report)
         a = [tuple(r.items()) for r in out["list"].all(*out["params"], 500, 0)]

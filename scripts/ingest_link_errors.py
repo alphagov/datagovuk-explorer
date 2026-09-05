@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Load data/errors-current.csv into the `link_errors` table.
 
-The CSV is the full output of the link checker for every resource link
-across the catalogue — NOT only errors: the ~11.3k `category = OK` rows
-are links that previously failed a check and are working now (the
-"resolved" population the /links/errors report shows as OK). Two check
-runs are mixed (checked-at 2026-06-15 and 2026-09-02); the table keeps
-every row as-is — no filtering, no dedup. ~276 resources legitimately
-appear twice, once per run, when their status changed between runs.
+The CSV is the link checker's full output for every resource link across
+the catalogue — not only errors: `category = OK` rows are links that
+failed an earlier check and pass now (the "resolved" population the
+/links/errors report shows as OK). The table keeps every row as-is — no
+filtering, no dedup — so a resource whose status changed between check
+runs appears once per run.
 
 Idempotent: TRUNCATEs `link_errors` then reloads (like ingest_reviews.py)
 — run it after a new checker output lands. The file is read regardless of

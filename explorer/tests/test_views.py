@@ -70,8 +70,8 @@ def _assert_report_subnav(html, active, links, absent_from_main, main_item):
     Publishers and Datasets groups use. `active` is the current report
     (rendered as the page's active h1 heading), `links` are the (label, url)
     sibling reports in the strip, `absent_from_main` are the group's reports
-    that must no longer be their own main-nav items, and `main_item` is the
-    href of the main-nav item that stays highlighted for the group."""
+    that are not top-level main-nav items, and `main_item` is the
+    href of the main-nav item highlighted for the group."""
     assert f'<h1 class="nav-link nav-link--active" aria-current="page">{active}</h1>' in html
     for label, url in links:
         assert f'<a href="{url}" class="nav-link">{label}</a>' in html
@@ -1032,9 +1032,9 @@ _REVIEW_SORTS = ("title", "org", "overall", "findability", "metadata", "resource
 def expected_review_ids(sort, dir_, filters, page, page_size=PAGE_SIZE):
     """Contract test: the view page must equal the SQL builder's page.
     The view renders reviews_stmts(filters, sort, dir_) verbatim (offset /
-    size from paginate()), so this fetches the same builder — it pins the
-    view→builder wiring, the facet WHERE, the sort/tiebreak ORDER BY and
-    the page clamp/offset arithmetic."""
+    size from paginate()), so this fetches the same builder — it locks in the
+    view→builder wiring, the facet WHERE, the sort ORDER BY (with its tie
+    columns) and the page clamp/offset arithmetic."""
     stmts = reviews_stmts(filters, sort, dir_)
     total = stmts["count"].get(*stmts["params"])["n"]
     total_pages = max(1, math.ceil(total / page_size))
@@ -1111,9 +1111,9 @@ def test_reviews(client):
 def expected_suggestion_ids(sort, dir_, page, page_size=PAGE_SIZE):
     """Contract test: the view page must equal the SQL builder's page.
     The view renders suggestions_stmts(sort, dir_) verbatim (offset / size
-    from paginate()), so this fetches the same builder — it pins the
-    view→builder wiring, the sort/tiebreak ORDER BY and the page
-    clamp/offset arithmetic."""
+    from paginate()), so this fetches the same builder — it locks in the
+    view→builder wiring, the facet WHERE, the sort ORDER BY (with its tie
+    columns) and the page clamp/offset arithmetic."""
     stmts = suggestions_stmts(sort, dir_)
     total = stmts["count"].get()["n"]
     total_pages = max(1, math.ceil(total / page_size))
@@ -1163,13 +1163,9 @@ def _pager_hrefs(html):
 
 
 def test_pager_urls_never_undefined(client):
-    """Regression: pages without a sort UI used to render pager links like
-    ?sort=undefined&dir=undefined&page=N (the macros' old "kept deliberately"
-    defaults), and /report/{key} hardcoded sort=name&dir=asc although it has
-    no sort UI. The macros now take a base fragment the view builds
-    (pagination-plan workstream B), so every pager href is either the view's
-    own query state (?sort=..&dir=..&page=N) or a clean ?page=N — never
-    "undefined", and reports never pretend to sort by name."""
+    """Pager links carry the view's own query state, never "undefined":
+    sortable pages keep ?sort=..&dir=..&page=N, and pages without a sort UI
+    render clean ?page=N links."""
     # /suggestions — sortable, > 100 rows: the pager keeps the view's sort/dir
     total = suggestions_stmts("confidence", "asc")["count"].get()["n"]
     if total > PAGE_SIZE:

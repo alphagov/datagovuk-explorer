@@ -1,8 +1,7 @@
 """Unit tests for the shared facet-group builders in explorer/facets.py.
 
 Pure functions over hand-built counts dicts — no DB, no Django, no client
-fixture. These pin the builder contract before any page migrates onto it
-(see docs/refactor-plan.md, step 1).
+fixture. These lock in the shared facet-group builders' contract.
 """
 
 from explorer import facets

@@ -1,6 +1,6 @@
 """Query-layer + view tests for /links/errors against the live DB.
 
-Pins the link_errors query layer: statement shapes, count/list
+Locks in the link_errors query layer: statement shapes, count/list
 consistency, deterministic ordering, the datasets LEFT JOIN (including the
 Unknown state for packages absent from the snapshot), the self-excluding
 facet pools, and the view (200, sub-nav, three-state badge rendering).
@@ -91,7 +91,7 @@ def test_link_errors_list_shape_and_sort_whitelist(link_errors_loaded):
     ):
         assert col in rows[0], f"list row missing {col}"
 
-    # the default page sorts by URL (host asc, ingest-order tiebreak)
+    # the default page sorts by URL (host asc, ingest order breaks ties)
     hosts = [_url_host(r["resource_url"]) for r in rows]
     assert hosts == sorted(hosts)
     print("ok: list shape + default url asc sort")
@@ -101,7 +101,7 @@ def test_link_errors_list_shape_and_sort_whitelist(link_errors_loaded):
 @pytest.mark.parametrize("dir_", ["asc", "desc"])
 def test_link_errors_count_matches_list_and_deterministic(link_errors_loaded, sort, dir_):
     """Each sortable column, both directions: count/list agree and the
-    ORDER BY (+ , e.id tiebreak) is deterministic — two runs, same page."""
+    ORDER BY ends with `, e.id`, so ties order the same way on every run."""
     out = link_errors_stmts({}, sort, dir_)
     n = out["count"].get(*out["params"])["n"]
     rows = out["list"].all(*out["params"], 200, 0)
@@ -342,7 +342,7 @@ def test_link_errors_facet_order_follows_filtered_pool(client, link_errors_loade
     """Every facet list renders in its own pool's count order — selecting a
     facet re-sorts the sibling Outcome / HTTP-status / To-delete / Harvested
     lists to the counts shown, instead of freezing them to the unfiltered
-    page's order. Pinned via the largest publisher whose error mix tops on a
+    page's order. Picked via the largest publisher whose error mix tops on a
     category other than the global top (NOT_FOUND)."""
     rows = Query(
         """SELECT org_name FROM (
