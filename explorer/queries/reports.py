@@ -5,29 +5,17 @@ import functools
 
 from .core import Query, facet_where
 
-# --- Data-quality report definitions and their compiled count/list statements
-# ---
-#
+# --- Data-quality report definitions and their compiled count/list statements ---
 # Each report is a count + paginated list query. `kind` tells the template
-# which column set to render (orgs / datasets / links). Count and list
-# statements are compiled per (report, filters) pair.
+# which column set to render (orgs / datasets / links).
 #
-# The {org}/{api_type} placeholders in a report's SQL become the facet's
-# filter_sql when a value is selected, or '' when not.
+# Regular reports differ only in their WHERE clause: `_dataset_report_sql` /
+# `_link_report_sql` build both statements from that one clause, so count
+# and list can't drift. The special reports (duplicate-titles, duplicate-urls,
+# has-api) keep hand-written SQL.
 #
-# Sidebar facet option counts are self-excluding SQL aggregates built by
-# report_facet_counts() via the shared core.facet_where helper: each facet's
-# counts apply every other active facet's filter, omitting its own (a no-op
-# for the single-facet reports; the real case is datasets-has-api's org +
-# api_type). Each facet declares a counts_sql template with a {facet_where}/
-# {facet_and} placeholder where the other facets' WHERE is spliced in.
-#
-# The regular reports differ only in their WHERE clause: `_dataset_report_sql`
-# / `_link_report_sql` generate the count + list statements from that one
-# clause, so count/list WHERE drift is structurally impossible. The special
-# reports (duplicate-titles, duplicate-urls, has-api) keep hand-written SQL —
-# their subqueries/joins/aggregates don't fit the regular shape — but share
-# the column-list constants below.
+# Each report's SQL carries a {key} placeholder per facet, replaced by the
+# facet's filter_sql when a value is selected, or '' when not.
 
 # --- Shared column lists / orderings for the regular reports ---
 DATASET_REPORT_COLS = "id, title, name, org_slug, org_display_name, metadata_created, metadata_modified, views, notes"
@@ -69,25 +57,14 @@ def _link_report_sql(where: str) -> dict:
 
 
 # --- "Datasets with an API" (positive finding) ---
-# Definition: a dataset "has an API" if any of its links has an API-ish
-# format, or the word "api" in its name/description.
-#
-# Deliberate choices:
-#  - Includes WMS. It is a map *rendering* service rather than a data-access
-#    API, but many datasets match *only* via WMS, and machine access is
-#    still access. The per-dataset format badges make the mix visible.
-#  - Positive framing. Every other card on the dashboard is a problem; this
-#    one is a property of the dataset, and the list view shows the matched
-#    resources so the reader can judge it.
-#  - Never `LIKE '%api%'` — the word-boundary regex `\mapi\M` avoids
-#    "rapid", "capital" etc.
-# A JSON *resource* is not necessarily an API. Publishers record the
-# response serialisation, so genuine endpoints (Esri REST services, CKAN
-# datastore, Opendatasoft explore) and plain .json/.jsonl file downloads
-# both carry format_norm = 'JSON'. A JSON link only counts as an API when
-# its URL actually looks like a service endpoint — and is not an obvious
-# file/export URL (terminal .json/.geojson file, Opendatasoft /exports/
-# dump, Socrata ?accessType=DOWNLOAD, /download/ path).
+# A dataset "has an API" when any of its links has an API-ish format, or the
+# word "api" in its name/description. Deliberate choices:
+#  - Includes WMS — a rendering service rather than a data-access API, but
+#    many datasets match *only* via WMS and machine access is still access.
+#  - A JSON resource only counts when its URL looks like a service endpoint
+#    (Esri REST, CKAN datastore...), not a .json/.geojson file or an
+#    export/download URL.
+#  - Never `LIKE '%api%'` — the word-boundary regex avoids "rapid", etc.
 _API_JSON_ENDPOINT_URL = (
     r"l.url ~ '/rest/services/'"
     r" OR l.url ~ '/api/'"
@@ -105,16 +82,15 @@ _API_JSON_FILE_URL = (
     r" OR l.url ~ '/download/'"
     r" OR l.url ~* '\?accessType=DOWNLOAD'"
 )
-# CKAN's datastore search ends in .json (datastore/search.json?resource_id=...)
-# but is a genuine query API — exempted from the terminal-extension rule.
+# CKAN's datastore search ends in .json but is a query API — exempt from
+# the terminal-file rule above.
 _API_JSON_IS_API = f"""l.format_norm = 'JSON' AND (
   l.url ~ '/api/action/datastore/search'
   OR (({_API_JSON_ENDPOINT_URL}) AND NOT ({_API_JSON_FILE_URL}))
 )"""
 
-# The ILIKE patterns below are doubled (%%…%%) per the psycopg3 binding
-# rule in queries/core.py: a stray single % in a parameterized statement
-# raises, so the doubling is load-bearing.
+# ILIKE patterns are doubled (%%…%%) because psycopg3 treats a single % in
+# a parameterized statement as a placeholder (see queries/core.py).
 _API_SIGNAL_SQL = (
     "l.format_norm ILIKE '%%arcgis rest%%'"
     " OR l.format_norm ILIKE '%%wms%%'"
@@ -129,12 +105,9 @@ _API_SIGNAL_SQL = (
 )
 
 # Per-link classification of *why* a link matched the API signal — the
-# "API type" facet on the datasets-has-api report. Priority order matters:
-# 'OGC API' must precede the generic '%api%' bucket, and WMS precedes WFS so
-# combined formats like "WMS/WFS" land in one bucket. Every link that matches
-# the signal classifies into exactly one type; links whose only signal is a
-# name/description match fall to 'unknown' (they have no recorded API format —
-# e.g. every "OGC API - Features service" resource on environment.data.gov.uk).
+# "API type" facet. Order matters: specific formats precede the generic
+# '%api%' bucket, so combined formats like "WMS/WFS" land in one bucket.
+# Links matching only on name/description fall to 'unknown'.
 _API_TYPE_CASE = (
     "CASE"
     " WHEN l.format_norm ILIKE '%%arcgis rest%%' THEN 'arcgis-rest'"
@@ -166,10 +139,9 @@ _API_TYPE_LABEL_CASE = (
 # The URL filter shared by links-duplicate-urls' count + list statements.
 _DUP_URLS_FILTER = "url IS NOT NULL AND url != ''"
 
-# The EXISTS filter that re-applies the API signal for one API type — used
-# by both the api_type facet's placeholder filter_sql (AND-ed onto the base
-# report SQL) and the shared _report_api_type_clause (self-excluding facet
-# counts). The EXISTS references the outer `datasets` table by design.
+# EXISTS filter re-applying the API signal for one API type — shared by the
+# api_type facet's filter_sql and _report_api_type_clause. References the
+# outer `datasets` table by design.
 _API_TYPE_FILTER_EXISTS = f"""EXISTS (
    SELECT 1 FROM links l
    WHERE l.dataset_id = datasets.id
@@ -178,11 +150,7 @@ _API_TYPE_FILTER_EXISTS = f"""EXISTS (
  )"""
 
 # Shared per-facet clause builders for the reports' sidebar facet counts —
-# the same (filters, exclude) → ([clause, ...], [param, ...]) shape as
-# datasets.py, keyed by facet key and fed to core.facet_where. Each facet's
-# option-count pool applies every other active facet's filter, omitting its
-# own (a no-op for the single-facet reports; the real case is datasets-has-
-# api's org + api_type).
+# same (filters, exclude) shape as datasets.py, fed to core.facet_where.
 
 
 def _report_org_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
@@ -287,9 +255,8 @@ REPORTS = [
             "the old copy."
         ),
         "kind": "datasets",
-        # A window-function COUNT(*) OVER per org/title pair, so the two
-        # statements are a single pass over the datasets table rather than a
-        # correlated EXISTS self-join.
+        # Window-function COUNT(*) OVER per org/title pair — one pass over
+        # datasets, no self-join.
         "count_sql": """SELECT COUNT(*) AS n FROM (
                SELECT d.id, COUNT(*) OVER (PARTITION BY org_slug, lower(trim(title))) AS c
                FROM datasets d
@@ -423,11 +390,8 @@ REPORTS = [
         # Tells the report template to render the matched-resources column
         # (and the route to parse the jsonb aggregate into a list).
         "show_api_links": True,
-        # Two single-select facets: Publisher (?org=<slug>) so publishers can
-        # audit their own API coverage, and API type (?api_type=<slug>) so
-        # readers can separate WMS/WFS/ArcGIS REST endpoints from JSON dumps
-        # and name-only matches. Both land on the outer `datasets` table
-        # (deliberately unaliased) via the framework replace.
+        # Two single-select facets — Publisher (org slug) and API type. Both
+        # filter the outer `datasets` table (deliberately unaliased).
         "facets": [
             {
                 "key": "org",
@@ -444,16 +408,12 @@ REPORTS = [
                 "filter_sql": " AND org_slug = %s",
             },
             {
-                # Each dataset is counted under every API type any of its
-                # matched links classifies as (so the counts don't sum to the
-                # report total). 'unknown' is the name/description-only bucket:
-                # matched via the word "api" but with no API format recorded.
+                # A dataset is counted under every API type its matched links
+                # classify as, so the counts don't sum to the report total.
                 "key": "api_type",
                 "label": "API type",
-                # Self-excluding option counts: {facet_where} is the org
-                # filter when active (the api_type filter is excluded), applied
-                # via a join to datasets so org_slug resolves (the base query
-                # has no base WHERE — the fragment IS the WHERE).
+                # {facet_where} is the org filter when active (api_type
+                # excluded), joined to datasets so org_slug resolves.
                 "counts_sql": f"""SELECT t.api_type AS slug,
                           {_API_TYPE_LABEL_CASE} AS name,
                           COUNT(DISTINCT t.dataset_id) AS count
@@ -466,9 +426,8 @@ REPORTS = [
                    {{facet_where}}
                    GROUP BY t.api_type
                    ORDER BY count DESC, t.api_type""",
-                # The EXISTS filter re-applies the signal WHERE so that only
-                # links that actually match the report classify into a bucket
-                # (otherwise 'unknown' would swallow every format-less link).
+                # Re-applies the signal WHERE so only links that match the
+                # report classify into a bucket.
                 "filter_sql": f" AND {_API_TYPE_FILTER_EXISTS}",
             },
         ],
@@ -476,9 +435,8 @@ REPORTS = [
                WHERE EXISTS (
                  SELECT 1 FROM links l WHERE l.dataset_id = datasets.id AND ({_API_SIGNAL_SQL})
                ){{org}}{{api_type}}""",
-        # One row per dataset; api_links is the jsonb aggregate of every
-        # matched link (name/format/url) so the template can show *why* the
-        # dataset matched.
+        # One row per dataset; api_links aggregates every matched link
+        # (name/format/url) so the template can show why each matched.
         "list_sql": f"""SELECT {_DATASET_REPORT_COLS_T},
                      COALESCE(ml.api_links, '[]'::jsonb) AS api_links
               FROM datasets
@@ -499,22 +457,14 @@ REPORTS = [
     },
 ]
 
-# Count/list statements for a report, optionally filtered by one value per
-# facet (?org=, ?api_type=...). Each facet's {key} placeholder in a report's
-# SQL becomes the facet's filter_sql when a value is selected, or '' when
-# not.
+# Each report's SQL carries a {key} placeholder per facet, replaced by the
+# facet's filter_sql when a value is selected, or '' when not.
 
 
 def report_facet_counts(report: dict, filters: dict[str, str] | None = None) -> dict[str, tuple[str, list]]:
     """Self-excluding sidebar facet option counts for one report, keyed by
-    facet key → (sql, params). Each facet's counts apply every *other*
-    active facet's filter, omitting its own — a no-op for the single-facet
-    reports (nothing else to exclude against), and the real multi-facet case
-    for datasets-has-api (?org= + ?api_type=).
-
-    The base report SQL keeps its {{placeholder}} substitution scheme
-    (report_stmts); this only builds the facet option counts — per report,
-    from each facet's counts_sql template.
+    facet key → (sql, params): each facet's counts apply every other active
+    facet's filter, omitting its own (only datasets-has-api has two).
     """
     filters = filters or {}
     entry = {}
@@ -528,13 +478,9 @@ def report_facet_counts(report: dict, filters: dict[str, str] | None = None) -> 
 
 
 # ── Memoised no-filter report data ───────────────────────────────────────
-# The report page executes each report's no-filter facet pools on *every*
-# request (they validate the requested facet values), and the no-filter
-# count on the default view. Both are build-time snapshots, so they're
-# memoised per report key (restart to refresh after a rebuild — same
-# contract as the dashboard's cards() cache). The heaviest are
-# datasets-has-api (API-regex scans over links) and links-duplicate-urls
-# (a GROUP BY over the whole links table).
+# No-filter counts and facet pools (run on every request to validate facet
+# values) are build-time snapshots, memoised per report key — restart to
+# refresh after a rebuild.
 
 
 @functools.cache
@@ -563,9 +509,8 @@ def report_stmts(report: dict, filters: dict[str, str] | None = None) -> dict:
     list_sql = report["list_sql"]
     params: list[str] = []
     for facet in report.get("facets", []):
-        # Replace every facet's {key} placeholder unconditionally — with its
-        # filter_sql when a value is selected, or '' when not (so the SQL is
-        # always valid even with no active filters).
+        # Replace each facet's {key} placeholder with its filter_sql when a
+        # value is selected, or '' when not.
         value = filters.get(facet["key"])
         placeholder = "{" + facet["key"] + "}"
         if placeholder in count_sql or placeholder in list_sql:

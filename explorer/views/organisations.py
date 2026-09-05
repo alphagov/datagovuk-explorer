@@ -13,9 +13,9 @@ Sidebar facet counts are self-excluding SQL aggregates from
 queries/organisations.py (organisations_facet_counts) — each group counts
 over the pool filtered by the other two groups, exactly like /datasets.
 The page list/filter/sort/pagination is SQL (organisations_stmts — one
-count + one page per request, docs/pagination-plan.md workstream F); the
-memoised full fetch still feeds the facet master lists, the last-published-
-year validation whitelist and the sidebar pools.
+count + one page per request); the memoised full fetch still feeds the
+facet master lists, the last-published-year validation whitelist and the
+sidebar pools.
 
 Sort columns are whitelisted in explorer.sort.SORT_COLUMNS; unknown keys
 fall back to the default (name asc).
@@ -78,9 +78,8 @@ def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
 def _page_row(r: dict) -> dict:
     """One SQL page row → display row — the same fields _merge_org_rows
     produces for the table (minus created_year/last_published_year, which
-    only the old Python-side filter consumed). has_data comes from the
-    aggregate join: an org is in the per-dataset aggregate iff it has at
-    least one dataset."""
+    the page filters don't display). has_data comes from the aggregate
+    join: an org is in it iff it has at least one dataset."""
     return {
         "slug": r["slug"],
         "name": r["display_name"] or r["title"] or r["name"],
@@ -139,12 +138,9 @@ def _parse_filters(request, valid_created_years, valid_pub_years) -> OrgFilters:
 
 def organisations(request):
     """GET /organisations — all orgs, server-side sortable, with facets."""
-    # Three fetches, all memoised in queries/organisations.py (build-time
-    # snapshot): org rows, the merged per-org aggregate pass, and the
-    # yearly-created chart counts. The full merged rows still feed the
-    # facet master lists, the pub-year validation whitelist and the
-    # sidebar pools; only the page *list* is fetched per request (SQL,
-    # one page of 100 — workstream F).
+    # The memoised fetches (queries/organisations.py) feed the facet master
+    # lists, the pub-year validation whitelist and the sidebar pools; only
+    # the page list is fetched per request (SQL, one page of 100).
     org_rows = all_org_rows()
     agg_rows = org_aggregate_rows()
     yearly = yearly_org_counts()
@@ -164,10 +160,8 @@ def organisations(request):
 
     filters = _parse_filters(request, set(created_years), set(last_published_years))
 
-    # Count + page in SQL — the WHERE clauses mirror the old Python
-    # _apply_filters rules (created_year/last_published_year/datasets), the
-    # ORDER BY mirrors sort_orgs (dates on the raw ISO timestamp, see
-    # queries/organisations.py).
+    # Count + page in SQL — filters and ORDER BY come from
+    # queries/organisations.py.
     stmts = organisations_stmts(
         {
             "created_year": filters.created_year,

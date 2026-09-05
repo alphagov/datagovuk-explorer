@@ -70,20 +70,8 @@ HARVEST_SOURCE = Query(
 
 # ── /harvesters list builder (count + one page per filter/sort combo) ──
 #
-# The list used to be filtered/sorted in Python over the memoised full
-# fetch (up to 557 rows, docs/pagination-plan.md workstream F); now the
-# page list/count are SQL — the same joins as HARVEST_SOURCES, with the
-# view's Python _matches rules as WHERE clauses (type/active/frequency)
-# plus a HAVING for the datasets-count bucket (an aggregate), and the
-# sort_harvesters column exprs as ORDER BY.
-#
-# The `, LOWER(h.title), h.id` tail reproduces the old stable-sort tie
-# order: Python's list.sort is stable over the base fetch (ORDER BY
-# LOWER(h.title), h.id), so rows tied on any sort key keep that order —
-# the SQL ORDER BY appends the same two keys, pinning pages against
-# reshuffles. last_run sorts on the raw ISO timestamp: the old Python
-# sorter sorted the *formatted* dd/mm/yyyy string (day-then-month-then-
-# year, not chronological); the ISO sort is the intended semantics.
+# If sort values tie, order by title then id. Keeps each page's rows
+# stable between requests.
 
 # Sortable column key → SQL ORDER BY expression (mirrors
 # explorer.sort.sort_harvesters; `active` is a real boolean, so FALSE
@@ -124,11 +112,8 @@ def _type_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
 
 
 def _active_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """active WHERE fragment + params (a real boolean), or ([], []) when
-    skipped/excluded. Mirrors the view's `r["active"] is True ==
-    (filters.active == "true")` — a NULL active would match "false" in
-    Python but be excluded by `h.active = FALSE` in SQL (no NULLs exist,
-    so the divergence is unobserved)."""
+    """active (a real boolean) WHERE fragment + params, or ([], []) when
+    skipped/excluded."""
     if exclude == "active":
         return [], []
     active = filters.get("active")

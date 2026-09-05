@@ -260,10 +260,10 @@ def test_organisations(client):
     # count header: "X-Y of Z" with the filtered total
     assert f"1-{len(page1):,} of {total:,}" in html
 
-    # Publishers group sub-nav — Harvesters is a sub-report of Publishers
-    # (the same macro as the Links group): the current report renders as
-    # the active h1 heading, with the sibling report linked beside it, and
-    # Harvesters is no longer its own main-nav item.
+    # Harvesters is a sub-report of Publishers (same sub-nav macro as the
+    # Links group): the current report renders as the active h1 heading,
+    # with the sibling report linked beside it, and not as a top-level
+    # nav item.
     _assert_report_subnav(
         html,
         "Publishers",
@@ -473,7 +473,7 @@ def test_harvesters(client):
     assert f"1-{len(page1):,} of {total:,}" in html
 
     # Harvesters is a sub-report of Publishers — active h1 heading in the
-    # group's sub-nav, no longer its own main-nav item (Publishers stays
+    # group's sub-nav, not a top-level main-nav item (Publishers stays
     # highlighted in the main nav)
     _assert_report_subnav(
         html,
@@ -988,8 +988,8 @@ def test_series_pages(client):
     html = r.content.decode()
     assert r.status_code == 200
     # Series is a sub-report of Datasets (same sub-nav macro as the Links
-    # and Publishers groups) — active report is the h1 heading, and Series
-    # is no longer its own main-nav item.
+    # and Publishers groups) — active report is the h1 heading, not a
+    # top-level main-nav item.
     _assert_report_subnav(html, "Series", (("Datasets", "/datasets"),), ("/series",), "/datasets")
     # reserves the (blank, cardless) facets sidebar so the table lines up
     # with the other Datasets-group pages
@@ -1058,7 +1058,7 @@ def test_reviews(client):
     html = r.content.decode()
     assert r.status_code == 200
     # Reviews is a sub-report of Datasets — active h1 heading in the group's
-    # sub-nav, no longer its own main-nav item
+    # sub-nav, not a top-level main-nav item
     _assert_report_subnav(html, "Reviews", (("Datasets", "/datasets"),), ("/reviews",), "/datasets")
     assert f"Dataset reviews ({total})" in html
     assert page_ids(html) == expect
@@ -1132,7 +1132,7 @@ def test_suggestions(client):
     html = r.content.decode()
     assert r.status_code == 200
     # Suggestions is a sub-report of Datasets — active h1 heading in the
-    # group's sub-nav, no longer its own main-nav item
+    # group's sub-nav, not a top-level main-nav item
     _assert_report_subnav(html, "Suggestions", (("Datasets", "/datasets"),), ("/suggestions",), "/datasets")
     # reserves the (blank, cardless) facets sidebar so the table lines up
     # with the other Datasets-group pages

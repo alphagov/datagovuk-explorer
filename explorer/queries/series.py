@@ -4,9 +4,7 @@ the fixed series statements and the series_built() helper."""
 from .core import Query
 
 # --- /series list builder ---
-#
-# The ORDER BY is dynamic (whitelisted columns only) but the column set is
-# fixed.
+# ORDER BY is dynamic (whitelisted columns only); the column set is fixed.
 
 # Sortable columns whitelist
 SERIES_SORT_COLUMNS = ["root_title", "type", "dataset_count", "org_count"]
@@ -15,9 +13,8 @@ SERIES_SORT_COLUMNS = ["root_title", "type", "dataset_count", "org_count"]
 def series_list_stmt(sort: str, dir_: str) -> Query:
     order_dir = "ASC" if dir_ == "asc" else "DESC"
     order_expr = f"{sort} {order_dir}" if sort in ("dataset_count", "org_count") else f"LOWER({sort}) {order_dir}"
-    # `, id` tiebreak — the series table has large tie groups, so an
-    # unpinned ORDER BY would shuffle the row set between requests. Same
-    # treatment as the datasets/links list queries.
+    # If sort values tie, order by id. The series table has large tie
+    # groups, so this keeps pages stable.
     return Query(
         f"SELECT id, root_title, type, dataset_count, org_count "
         f"FROM series ORDER BY {order_expr}, id LIMIT %s OFFSET %s",

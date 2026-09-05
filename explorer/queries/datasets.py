@@ -12,22 +12,15 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
 # --- /datasets query builder ---
 #
-# Compiled per (filters, sort, dir). filters: { theme, publisher, source,
-# links, created_year, temporal_year, metadata_key, metadata_value }.
-#
-# The WHERE clauses drive the page list + count (filtering, sorting and
-# pagination happen in the database instead of sorting the whole table in
-# Python on every request), and the sidebar facet counts use the same
-# builder with their own group excluded — one clause builder, both
-# consumers, so the counts can't drift from the list.
+# One clause builder feeds both the page list/count and the sidebar facet
+# pools (each pool omits its own group), so the counts can't drift from
+# the list.
 
-# Temporal-year facet window. Years inside [TEMPORAL_MIN_YEAR, current year]
-# are listed individually — every covered year, not just range boundaries,
-# so a dataset covering 1981-2009 counts for 2000 too. Coverage outside the
-# window collapses into "Before 1900" (historic/junk) and "After <year>"
-# (future-dated junk) buckets. The upper bound derives from the current year
-# so the window tracks new data without a code change. Both are interpolated
-# as literals: they are code constants, never user input.
+# Temporal-year facet window: years from TEMPORAL_MIN_YEAR to the current
+# year are listed individually (every covered year, so a dataset covering
+# 1981-2009 counts for 2000). Coverage outside becomes "Before 1900" and
+# "After <current year>" buckets. The bounds are SQL literals — code
+# constants, never user input.
 TEMPORAL_MIN_YEAR = 1900
 TEMPORAL_MAX_YEAR = datetime.now(UTC).year
 
@@ -160,11 +153,9 @@ def _temporal_year_clause(filters: dict, exclude: str | None) -> tuple[list, lis
 
 
 # --- /datasets Links facet (count buckets over resource_count) ------------
-# Buckets datasets by how many links each has — the same edges as the
-# publishers page's Datasets facet (both derive from explorer/buckets), so
-# a bucket key means the same range on every page. resource_count is the
-# per-dataset COUNT of its links rows (the build keeps it in sync), so the
-# bucket CASE below mirrors the list/sort's COALESCE(resource_count, 0).
+# Buckets datasets by resource_count — the same edges as /organisations'
+# datasets facet, via explorer/buckets, so a bucket key means the same
+# range on every page.
 LINK_BUCKETS = bucket_pairs()
 LINK_BUCKET_NAMES = dict(LINK_BUCKETS)
 VALID_LINK_BUCKETS = set(LINK_BUCKET_NAMES)
@@ -190,12 +181,9 @@ def _links_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
 
 
 # --- /datasets Publisher facet (the owning organisation) -----------------
-# Datasets carry their org slug + display name denormalised per row, so the
-# facet needs no organisations join. value is the slug (the ?publisher=
-# URL/filter key — same value the row links to /organisation/<slug> with);
-# name is the display name shown in the Publisher column. The name
-# expression aggregates over the row group so a slug always renders once,
-# even if its display name ever varied across rows.
+# value = the org slug (the ?publisher= filter key); name = the display
+# name. Both are denormalised per row, so no organisations join is needed.
+# The name expression aggregates over the group so each slug renders once.
 _PUBLISHER_NAME = "COALESCE(NULLIF(MAX(d.org_display_name), ''), d.org_slug)"
 
 
@@ -210,9 +198,8 @@ def _publisher_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     return [], []
 
 
-# The six /datasets clause builders, keyed by facet — the dict
-# core.facet_where ANDs together (minus the excluded facet) for both the
-# page list/count and the sidebar facet pools.
+# The six /datasets clause builders, keyed by facet — core.facet_where
+# ANDs them together, minus the excluded facet, for the facet pools.
 _FACET_CLAUSES = {
     "theme": _theme_clause,
     "publisher": _publisher_clause,
@@ -249,9 +236,7 @@ def datasets_stmts(filters: dict, sort: str, dir_: str) -> dict:
         clause, meta_params = _metadata_clause(filters)
         where = f"{where} AND {clause}" if where else f" WHERE {clause}"
         params = [*params, *meta_params]
-    # `, d.id` tiebreak pins tied rows to id order — an unpinned ORDER BY
-    # would reshuffle pages whenever rows tie on the sort key. It only
-    # affects ties; the primary ordering is unchanged.
+    # If sort values tie, order by id. Keeps pages stable.
     order_sql = f"{DATASETS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, d.id"
 
     entry = {
@@ -272,14 +257,11 @@ def datasets_stmts(filters: dict, sort: str, dir_: str) -> dict:
 
 def org_datasets_stmts(org_slug: str, sort: str, dir_: str) -> dict:
     """Count + page list for one org's datasets — the /organisation/{slug}
-    page (docs/pagination-plan.md workstream E).
+    page.
 
     Same {params, count, list} contract as datasets_stmts: one fixed org
-    param, the DATASETS_SORT_EXPRS ORDER BY with the `, d.id` tiebreak
-    (pins rows tied on the sort key to id order, so pages don't reshuffle),
-    and a LIMIT/OFFSET page the view drives with core.paginate(). The org
-    page used to fetch every row and sort in Python (up to 5.6k for ONS);
-    now it fetches one page of 100.
+    param, the DATASETS_SORT_EXPRS ORDER BY (ties ordered by id), and a
+    LIMIT/OFFSET page the view drives with core.paginate().
     """
     order_sql = f"{DATASETS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, d.id"
     return {
@@ -298,14 +280,11 @@ def org_datasets_stmts(org_slug: str, sort: str, dir_: str) -> dict:
 
 def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
     """Count + page list for one harvest source's datasets — the
-    /harvester/{id} page (docs/pagination-plan.md workstream E).
+    /harvester/{id} page.
 
     Same {params, count, list} contract as org_datasets_stmts, joined by
-    harvest_source_id (the datasets↔sources key promoted from the dataset's
-    harvest_source_id extra — the same join the /harvesters list uses;
-    titles aren't unique across sources, so title joins overcount). All of
-    these datasets are harvested by definition, so no harvested column: the
-    source page shows Title/Created/Updated/Resources/Views.
+    harvest_source_id. All these datasets are harvested, so there's no
+    harvested column.
     """
     order_sql = f"{DATASETS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, d.id"
     return {
@@ -322,10 +301,7 @@ def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
 
 
 # --- Sidebar facet counts (SQL aggregates over the same _facet_where) ---
-#
-# Metadata filters are deliberately not applied to any pool: facet counts
-# never react to the metadata filter (contract item 1) — only the page
-# list/count applies it.
+# The metadata filter never reaches these pools — only the page list/count.
 
 
 def _facet_counts(filters: dict) -> dict:
@@ -360,11 +336,9 @@ def _facet_counts(filters: dict) -> dict:
             f" FROM datasets d{theme_where}"
             " GROUP BY COALESCE(theme_primary, '__none__')",
         ),
-        # No cap — the sidebar renders every publisher in the pool; the view
-        # cuts the long list behind its "More publishers" toggle (every org
-        # with datasets is a facet, not just the biggest producers). value is
-        # the org slug (the facet URL/filter key); name is the display name
-        # (falling back to the slug for any blank-name row).
+        # Every org in the pool is a facet (the view collapses the list
+        # behind a "More publishers" toggle). value = org slug, name =
+        # display name (falling back to the slug for blank-name rows).
         "publishers": Query(
             "SELECT d.org_slug AS value,"
             f"       {_PUBLISHER_NAME} AS name, COUNT(*) AS count"
@@ -377,10 +351,8 @@ def _facet_counts(filters: dict) -> dict:
             "       COUNT(*) FILTER (WHERE harvested = 0) AS manual"
             f" FROM datasets d{source_where}",
         ),
-        # Link-count buckets in one pass — the shared bucket CASE over
-        # resource_count, so every dataset lands in exactly one bucket
-        # (NULL resource_count COALESCEs into the 0 bucket, mirroring the
-        # list's `or 0`).
+        # Datasets bucketed by resource_count in one pass; every dataset
+        # lands in exactly one bucket.
         "links": Query(
             f"SELECT {_LINK_BUCKET_CASE} AS bucket, COUNT(*) AS count FROM datasets d{links_where} GROUP BY 1",
         ),
@@ -389,15 +361,11 @@ def _facet_counts(filters: dict) -> dict:
             f" FROM datasets d{year_where}"
             " GROUP BY substr(metadata_created, 1, 4)",
         ),
-        # Per-year counts via the periods table + clamped expansion: a
-        # dataset covering 1981-2009 counts for every in-window year.
-        # generate_series degenerates to zero rows for periods entirely
-        # outside the window (GREATEST > LEAST → empty), and single-element
-        # periods [2005, null] collapse to generate_series(2005, 2005) via
-        # the COALESCE pairs. COUNT(DISTINCT d.id) keeps a dataset with
-        # several periods covering the same year from counting 3x (the old
-        # COUNT(*) over the jsonb unroll double-counted). Datasets with no
-        # rows at all contribute to no year (they feed the `none` bucket).
+        # Per-year counts: a dataset covering 1981-2009 counts for every
+        # in-window year (periods are clamped to the window by the
+        # GREATEST/LEAST/COALESCE pairs). COUNT(DISTINCT d.id) so a dataset
+        # with several periods for the same year counts once; datasets with
+        # no periods feed the `none` bucket.
         "temporal_years": Query(
             "SELECT y AS year, COUNT(DISTINCT d.id) AS count"
             " FROM temporal_periods tp"
@@ -414,9 +382,8 @@ def _facet_counts(filters: dict) -> dict:
             " GROUP BY y",
         ),
         # The three buckets in one pass. pre1900/post reuse the COVERS_*
-        # predicate bodies; `none` is datasets with no period rows at all
-        # (no declared and no inferred year). The pre1900 and post buckets
-        # are independent filters, so a row can land in both.
+        # predicates; `none` is datasets with no period rows. pre1900 and
+        # post are independent filters, so a row can land in both.
         "temporal_buckets": Query(
             "SELECT"
             "  COUNT(*) FILTER (WHERE NOT EXISTS ("
@@ -433,26 +400,13 @@ def _facet_counts(filters: dict) -> dict:
 @cached_unfiltered
 def datasets_facet_counts(filters: dict) -> dict:
     """Sidebar facet counts for /datasets — every group counts over the pool
-    filtered by the other groups, ignoring the metadata filter. Returns:
+    filtered by the other groups, ignoring the metadata filter. Returns the
+    seven pools ('themes', 'publishers', 'source', 'links', 'created_years',
+    'temporal_years', 'temporal_buckets'); shapes as described by the
+    queries above. The pools run concurrently via core.fetch_parallel.
 
-      'themes':          [{'theme': slug | '__none__', 'count': n}, ...]
-      'publishers':      [{'value': org-slug, 'name': display-name,
-                           'count': n}, ...] every org with datasets in the
-                           pool, count desc (no cap — the view's More
-                           toggle cuts the rendered list; name falls back
-                           to the slug for blank-name rows)
-      'source':          {'harvested': n, 'manual': n}
-      'links':           [{'bucket': '0'|'1-10'|..., 'count': n}, ...]
-      'created_years':   [{'created_year': 'YYYY', 'count': n}, ...]
-      'temporal_years':  [{'year': int, 'count': n}, ...]
-      'temporal_buckets': {'pre1900': n, 'post': n, 'none': n}
-
-    The seven pools are seven independent single-SELECT aggregates, so they
-    run concurrently via core.fetch_parallel.
-
-    No-filter calls (the common /datasets view) return the memoised
-    unfiltered pools via core.cached_unfiltered — the temporal pools alone
-    are ~250ms of scans — while filtered calls run live (their key space is
+    No-filter calls (the common view) return the memoised unfiltered pools
+    via core.cached_unfiltered; filtered calls run live (their key space is
     unbounded, so they can't be cached).
     """
     entry = _facet_counts(filters)
@@ -529,9 +483,7 @@ TEMPORAL_YEARS = Query(
 # Dataset count for one org
 DATASET_COUNT = Query("SELECT COUNT(*) AS count FROM datasets WHERE org_slug = %s")
 
-# Harvested datasets for one org — the org page's second headline count
-# (pagination-plan workstream E: was a Python sum over the unfetched full
-# dataset list, now its own COUNT).
+# Harvested datasets for one org — the org page's second headline count.
 ORG_HARVESTED_COUNT = Query(
     "SELECT COUNT(*) AS n FROM datasets WHERE org_slug = %s AND harvested = 1",
 )
@@ -574,10 +526,8 @@ RELATED_BY_FTS = Query(
 
 
 # ── Memoised fixed fetches ───────────────────────────────────────────────
-# The fixed parameterless queries below are build-time snapshots, so they're
-# memoised per process (restart to refresh after a rebuild — same contract
-# as the dashboard's cards() cache). Only these accessors are cached; the
-# raw Query objects stay live for parameterised use (detail pages, tests).
+# Fixed parameterless queries below are memoised per process (build-time
+# snapshot — restart to refresh after a rebuild).
 
 
 @functools.cache

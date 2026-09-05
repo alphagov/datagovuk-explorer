@@ -53,12 +53,10 @@ class Query:
 
 
 # ── Shared self-excluding-facet-counts helper ─────────────────────────────
-# Every facet page's query module (/datasets, /links, /organisations,
-# /report/{key}) builds its sidebar facet counts from this one primitive:
-# each facet group counts over the pool filtered by every *other* active
-# facet, omitting its own ("if I clicked this option, given my other
-# filters"). The per-page clause builders are dicts keyed by facet key;
-# facet_where ANDs every clause except the excluded one.
+# Every facet page's sidebar counts come from this one primitive: each facet
+# group counts over the pool filtered by every *other* active facet, omitting
+# its own. Per-page clause builders are dicts keyed by facet key; facet_where
+# ANDs every clause except the excluded one.
 
 
 def facet_where(
@@ -74,11 +72,10 @@ def facet_where(
     `exclude` names it). Clauses are AND-ed in dict order; the fragment
     is " WHERE a AND b" or "".
 
-    Self-exclusion is per-facet, not global: only the builder whose key
-    matches `exclude` is skipped — the other builders still apply their
-    filters, so a facet's own count pool reflects every other active
-    filter (and the list/count queries call with exclude=None to apply
-    everything).
+    Self-exclusion is per-facet, not global: only the builder named by
+    `exclude` is skipped, so a facet's count pool reflects every other
+    active filter. The list/count queries call with exclude=None to apply
+    everything.
     """
     clauses: list = []
     params: list = []
@@ -91,12 +88,10 @@ def facet_where(
 
 
 # ── Unfiltered-result memoisation ────────────────────────────────────────
-# The DB is a build-time snapshot, so a facet page's no-filter pools are
-# constant between rebuilds — the common page view can be computed once per
-# process instead of per request. Filtered calls stay live: their key space
-# (facet values x sort x page) is unbounded, so caching them would hold dead
-# entries forever. This is the one caching rule the facet pages share (the
-# dashboard's cards() is memoised wholesale for the same reason).
+# The DB is a build-time snapshot, so a facet page's no-filter pools only
+# change on rebuild — compute them once per process instead of per request.
+# Filtered calls stay live: their key space is unbounded, so caching them
+# would hold dead entries forever.
 
 
 def cached_unfiltered(compute: Callable[[dict], Any]) -> Callable[[dict], Any]:
@@ -108,8 +103,7 @@ def cached_unfiltered(compute: Callable[[dict], Any]) -> Callable[[dict], Any]:
     memoises it; every later no-filter call returns that instead of hitting
     the DB. Calls with any active value run compute(filters) live.
 
-    Restart the process to refresh after a DB rebuild (same contract as the
-    dashboard's cards() cache).
+    Memoised per process — restart to refresh after a DB rebuild.
     """
 
     @cache
@@ -126,20 +120,14 @@ def cached_unfiltered(compute: Callable[[dict], Any]) -> Callable[[dict], Any]:
 
 
 # ── Parallel fetch ───────────────────────────────────────────────────────
-# Several pages run several independent SELECTs per request (dashboard counts,
-# facet tables, ...); a sync Django view runs them sequentially on one
-# connection. This helper overlaps the round-trips: each fetch runs on a
-# pool thread with its own thread-local connection.
+# A page that runs several independent SELECTs per request (dashboard counts,
+# facet tables, ...) would otherwise run them sequentially on one connection.
+# Each fetch runs on a pool thread with its own thread-local connection,
+# closed when the call finishes.
 #
-# Prefer a single merged GROUP BY over this helper where the queries can
-# share a table scan (see ORG_AGGREGATES in queries/organisations.py) —
-# it needs no threads at all. Use this helper for pages whose queries
-# can't be merged (e.g. the home page's per-item counts, /datasets).
-#
-# Connections are closed after every call (finally), so the reused threads
-# never leave idle connections behind between requests — the failure mode
-# this pattern is known for. Statements that must share a transaction must
-# NOT go through here (only single independent SELECTs).
+# Only for independent single SELECTs — statements that must share a
+# transaction must not go through here. Prefer a single merged GROUP BY
+# where the queries can share a table scan (see ORG_AGGREGATES).
 
 _pool = ThreadPoolExecutor(max_workers=5, thread_name_prefix="dgfetch")
 
@@ -148,8 +136,8 @@ def _run_closed(fn: Callable[[], Any]) -> Any:
     try:
         return fn()
     finally:
-        # Django connections are thread-local: this closes the worker
-        # thread's own connection, not the request thread's.
+        # Django connections are thread-local: close the worker thread's
+        # own connection, not the request thread's.
         connection.close()
 
 

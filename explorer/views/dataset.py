@@ -203,10 +203,9 @@ def dataset(request, org_slug, dataset_id):
         ),
     }
 
-    # Temporal coverage — see _fmt_temporal. Declared From/To/Granularity
-    # render from the raw JSON; when the publisher declared none the build
-    # may have inferred periods from the title / resource names — those
-    # (source 'title'/'resource') render as a separate suggested section.
+    # Temporal coverage — declared From/To/Granularity render from the raw
+    # JSON; when the publisher declared none, periods inferred from the
+    # title/resource names render as a separate suggested section.
     temporal = {
         "from": _fmt_temporal(dataset.get("temporal_coverage-from")),
         "to": _fmt_temporal(dataset.get("temporal_coverage-to")),
@@ -224,11 +223,9 @@ def dataset(request, org_slug, dataset_id):
     harvested = bool(extras.get("harvest_object_id"))
     source_id = extras.get("harvest_source_id") or None
     source_title = extras.get("harvest_source_title") or None
-    # The dataset's harvest_source_id only links when the source's record is
-    # still in the registry: CKAN can drop source rows while the datasets
-    # that cite them remain, and /harvester/{id} 404s for those. The source
-    # row is resolved purely to learn whether the id is a safe link target
-    # (its title also backs up datasets whose own extra is blank).
+    # The harvest_source_id only links when the source's record is still in
+    # the registry — CKAN can drop source rows while the datasets citing
+    # them remain, and /harvester/{id} 404s for those.
     source_row = HARVEST_SOURCE.get(source_id) if source_id else None
     harvest_source = None
     if source_title or source_row:
@@ -245,12 +242,10 @@ def dataset(request, org_slug, dataset_id):
 
     # Related datasets via tsvector "more like this"
     match_str = build_match_string(dataset.get("title"), dataset.get("tags"))
-    # small list — related lists are bounded by LIMIT 20 in SQL, exempt
-    # from pagination (see docs/pagination-plan.md).
+    # Small list — bounded by LIMIT 20 in SQL, no pager needed.
     related: list = []
     if match_str:
-        # Series-exclusion version: datasets in the same detected series as
-        # the current one are not "related"
+        # Excludes datasets in the same detected series as the current one
         related = RELATED_BY_FTS.all(match_str, dataset["id"], dataset["id"])
 
     # Related datasets via semantic embeddings (pgvector KNN)

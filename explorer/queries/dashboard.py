@@ -5,23 +5,11 @@ The dashboard is a pure aggregation page: totals from the domain tables
 (REPORTS from queries/reports). All of that assembly lives here, so the
 view (views/dashboard.py) is a thin render of dashboard.html.
 
-Every fetch is an independent single-SELECT aggregate over the build-time
-snapshot. cards() is memoised (functools.cache): the first request per
-process computes everything — all ~17 queries run concurrently via
-core.fetch_parallel instead of sequentially on the request connection
-(sequential execution is what made the dashboard slow — the reports alone
-scan the datasets/links tables ~12 times) — and every later request
-serves the result from memory. Each pool thread has its own connection,
-closed after the call.
-
-Memoisation contract: the DB is a build-time snapshot, so the dashboard
-only changes when the DB is rebuilt — restart the process to refresh
-after a rebuild (same contract the active-org card's cache used to have).
-
-`_active_card` is a pure function of the org rows fetched here; it used to
-carry its own functools.cache because it did its own two fetches, but the
-rows are already in hand for cards()' compute, so memoising the
-Python-side computation over ~1.5k rows buys nothing.
+cards() is memoised (functools.cache): the first request per process runs
+all ~17 independent single-SELECT fetches concurrently via
+core.fetch_parallel (each on a pool thread with its own connection, closed
+after the call); later requests serve the result from memory. The DB is a
+build-time snapshot, so restart the process to refresh after a rebuild.
 """
 
 import functools
@@ -83,8 +71,8 @@ def cards() -> dict:
     report_count_fns: list = []
     for report in REPORTS:
         stmt = report_stmts(report)
-        # Default-arg binding: `stmt` is rebound each iteration, so capture
-        # it per-iteration or every lambda would run the last report's count.
+        # Capture stmt per iteration — otherwise every lambda closes over
+        # the last statement's count.
         report_count_fns.append(lambda stmt=stmt: stmt["count"].get(*stmt["params"])["n"])
 
     org_rows, last_pub_rows, total_datasets_row, links_stats, theme_count_rows, *report_counts = fetch_parallel(

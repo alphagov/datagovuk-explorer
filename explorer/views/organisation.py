@@ -2,10 +2,7 @@
 100/page (SQL LIMIT/OFFSET).
 
 Sortable via ?sort= (DATASET_SORT_COLUMNS whitelist) and ?dir=asc|desc.
-Default: metadata_modified desc (most recently updated first). A prior
-app's comment stated this intent but its code
-(`dir === 'desc' ? 'desc' : 'asc'`) actually defaulted to asc (oldest
-first); we follow the stated intent.
+Default: metadata_modified desc (most recently updated first).
 """
 
 from django.http import Http404
@@ -28,10 +25,7 @@ from .core import _sort_dir, paginate
 def organisation(request, slug):
     """GET /organisation/{slug} — one org's datasets, sorted by ?sort/?dir.
 
-    Count + page come from the SQL builder (org_datasets_stmts) — the page
-    used to fetch every dataset row and sort in Python (up to 5.6k rows for
-    the largest orgs); now it fetches one page of 100 (pagination-plan
-    workstream E).
+    Count + page come from the SQL builder (org_datasets_stmts).
     """
     org_row = ORG.get(slug)
     if org_row is None:

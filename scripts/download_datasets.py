@@ -2,11 +2,10 @@
 """Download batches of datasets from data.gov.uk and save each to
 downloads/<org-name>/<slug>-<id8>.json.
 
-Downloads batches of datasets from data.gov.uk. By default this walks
-organisations.json and picks the first N orgs that haven't been fetched
-yet, so you can just run it again to continue where you left off. Orgs that
-return zero datasets are recorded in no-datasets.json so they are not
-re-queried on the next run.
+By default this walks organisations.json and picks the first N orgs that
+haven't been fetched yet, so you can just run it again to continue where
+you left off. Orgs that return zero datasets are recorded in
+no-datasets.json so they are not re-queried on the next run.
 
 With --continuous it keeps fetching batch after batch until every
 organisation in organisations.json has been processed, so you can start it
@@ -127,15 +126,13 @@ def slugify(title: str) -> str:
     """
 
     s = title.lower()
-    s = re.sub(r"[^a-z0-9]+", "-", s)  # non-alphanumeric → dash
-    s = re.sub(r"^-+|-+$", "", s)  # trim dashes
-    return s[:80]  # keep reasonable length
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = re.sub(r"^-+|-+$", "", s)
+    return s[:80]
 
 
-# ---------------------------------------------------------------------------
-# Fetch datasets for one org, paginating with rows=1000 per call until the
-# requested limit is reached (or all results are exhausted for "all").
-# ---------------------------------------------------------------------------
+# Fetch datasets for one org, page by page (rows=1000 per call) until the
+# requested limit is reached, or all results are exhausted for "all".
 def fetch_datasets(
     rate_limit,
     client: httpx.Client,
@@ -188,9 +185,8 @@ def fetch_datasets(
 # ---------------------------------------------------------------------------
 # Decide which orgs the next batch covers
 #
-# `cursor` is only used in continuous + force mode: it advances through the
-# org list so each batch is the next contiguous slice. Single-run and
-# non-force continuous modes pass no cursor, so it falls back to `offset`.
+# cursor advances the batch through the org list in continuous + force mode;
+# otherwise the selection falls back to `offset`.
 # ---------------------------------------------------------------------------
 def select_batch(
     orgs: list[dict],
@@ -213,9 +209,7 @@ def select_batch(
         return [org]
 
     if force:
-        # Force mode — take a contiguous slice and clear their empty markers.
-        # In continuous mode `cursor` advances each batch so we walk the whole
-        # list; in single-run mode it falls back to `offset`.
+        # Contiguous slice, clearing the slice's empty markers.
         start = cursor if cursor is not None else offset
         batch = orgs[start : start + org_count]
         for o in batch:
@@ -298,10 +292,8 @@ def process_batch(
 
                 dir_path.mkdir(parents=True, exist_ok=True)
 
-                # Add org context to the stored data —
-                # { _fetched_at, _organisation: { name, display_name }, ... }.
-                # JSON.stringify drops an undefined display_name (missing key);
-                # mirror that by omitting it rather than writing null.
+                # Store org context alongside the record — omit display_name
+                # when it's missing, rather than writing null.
                 org_ctx = {"name": org["name"]}
                 if "display_name" in org:
                     org_ctx["display_name"] = org["display_name"]

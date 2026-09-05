@@ -8,9 +8,9 @@ The page list, count and sort all run in SQL (the shared
 suggestions_stmts builder in explorer/queries/reviews.py — the /datasets
 pattern), so only the page's rows are fetched, not the whole reviews
 table. Title/org/theme/tags come from the current datasets row via the
-join, not review-time values from the JSON (docs/pagination-plan.md
-decision 2); the suggested theme/tags/title/description come from the
-review row (reviews.title is the *suggested* title — the naming gotcha).
+join, not review-time values from the JSON; the suggested theme/tags/title/
+description come from the review row (reviews.title is the *suggested*
+title — the naming gotcha).
 """
 
 import json

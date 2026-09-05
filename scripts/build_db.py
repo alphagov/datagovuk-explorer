@@ -3,9 +3,8 @@
 
 Reads organisations.json, downloads/harvest_sources.json and every
 dataset file under downloads/, then writes everything into the database.
-The server can then answer page
-requests with fast indexed queries instead of reading and parsing 50k+
-JSON files on every request.
+The server can then answer page requests with fast indexed queries instead
+of reading and parsing 50k+ JSON files on every request.
 
 The full dataset JSON is stored in the dataset_json table, so nothing is
 lost — the files under downloads/ remain the on-disk cache.
@@ -128,10 +127,9 @@ def temporal_periods(from_val, to_val):
     """Reduce normalised temporal from/to values to a list of coverage
     periods, each an [from_year, to_year] pair (either year null). Periods
     are paired up positionally and kept separate so non-contiguous coverage
-    (e.g. [1960-1992] and [2000-2016]) can be
-    matched as a union instead of collapsing to the first period. Reversed
-    pairs (from > to) are swapped. Returns None when neither side yields any
-    years."""
+    (e.g. [1960-1992] and [2000-2016]) can be matched as a union instead
+    of collapsing to the first period. Reversed pairs (from > to) are
+    swapped. Returns None when neither side yields any years."""
 
     from_years = [temporal_year(y) for y in _stringify(from_val).split(", ")] if from_val else []
     to_years = [temporal_year(y) for y in _stringify(to_val).split(", ")] if to_val else []
@@ -151,7 +149,7 @@ def temporal_periods(from_val, to_val):
 
 # Explicit year-range separators: "1838 - 1862", "2019-20", "2009 to 2010",
 # en/em-dash variants (\u2013/\u2014 — escaped so the source stays ASCII).
-# re.ASCII keeps \d and \b ASCII-only like _YEAR_RE. The tail boundary is
+# re.ASCII keeps \d and \b ASCII-only like _YEAR_RE. The end boundary is
 # (?!\d) rather than \b so filenames like "2021 - 2023_0300_S3.pdf"
 # (reference-number suffixes glued to the year) still parse as a range — \b
 # would reject the underscore after "2023".
@@ -160,14 +158,14 @@ _RANGE_RE = re.compile(
     rf"\b(1[5-9]\d\d|20\d\d){_RANGE_SEP}(\d\d|\d{{4}})(?!\d)",
     re.ASCII,
 )
-# Standalone-year pass for the text outside ranges: same relaxed trailing
-# boundary as the range tail, so a year with a suffix glued on ("2023_0300"
-# with no range, "2023data") still yields a period. The leading \b stays:
-# "data_2023" (underscore before the year) is not a year start.
+# Standalone-year pass for the text outside ranges: the same relaxed end
+# boundary, so a year with a suffix glued on ("2023_0300" with no range,
+# "2023data") still yields a period. The leading \b stays: "data_2023"
+# (underscore before the year) is not a year start.
 _STANDALONE_YEAR_RE = re.compile(r"\b(1[5-9]\d\d|20\d\d)(?!\d)", re.ASCII)
-# 2-digit range tails expand via their century (2019-20 -> 2020); the result
+# 2-digit end years expand via their century (2019-20 -> 2020); the result
 # must land in the same window _YEAR_RE accepts (1500-2099), and 4-digit
-# tails like "0300" fail the floor check.
+# ends like "0300" fail the floor check.
 _CENTURY = 100
 _YEAR_MIN = 1000
 _YEAR_MAX = 2099
@@ -251,10 +249,9 @@ def _whatwg_normalize(url: str) -> str:
     normalize those shapes first. The `file` scheme is the exception:
     WHATWG only parses a host after exactly `file://host`, so Windows
     paths like `file:///C:/...` (and `file://` + backslash forms) have an
-    empty host
-    (null) — no slash collapsing. Non-special schemes (mailto:, etc.) and
-    scheme-less strings are returned unchanged (the fallback regex rejects
-    them).
+    empty host (null) — no slash collapsing. Non-special schemes (mailto:,
+    etc.) and scheme-less strings are returned unchanged (the fallback
+    regex rejects them).
     """
 
     m = _SCHEME_RE.match(url)
@@ -326,29 +323,19 @@ def extract_host(url):
 # ---------------------------------------------------------------------------
 # Format normalisation
 # ---------------------------------------------------------------------------
-# CKAN's resource `format` field is free text with no controlled vocabulary,
-# so grouping on it directly yields 230+ near-duplicate facets. We clean it
-# in stages: mechanical fixes first (trim, whitespace collapse, IANA
-# media-type URLs → their type, "OGC " prefix strip, dot strip), then a
-# documented synonym/bucket map for high-confidence families. Anything not
-# in the map keeps its cleaned label — rare-but-real formats (CITYGML, LAZ,
-# NETCDF…) are deliberately left alone rather than hidden behind a count
-# threshold.
-#
-# Deliberate judgment calls (all keys below are post-mechanical-cleaning):
-#  - The ESRI/ArcGIS REST family is collapsed to ARCGIS REST. The dominant
-#    label "ArcGIS GeoServices REST API" is ArcGIS Hub's default export
-#    label (ONS alone accounts for 73% of it). Interactive products
-#    (storymaps, experiences, online maps) are NOT merged in — genuinely
-#    different resource types.
-#  - A WEB PAGE bucket collects labels that point at a portal page rather
-#    than a data file. API/SPARQL endpoints and DASHBOARD stay separate —
-#    for a quality-audit tool "the link isn't a data file" is a finding,
-#    not noise.
-#  - json1.0/json2.0 are NISRA's JSON-stat API endpoints (JSON-stat/1.0
-#    URLs) — a real schema, not a typo of JSON.
-#  - Multi-format labels like "CSV / ZIP" are left alone: assigning them to
-#    either type is an inference, and splitting them would double-count.
+# CKAN's `format` field is free text, so values get mechanical cleaning
+# (uppercase, trim, IANA media-type URL → its type, dot strip), then map
+# through MIME_TO_NAME / FORMAT_ALIASES. Anything not in the maps keeps its
+# cleaned label — rare-but-real formats are left alone rather than hidden.
+# Judgment calls behind the aliases:
+#  - ArcGIS GeoServices REST API and ESRI variants collapse to ARCGIS REST
+#    (ArcGIS Hub's default export label); interactive products (storymaps,
+#    experiences) stay separate.
+#  - Portal-page labels (websites, webpages) → WEB PAGE; API/SPARQL and
+#    DASHBOARD stay separate — "the link isn't a data file" is a finding.
+#  - json1.0/json2.0 are NISRA's JSON-stat endpoints, not typos.
+#  - Multi-format labels like "CSV / ZIP" are left alone — assigning them
+#    to either type is an inference and splitting double-counts.
 
 # MIME types (raw or from IANA media-type URLs) → common names
 MIME_TO_NAME = {
@@ -517,11 +504,10 @@ def normalize_title(raw):
 # ---------------------------------------------------------------------------
 def field_value_str(v):
     """Convert a field value to a string for the value-distribution table.
-    Long strings are truncated at 500 chars to keep
-    the index size reasonable; objects/arrays become JSON (also truncated).
-    None, empty string, empty array and empty object are all collapsed to a
-    single "(empty)" bucket so they don't clutter the value table as
-    separate rows."""
+    Long strings/JSON are truncated at 500 chars to keep the index
+    reasonable; None, empty string, empty array and empty object all
+    collapse to a single "(empty)" bucket so they don't clutter the value
+    table as separate rows."""
 
     if v is None:
         return "(empty)"

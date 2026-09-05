@@ -5,8 +5,7 @@ import math
 from django.http import HttpResponse
 from django.shortcuts import render
 
-# One page size everywhere (docs/pagination-plan.md) — every paginated view
-# pages through its SQL/in-memory rows at this size.
+# One page size for every paginated view.
 PAGE_SIZE = 100
 
 
@@ -14,11 +13,6 @@ def paginate(request, total, page_size: int = PAGE_SIZE) -> dict:
     """The standard pagination context: clamped page, total_pages, page_size,
     the LIMIT/OFFSET offset, and the 1-based "X-Y of Z" range for the
     pagination macro's count.
-
-    Absorbs the repeated max(1, ceil(...)) + min(_page_param, ...) + offset
-    logic that every paginated view used to inline (docs/pagination-plan.md
-    workstream A). end_index = min(offset + page_size, total) is identical to
-    the old SQL views' offset + len(rows) on the fetched page — one source now.
     """
     total_pages = max(1, math.ceil(total / page_size))
     page = min(_page_param(request), total_pages)
@@ -60,9 +54,8 @@ def _page_param(request, default: int = 1) -> int:
 def _sort_dir(request, valid_columns, default_sort: str, default_dir: str = "asc") -> tuple[str, str]:
     """?sort=/?dir= parsed and validated against the view's column set.
 
-    Unknown sort keys fall back to default_sort; a dir value other than
-    "desc" becomes "asc". (series.py used to fall back to "desc" for
-    garbage input — this unifies every page on the same "asc" fallback.)
+    Unknown sort keys fall back to default_sort; any dir other than "desc"
+    becomes "asc".
     """
     sort = request.GET.get("sort", default_sort)
     sort = sort if sort in valid_columns else default_sort

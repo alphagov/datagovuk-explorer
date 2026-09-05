@@ -8,12 +8,9 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 # ---------------------------------------------------------------------------
 # Reviews / suggestions — DB-backed, read from the `reviews` table
 # ---------------------------------------------------------------------------
-#
-# The reviews table stores one row per JSONL record with the full record in
-# `json`. Only ok:true records count, and only the latest one per
-# dataset_id — latest = later row in the file = higher `id` (ingest inserts
-# in file order). `json` is TEXT, so it comes back as a plain string and
-# the views keep their json.loads + dict access.
+# Only ok:true records count, and only the latest per dataset_id — later in
+# the file = higher id (ingest inserts in file order). json is TEXT, so it
+# comes back as a plain string the views json.loads.
 
 # All ok reviews, one (latest) per dataset — DISTINCT ON keeps the
 # highest-id (latest) record per dataset_id.
@@ -59,12 +56,9 @@ get_classification = _review_for
 # counts use the same builder with their own group excluded — one clause
 # builder, both consumers.
 
-# The dedup subquery every statement below is built on: one (latest) ok
-# review per dataset — DISTINCT ON keeps the highest-id (latest) record
-# per dataset_id. The join to `datasets` supplies the *current* title/org
-# rather than review-time values from the JSON (docs/pagination-plan.md
-# decision 2 — consistent with every other page; the review-time JSON is
-# still preserved in `reviews.json` for the dataset detail page).
+# The dedup subquery every statement below is built on — the latest ok
+# review per dataset (see _LATEST_REVIEWS). Joining to `datasets` supplies
+# the *current* title/org, not the review-time values in the JSON.
 _DEDUP = """
     SELECT DISTINCT ON (dataset_id) id, dataset_id, overall,
            findability, metadata, resources
@@ -82,8 +76,8 @@ SCORE_KEYS = ("overall", "findability", "metadata", "resources")
 SCORE_VALUES = ["0", "1", "2", "3", "4", "5"]
 
 # Sortable column key → SQL ORDER BY expression. Numeric scores use
-# COALESCE(..., -1) so missing scores sort below present ones (the old
-# _score_or_minus_one); text columns LOWER() case-insensitively.
+# COALESCE(..., -1) so missing scores sort below present ones; text columns
+# sort case-insensitively via LOWER.
 REVIEWS_SORT_EXPRS = {
     "title": "LOWER(COALESCE(d.title, ''))",
     "org": "LOWER(COALESCE(d.org_display_name, ''))",
@@ -124,14 +118,9 @@ def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
 def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo.
 
-    The list query fetches only the page's rows: the dedup subquery joined
-    to datasets for the current title/org, filtered by the score facets,
-    ordered by the sort expr + an unconditional title-ascending tiebreak
-    (the two-pass stable sort's "ties break title-asc regardless of dir"
-    — `, LOWER(COALESCE(d.title,''))` appended to every ORDER BY) + `,
-    r.id` pinning ties on (sort key, title) to ingest order (the stable
-    pre-order of latest_reviews()); without the pin an unpinned ORDER BY
-    would reshuffle pages whenever rows tie.
+    The dedup subquery joined to datasets supplies the current title/org.
+    The ORDER BY appends title (ascending regardless of direction) then id,
+    so tied rows keep a stable order.
     """
     where, params = _facet_where(filters)
     order_sql = f"{REVIEWS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, LOWER(COALESCE(d.title, '')), r.id"
@@ -153,25 +142,22 @@ def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
 # --- /suggestions query builder ---
 #
 # No facets — count + list only, same builder shape as reviews_stmts. The
-# dedup subquery carries the suggestion columns (suggested theme, suggested
-# tags as JSON text, suggested title, suggested description, confidence);
-# the join to `datasets` supplies the *current* title/org/theme/tags rather
-# than review-time values from the JSON (docs/pagination-plan.md decision 2).
+# dedup subquery carries the suggestion columns; the join to `datasets`
+# supplies the *current* title/org/theme/tags.
 
-# The dedup subquery for /suggestions — one (latest) ok review per dataset,
-# same DISTINCT ON as _DEDUP but selecting the suggestion columns. `"desc"`
-# is quoted: desc is a reserved word.
+# The dedup subquery for /suggestions — the latest ok review per dataset
+# (as _DEDUP, but selecting the suggestion columns). "desc" is quoted: a
+# reserved word.
 _SUGGESTIONS_DEDUP = """
     SELECT DISTINCT ON (dataset_id) id, dataset_id, theme,
            theme_confidence, tags, title, "desc"
     FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
 """
 
-# Sortable column key → SQL ORDER BY expression. Text columns LOWER()
-# case-insensitively; confidence maps high/medium/low to 3/2/1 (default asc
-# = ambiguous first, unchanged). `theme` sorts on the *current* theme
-# (d.theme_primary), mirroring the old Python sort key, not the suggested
-# one (r.theme).
+# Sortable column key → SQL ORDER BY expression. Text columns sort
+# case-insensitively; confidence maps high/medium/low to 3/2/1 (so default
+# asc lists the least confident first). `theme` sorts on the current theme
+# (d.theme_primary), not the suggested one (r.theme).
 SUGGESTIONS_SORT_EXPRS = {
     "title": "LOWER(COALESCE(d.title, ''))",
     "org": "LOWER(COALESCE(d.org_display_name, ''))",
@@ -183,14 +169,9 @@ SUGGESTIONS_SORT_EXPRS = {
 def suggestions_stmts(sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (sort, dir) combo.
 
-    The list query fetches only the page's rows: the dedup subquery joined
-    to datasets for the current title/org/theme/tags, ordered by the sort
-    expr + an unconditional title-ascending tiebreak (the two-pass stable
-    sort's "ties break title-asc regardless of dir" — `,
-    LOWER(COALESCE(d.title,''))` appended to every ORDER BY) + `, r.id`
-    pinning ties on (sort key, title) to ingest order (the stable pre-order
-    of latest_reviews()); without the pin an unpinned ORDER BY would
-    reshuffle pages whenever rows tie.
+    As reviews_stmts: the dedup subquery joined to datasets, ordered by the
+    sort expr with title then id appended, so tied rows keep a stable
+    order.
     """
     order_sql = (
         f"{SUGGESTIONS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'},"
@@ -218,8 +199,7 @@ def suggestions_stmts(sort: str, dir_: str) -> dict:
 
 def _facet_pool(filters: dict, key: str) -> Query:
     """Per-score count statement for one facet, its own selection excluded
-    — the standard self-excluding sidebar: each group counts over the pool
-    filtered by every *other* active facet. Missing scores group under
+    — the standard self-excluding sidebar pool. Missing scores group under
     '__none__'."""
     where, _ = _facet_where(filters, exclude=key)
     return Query(
@@ -232,12 +212,10 @@ def _facet_pool(filters: dict, key: str) -> Query:
 @cached_unfiltered
 def reviews_facet_counts(filters: dict) -> dict:
     """Sidebar facet counts for /reviews — every group counts over the pool
-    filtered by the other groups. Returns { key: {value: count} } for each
-    score key, missing scores under the '__none__' value.
-
-    The four pools are four independent single-SELECT aggregates, so they
-    run concurrently via core.fetch_parallel. No-filter calls (the common
-    view) return the memoised pools via core.cached_unfiltered.
+    filtered by the other groups. Returns { key: {value: count} } per score
+    key, missing scores under '__none__'. The four pools run concurrently
+    via core.fetch_parallel; no-filter calls return the memoised pools via
+    core.cached_unfiltered.
     """
     pools = {key: _facet_pool(filters, key) for key in SCORE_KEYS}
     params = {key: _facet_where(filters, exclude=key)[1] for key in SCORE_KEYS}

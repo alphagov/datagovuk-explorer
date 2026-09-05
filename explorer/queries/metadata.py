@@ -13,9 +13,9 @@ METADATA_KEYS = Query(
 # Count of unique values for one metadata field
 METADATA_VALUE_COUNT = Query("SELECT COUNT(*) AS n FROM metadata_values WHERE key = %s")
 
-# Top N values for one metadata field. The `, value` tiebreak pins
-# case-variant values that share LOWER(value), so a tie straddling a page
-# boundary doesn't shuffle between requests.
+# Top N values for one metadata field. The final `value` orders
+# case-variant values that share LOWER(value), so ties across a page
+# boundary don't shuffle between requests.
 METADATA_VALUES = Query(
     """SELECT value, count
        FROM metadata_values

@@ -23,10 +23,9 @@ LINK_SORT_EXPRS = {
     "org_display_name": "COALESCE(l.org_display_name, '')",
 }
 
-# Per-facet clause builders — the same (filters, exclude) →
-# ([clause, ...], [param, ...]) shape as datasets.py. One builder dict,
-# two consumers: links_stmts ANDs everything for the list/count WHERE, and
-# each facet pool omits its own group via core.facet_where.
+# Per-facet clause builders — same (filters, exclude) shape as datasets.py.
+# One builder dict feeds both the list/count WHERE and the facet pools
+# (each omits its own group).
 
 
 def _domain_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
@@ -79,14 +78,11 @@ _LINKS_CLAUSES = {
 def links_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = facet_where(_LINKS_CLAUSES, filters)
-    # All filter columns (l.host, format_norm, year_created) and every sort
-    # column live on links itself, so no join is needed.
+    # All filter and sort columns live on links itself, so no join is needed.
     from_ = "FROM links l"
 
     order_sql = f"LOWER({LINK_SORT_EXPRS[sort]}) {'DESC' if dir_ == 'desc' else 'ASC'}"
-    # `, l.id` tiebreak pins tied rows to id order — an unpinned ORDER BY
-    # would reshuffle pages, e.g. every host-less link under the "No URL"
-    # domain bucket. It only affects ties; the primary ordering is unchanged.
+    # If sort values tie, order by id. Keeps pages stable.
     order_sql += ", l.id"
 
     entry = {
@@ -105,11 +101,9 @@ def links_stmts(filters: dict, sort: str, dir_: str) -> dict:
 
 
 # --- Sidebar facet counts (self-excluding SQL aggregates) ---
-#
-# Each group counts over the pool filtered by the *other* groups (excluding
-# its own), so a selected domain/format/created_year shrinks the sibling
-# counts instead of dead-ending into 0 results. The "No URL" trailing
-# bucket is the same pool with host IS NULL.
+# Each group counts over the pool filtered by the other groups, so a
+# selected domain/format/created_year shrinks sibling counts instead of
+# dead-ending into 0 results.
 
 
 def _links_facet_counts(filters: dict) -> dict:
@@ -121,8 +115,8 @@ def _links_facet_counts(filters: dict) -> dict:
     year_frag, year_params = facet_where(_LINKS_CLAUSES, filters, exclude="created_year")
 
     # The pool guards join the (possibly empty) WHERE fragments. `no_url`
-    # reuses the domain fragment (the other groups' filters) with host IS
-    # NULL instead; `no_format` does the same with format_norm NULL/''.
+    # reuses the domain fragment with host IS NULL instead; `no_format`
+    # does the same with format_norm NULL/'':
     domain_where = f"{domain_frag} AND l.host IS NOT NULL" if domain_frag else " WHERE l.host IS NOT NULL"
     no_url_where = f"{domain_frag} AND l.host IS NULL" if domain_frag else " WHERE l.host IS NULL"
     format_where = (
@@ -149,9 +143,8 @@ def _links_facet_counts(filters: dict) -> dict:
             "no_format": format_params,
             "created_years": year_params,
         },
-        # No cap — every host in the pool is a facet (1612 of them, not
-        # just the biggest link publishers); the view cuts the rendered list
-        # behind its "More domains" toggle, mirroring /links/errors.
+        # Every host in the pool is a facet (the view collapses the list
+        # behind a "More domains" toggle, as on /links/errors).
         "domains": Query(
             "SELECT l.host AS domain, COUNT(*) AS count FROM links l"
             f"{domain_where}"
@@ -178,21 +171,13 @@ def _links_facet_counts(filters: dict) -> dict:
 @cached_unfiltered
 def links_facet_counts(filters: dict) -> dict:
     """Sidebar facet counts for /links — each group counts over the pool
-    filtered by the other groups (self-excluding). Returns:
+    filtered by the other groups (self-excluding). Returns 'domains',
+    'no_url', 'formats', 'no_format' and 'created_years' — shapes as
+    described by the queries above.
 
-      'domains':       [{'domain': ..., 'count': n}, ...] all hosts, count
-                       desc (no cap — the view's More toggle cuts the list)
-      'no_url':        int — links with no host (the trailing bucket)
-      'formats':       [{'fmt': ..., 'count': n}, ...]
-      'no_format':     int — links with no format (the trailing bucket)
-      'created_years': [{'created_year': ..., 'count': n}, ...]
-
-    No-filter calls return the memoised unfiltered pools via
-    core.cached_unfiltered — the /links view calls links_facet_counts({})
-    on *every* request for its format/year validation whitelists, and the
-    no_url/no_format pools alone are ~130ms full scans of links — while
-    filtered calls run live (their key space is unbounded, so they can't
-    be cached).
+    No-filter calls (used on every request to validate format/year facet
+    values) return the memoised pools via core.cached_unfiltered; filtered
+    calls run live (their key space is unbounded, so they can't be cached).
     """
     entry = _links_facet_counts(filters)
     p = entry["params"]

@@ -1,27 +1,10 @@
-"""Organisation statements — the fixed queries against the
-organisations/datasets tables the org pages and home dashboard build
-on, plus the DB-backed yearly-org-count helper and the self-excluding
-SQL facet pools for /organisations' sidebar.
+"""Organisation statements — the fixed organisation/dataset queries behind
+the org pages and home dashboard, plus /organisations' sidebar facet pools
+and SQL list builder.
 
-The DB is a build-time snapshot, so the fixed parameterless fetches
-(org rows, per-org dataset aggregates, yearly counts) are memoised via
-functools.cache — computed once per process, then served from memory.
-The /organisations page is the slowest of the facet pages because its
-per-org aggregate over datasets (ORG_AGGREGATES) and the last-published-year pool's
-embedded subquery each scan the whole datasets table (~290ms per
-request before memoisation). Restart the process to refresh after a DB
-rebuild (same contract as the dashboard's cards() cache).
-
-Only the *fixed* fetches are memoised: filtered facet pools stay live
-because their filter key space is unbounded (last_published_year is a multi-select).
-The raw Query objects (ORGS, ORG_AGGREGATES, ...) stay uncached so any
-parameterised use elsewhere is unaffected.
-
-The /organisations page *list* is a per-request SQL builder
-(organisations_stmts — count + one page per filter/sort combo,
-docs/pagination-plan.md workstream F); the memoised fetches still feed
-the facet master lists, the pub-year validation whitelist and the
-sidebar pools."""
+Fixed parameterless fetches are memoised per process (build-time snapshot —
+restart to refresh after a rebuild); filtered calls stay live because their
+key space is unbounded."""
 
 import functools
 from typing import Any
@@ -31,23 +14,17 @@ from explorer.helpers import yearly_counts
 
 from .core import Query, cached_unfiltered, facet_where
 
-# Dataset-count facet buckets — 0 plus fixed ranges covering the full
-# spread (orgs are heavily skewed small, so the low end is fine-grained).
-# The edges and their derivation live in explorer/buckets (shared with the
-# /datasets Links facet and /harvesters' per-source bucket), so a bucket
-# key means the same range on every page; this module keeps the
-# DATASET_BUCKET_* names the views/tests/harvesters import.
+# Dataset-count facet buckets — fixed ranges shared with the /datasets
+# Links facet and /harvesters via explorer/buckets, re-exported as the
+# DATASET_BUCKET_* names views/tests import.
 DATASET_BUCKET_EDGES = BUCKET_EDGES
 DATASET_BUCKETS = bucket_pairs()
 DATASET_BUCKET_NAMES = dict(DATASET_BUCKETS)
 VALID_DATASET_BUCKETS = set(DATASET_BUCKET_NAMES)
 DATASET_BUCKET_RANGES = bucket_ranges()
 
-# The bucket membership tests — the reference semantics the SQL bucket
-# clauses must match (dataset_count is package_count or 0, exactly like
-# the SQL COALESCE below). Consumed by the facet-pool reference tests and
-# the /harvesters page's bucket helper (the org list's own filtering is
-# SQL since workstream F).
+# Bucket membership tests — the reference semantics the SQL bucket
+# clauses must match (used by the facet-pool tests and /harvesters).
 DATASET_BUCKET_TESTS = bucket_tests()
 
 # CASE expression mapping COALESCE(package_count, 0) to its bucket key —
@@ -70,9 +47,8 @@ ORG = Query(
          FROM organisations WHERE slug = %s""",
 )
 
-# Per-org aggregates over datasets — one pass over the table. Any
-# org_slug present here has at least one dataset, so it doubles as the
-# fetched-slugs set.
+# Per-org aggregates over datasets — one pass over the table. An org
+# present here has at least one dataset (the has_data flag).
 ORG_AGGREGATES = Query(
     """SELECT org_slug,
               SUM(resource_count) AS total_resources,
@@ -131,19 +107,11 @@ def yearly_org_counts() -> list[dict[str, Any]]:
 
 
 # --- /organisations sidebar facet pools (self-excluding SQL aggregates) ---
-#
-# Each group counts over the pool filtered by the other two groups via the
-# shared core.facet_where helper — the same one-sentence algorithm as
-# /datasets, expressed over organisations joined to a per-org
-# last-published aggregation of datasets. The list/filter/sort moved to
-# SQL too (organisations_stmts below); the pools still run as SQL
-# aggregates here, not Python filters.
+# Each group counts over the pool filtered by the other two groups via
+# core.facet_where — the same algorithm as /datasets.
 
-# Per-org aggregate over datasets — the LEFT JOIN base the facet pools
-# and the /organisations list builder share. Same three aggregates as
-# ORG_AGGREGATES (one 1:1 row per org: GROUP BY org_slug, the primary
-# key). The facet pools only read a.last_published; the list builder
-# reads total_resources/total_views too.
+# Per-org aggregate LEFT JOIN shared by the facet pools and the list
+# builder (1:1 per org — GROUP BY org_slug, the primary key).
 _ORG_AGG = (
     "LEFT JOIN ("
     "  SELECT org_slug,"
@@ -302,23 +270,8 @@ def organisations_facet_counts(filters: dict) -> dict:
 
 # ── /organisations list builder (count + one page per filter/sort combo) ──
 #
-# The list used to be filtered/sorted in Python over the merged memoised
-# fetch (1,480 orgs, docs/pagination-plan.md workstream F); now the page
-# list/count are SQL — the ORGS rows LEFT JOINed to the per-org aggregate,
-# with the view's old Python _apply_filters rules as WHERE clauses
-# (created_year/last_published_year/datasets via the shared
-# _ORG_FACET_CLAUSES) and the
-# sort_orgs column exprs as ORDER BY.
-#
-# The `, LOWER(o.display_name), o.slug` tail reproduces the old
-# stable-sort tie order: Python's list.sort is stable over the base fetch
-# (ORGS is ORDER BY LOWER(display_name), slug), so rows tied on any sort
-# key keep that order — the SQL ORDER BY appends the same two keys,
-# pinning pages against reshuffles. created/last_published sort on the
-# raw ISO timestamp: the old Python sorter sorted the *formatted*
-# dd/mm/yyyy string (day-then-month-then-year, not chronological) — the
-# ISO sort is the intended semantics (same call as the harvesters
-# last_run sort).
+# If sort values tie, order by display name then slug. Keeps each page's
+# rows stable between requests.
 
 # Sortable column key → SQL ORDER BY expression (mirrors
 # explorer.sort.sort_orgs: the numeric columns sort COALESCE'd to 0 —
@@ -336,9 +289,8 @@ ORG_SORT_EXPRS = {
     "last_published": "COALESCE(a.last_published, '')",
 }
 
-# The list select — ORGS' columns plus the three aggregate columns and a
-# has_data flag (an org is in the per-dataset aggregate iff it has at
-# least one dataset — the old fetched-slugs set).
+# The list select — ORGS' columns plus the aggregate columns and has_data
+# (true when the org has at least one dataset, i.e. a row in _ORG_AGG).
 _ORG_LIST_SELECT = (
     "SELECT o.slug, o.name, o.display_name, o.package_count, o.type, o.state,"
     "       o.approval_status, o.created, o.title,"
@@ -354,10 +306,8 @@ def organisations_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Count + page list for /organisations — one (filters, sort, dir) combo.
 
     {params, count, list} contract, same as datasets_stmts: the view drives
-    the LIMIT/OFFSET page with core.paginate(). The WHERE clauses mirror the
-    old Python _apply_filters rules (year/pubyear/datasets), the ORDER BY
-    mirrors sort_orgs, and the aggregate LEFT JOIN is 1:1 per org, so the
-    count is a plain COUNT over the joined rows."""
+    the LIMIT/OFFSET page with core.paginate(). The WHERE clauses come from
+    _ORG_FACET_CLAUSES, the ORDER BY from ORG_SORT_EXPRS."""
     where, params = facet_where(_ORG_FACET_CLAUSES, filters)
     order_sql = f"{ORG_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, LOWER(o.display_name), o.slug"
     return {

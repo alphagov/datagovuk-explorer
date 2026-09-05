@@ -10,9 +10,8 @@ Facets use the same pattern as /organisations:
                    per-source dataset_count
 
 The list is filtered/sorted/paged in SQL (one count + one page per
-request — pagination-plan workstream F); the sidebar facet counts stay
-Python-side over the memoised full fetch (cheap Counters over the small
-list, correct self-excluding pools).
+request); the sidebar facet counts stay Python-side over the memoised full
+fetch (cheap Counters over the small list, correct self-excluding pools).
 
 Sort columns are whitelisted in explorer.sort.HARVESTER_SORT_COLUMNS;
 unknown keys fall back to the default (dataset_count desc).
@@ -165,9 +164,8 @@ def harvesters(request):
         set(all_frequencies),
     )
 
-    # Count + page in SQL — the WHERE clauses mirror _matches, the ORDER
-    # BY mirrors sort_harvesters (with last_run on the raw ISO timestamp,
-    # see queries/harvesters.py).
+    # Count + page in SQL — WHERE from the shared facet clauses, ORDER BY
+    # from HARVESTER_SORT_EXPRS (see queries/harvesters.py).
     stmts = harvest_sources_stmts(
         {
             "type": filters.type,
@@ -317,9 +315,8 @@ def harvester(request, source_id):
 
     sort, dir_ = _sort_dir(request, DATASET_SORT_COLUMNS, "metadata_modified", "desc")
 
-    # Count + page in SQL (the same builder shape as /organisation/{slug},
-    # pagination-plan workstream E): the source page used to fetch every
-    # dataset row and sort in Python (up to 4k rows); now one page of 100.
+    # Count + page in SQL — one page of 100, same builder shape as
+    # /organisation/{slug}.
     stmts = source_datasets_stmts(row["id"], sort, dir_)
     total = stmts["count"].get(*stmts["params"])["n"]
     pagination = paginate(request, total)
@@ -334,11 +331,10 @@ def harvester(request, source_id):
     last_run = status.get("last_harvest_request")
     next_run = record.get("next_run")
 
-    # The record's own publisher_title/publisher_id fields are populated by
-    # the API as a copy of the owning organisation, so they're redundant
-    # whenever the owning publisher resolves. Surface them only when they
-    # differ (renames, aggregator/third-party feeds) or when no owning
-    # publisher could be resolved at all.
+    # The record's own publisher_title/publisher_id mirror the owning
+    # organisation, so they're redundant when they match. Surface them only
+    # when they differ (renames, aggregator feeds) or when no owning
+    # publisher resolved.
     meta_publisher = record.get("publisher_title") or record.get("publisher_id")
     publisher = (
         None

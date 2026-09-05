@@ -1,35 +1,26 @@
-"""/links/errors query layer — statements built per (filters, sort, dir),
-self-excluding SQL sidebar facet pools and the memoised whole-table stats,
+"""/links/errors query layer — statements per (filters, sort, dir),
+self-excluding SQL sidebar facet pools and memoised whole-table stats,
 all read from the `link_errors` table (ingested by
-scripts/ingest_link_errors.py from data/errors-current.csv).
+scripts/ingest_link_errors.py).
 
-Harvested / harvest source are DERIVED, not stored (docs/link-errors-report
-.md §3): every statement LEFT JOINs `datasets` on package_id, so the
-join shape — org slug, harvested state and harvest source title — is
-defined once here. Rows whose package is absent from the datasets snapshot
-(~3.6%) have d.id NULL → harvest_state 'unknown'. The domain facet's value
-is derived too — the ingest CSV stores only resource_url, so _URL_HOST
-pulls the host out in SQL (one shared expression for the sort, the facet
-pool and its WHERE clause).
-
-filters: { category: code | None, status: "404" | "__none__" | None,
-           to_delete: "yes" | "no" | None, domain: name | "__none__" | None,
-           harvested: harvested|manual|unknown | None, publisher: org | None }.
+Harvest state, org slug and harvest source title are not stored on
+link_errors rows (docs/link-errors-report.md §3): every statement LEFT
+JOINs `datasets` on package_id, so the join shape is defined once here.
+Rows whose package is absent from the datasets snapshot join as NULL →
+harvest_state 'unknown'. The domain facet's value is derived too — the
+ingest CSV stores only resource_url, so _URL_HOST pulls the host out in
+SQL (one shared expression for the sort, the facet pool and its clause).
 """
 
 import functools
 
 from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
-# The one shared join. The /links page's links table is written by build_db
-# in the same atomic run as datasets, so it denormalises display columns;
-# link_errors is ingested separately (like reviews) and may run against an
-# older datasets snapshot, so the report derives the datasets-owned columns
-# from this join instead of duplicating them (docs/link-errors-report.md §3).
-# The organisations join resolves publisher display names: e.org_name holds
-# the CKAN org slug, and organisations is the slug → display_name registry
-# (930 of 931 error orgs; the datasets snapshot alone would miss 5). It's
-# 0-or-1 rows per error row, so it never multiplies counts.
+# The shared join behind every statement. link_errors is ingested against
+# whatever datasets snapshot exists, so datasets-owned columns (harvest
+# state, org display name) come from this join rather than being stored.
+# The organisations join maps e.org_name (the CKAN slug) to its display
+# name; it's 0-or-1 rows per error row, so it never multiplies counts.
 _LINK_ERRORS_FROM = (
     "link_errors e LEFT JOIN datasets d ON d.id = e.package_id LEFT JOIN organisations o ON o.slug = e.org_name"
 )
@@ -56,10 +47,9 @@ CATEGORY_LABELS = {
     "OTHER_ERROR": "Other error",
 }
 
-# The three harvest states (see the LEFT JOIN above): harvested/manual come
-# from the datasets snapshot, unknown is the package-absent bucket. The
-# canonical value→label list for the pills/badges — the sidebar facet list
-# sorts by its pool's count order in the view, not by this order.
+# The three harvest states (see the join above): harvested/manual come from
+# the datasets snapshot, unknown is the package-absent bucket. Rendered via
+# this canonical value→label list.
 HARVEST_STATES = [
     ("harvested", "Harvested"),
     ("manual", "Manual"),
@@ -67,9 +57,7 @@ HARVEST_STATES = [
 ]
 
 # The two to-delete states — the checker's remove-this-dead-link
-# recommendation behind the To delete column (true on ~45k rows). Canonical
-# value→label list for the pills/badges — the sidebar facet list sorts by
-# its pool's count order in the view, not by this order.
+# recommendation behind the To delete column.
 TO_DELETE_VALUES = [
     ("yes", "Yes"),
     ("no", "No"),
@@ -79,10 +67,8 @@ TO_DELETE_VALUES = [
 # so the builder only appends ASC/DESC). Text columns sort case-insensitively.
 LINK_ERRORS_SORT_COLUMNS = ["url", "dataset", "publisher", "status", "to_delete"]
 
-# The checked URL's host — substring's capture group pulls "host[:port]" out
-# of "scheme://host:port/path" (no match -> NULL -> COALESCE'd to ''), then
-# split_part drops any :port. Only used for the url sort, so the regex runs
-# per ORDER BY pass over the filtered pool (89k rows worst case — fine).
+# Host from resource_url — pulls "host[:port]" out of "scheme://host:port/
+# path" and drops any :port.
 _URL_HOST = "split_part(substring(e.resource_url FROM '://([^/]+)'), ':', 1)"
 
 LINK_ERRORS_SORT_EXPRS = {
@@ -99,11 +85,8 @@ LINK_ERRORS_SORT_EXPRS = {
 
 
 # --- Per-facet clause builders ---------------------------------------------
-# The shared (filters, exclude) -> ([clause, ...], [param, ...]) shape from
-# datasets.py/links.py. One builder dict, two consumers: link_errors_stmts
-# ANDs everything for the list/count WHERE, and each facet pool omits its
-# own group via core.facet_where. d.* columns are only in WHERE clauses when
-# the LEFT JOIN matches — harvested/manual/unknown map to that join.
+# Same (filters, exclude) shape as datasets.py; one dict feeds both the
+# list/count WHERE and the facet pools (each omits its own group).
 
 
 def _category_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
@@ -158,11 +141,9 @@ def _harvested_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
 
 
 def _domain_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """Derived-domain WHERE fragment + params. The host is NOT stored (the
-    ingest CSV has no host column): _URL_HOST pulls it out of resource_url
-    in SQL, so filter/facet/sort all share the one expression — same
-    derived-not-stored principle as the harvest states above. __none__ is
-    the no-host selection (scheme-less / malformed URLs)."""
+    """domain WHERE fragment + params. The host isn't stored — _URL_HOST
+    derives it from resource_url in SQL, so filter/facet/sort share the one
+    expression. __none__ is the no-host selection (scheme-less URLs)."""
     if exclude == "domain":
         return [], []
     domain = filters.get("domain")
@@ -201,8 +182,7 @@ def link_errors_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = facet_where(_CLAUSES, filters)
     order_sql = f"{LINK_ERRORS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}"
-    # `, e.id` pins tied rows to ingest order — an unpinned ORDER BY would
-    # reshuffle pages whenever rows share a sort value (same host/status/…).
+    # If sort values tie, order by id (ingest order). Keeps pages stable.
     order_sql += ", e.id"
 
     return {
@@ -227,17 +207,13 @@ def link_errors_stmts(filters: dict, sort: str, dir_: str) -> dict:
 
 
 # --- Sidebar facet counts (self-excluding SQL aggregates) ------------------
-# Same machinery as /links: each group counts over the pool filtered by the
-# *other* groups (excluding its own), so a selection shrinks the sibling
-# counts instead of dead-ending into 0 results. All pools share the LEFT
-# JOIN, so the harvested pool and the whole-dataset aggregate scan the same
-# two indexed tables.
+# Same as /links: each group counts over the pool filtered by the other
+# groups, so a selection shrinks sibling counts instead of dead-ending.
 
 
 def _guarded(fragment: str, guard: str) -> str:
-    """WHERE fragment plus one extra guard clause (e.g. `e.http_status IS
-    NOT NULL`), AND-ed onto any facet fragment — "" when there's no
-    fragment means a bare " WHERE <guard>", mirroring links.py."""
+    """WHERE fragment AND-ed with one extra guard clause; with no facet
+    fragment this is just " WHERE <guard>"."""
     return f"{fragment} AND {guard}" if fragment else f" WHERE {guard}"
 
 
@@ -286,10 +262,10 @@ def _link_errors_facet_counts(filters: dict) -> dict:
         "no_response": Query(
             f"SELECT COUNT(*) AS n FROM {_LINK_ERRORS_FROM}{_guarded(status_frag, 'e.http_status IS NULL')}",
         ),
-        # Derived domains — every host in the pool (no cap, the view's More
-        # toggle cuts the list); the scheme-less/malformed URL rows trail as
-        # the No URL bucket. GROUP BY 1 + a repeated LOWER(expression) order
-        # (Postgres won't resolve a bare alias inside LOWER).
+        # Every host in the pool (the view collapses the list behind its
+        # More toggle); scheme-less/malformed URLs trail as the No URL
+        # bucket. LOWER(...) is repeated in ORDER BY because Postgres can't
+        # resolve a bare alias inside LOWER.
         "domains": Query(
             f"SELECT {_URL_HOST} AS value, COUNT(*) AS count"
             f" FROM {_LINK_ERRORS_FROM}{_guarded(domain_frag, _NONEMPTY_DOMAIN)}"
@@ -310,10 +286,9 @@ def _link_errors_facet_counts(filters: dict) -> dict:
             f" FROM {_LINK_ERRORS_FROM}{harv_frag}"
             " GROUP BY 1",
         ),
-        # No cap — the sidebar renders every publisher in the pool; the view
-        # cuts the long list behind its "More publishers" toggle (all 931
-        # orgs are facets, not just the biggest error producers). value is
-        # the org slug (the facet URL/filter key); name is the display name.
+        # Every publisher in the pool is a facet (the view collapses the
+        # list behind a "More publishers" toggle). value = org name, name =
+        # display name.
         "publishers": Query(
             f"SELECT e.org_name AS value, {_PUBLISHER_NAME} AS name, COUNT(*) AS count"
             f" FROM {_LINK_ERRORS_FROM}{_guarded(pub_frag, _NONEMPTY_ORG)}"
@@ -327,30 +302,15 @@ def _link_errors_facet_counts(filters: dict) -> dict:
 @cached_unfiltered
 def link_errors_facet_counts(filters: dict) -> dict:
     """Sidebar facet counts for /links/errors — each group counts over the
-    pool filtered by the other groups (self-excluding). Returns:
+    pool filtered by the other groups (self-excluding).
 
-      'categories':  [{'value': category-code, 'count': n}, ...] count desc
-      'statuses':    [{'value': "404", 'count': n}, ...] count desc
-      'no_response': int — rows with no HTTP status (the trailing bucket)
-      'categories':  [{'value': category-code, 'count': n}, ...] count desc
-      'statuses':    [{'value': "404", 'count': n}, ...] count desc
-      'no_response': int — rows with no HTTP status (the trailing bucket)
-      'domains':     [{'value': host, 'count': n}, ...] all hosts, count
-                     desc (no cap — the view's More toggle cuts the list)
-      'no_url':      int — rows whose URL has no parseable host (the
-                     trailing bucket)
-      'to_delete':   {'yes': n, 'no': n}
-      'harvested':   {'harvested': n, 'manual': n, 'unknown': n}
-      'publishers':  [{'value': org-slug, 'name': display-name,
-                     'count': n}, ...] all orgs, count desc (no cap — the
-                     view's More toggle cuts the rendered list; name falls
-                     back to the slug for orgs missing from organisations)
+    Returns 'categories', 'statuses', 'no_response', 'domains', 'no_url',
+    'to_delete' (a yes/no dict), 'harvested' (a state dict) and
+    'publishers' — shapes as described by the queries above. The eight
+    statements run concurrently via core.fetch_parallel.
 
-    The eight statements are eight independent single-SELECT aggregates, so
-    they run concurrently via core.fetch_parallel. No-filter calls return
-    the memoised pools via core.cached_unfiltered — every /links/errors
-    request calls the unfiltered version for its category/status/domain/
-    publisher validation whitelists; filtered calls run live.
+    No-filter calls (used on every request to validate facet values) return
+    the memoised pools via core.cached_unfiltered; filtered calls run live.
     """
     entry = _link_errors_facet_counts(filters)
     p = entry["params"]
@@ -380,9 +340,8 @@ def link_errors_facet_counts(filters: dict) -> dict:
 
 # --- Whole-table stats (the report header) --------------------------------
 
-# Aggregate link-error stats for the page header — rows that currently fail
-# (every category but OK) vs the resolved population (OK = previously
-# broken, now working). Memoised: build-time snapshot.
+# Page-header stats: current failures (every category but OK) vs resolved
+# (OK = previously broken, now working).
 LINK_ERRORS_STATS = Query(
     """SELECT
          COUNT(*) AS total,

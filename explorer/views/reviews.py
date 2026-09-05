@@ -8,8 +8,7 @@ The page list, count, sort and facet counts all run in SQL (the shared
 reviews_stmts/reviews_facet_counts builders in explorer/queries/reviews.py
 — the /datasets pattern), so only the page's rows are fetched, not the
 whole reviews table. Title/org come from the current datasets row via the
-join, not review-time values from the JSON (docs/pagination-plan.md
-decision 2).
+join, not review-time values from the JSON.
 """
 
 from django.shortcuts import render
