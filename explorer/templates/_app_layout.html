@@ -13,11 +13,18 @@
    harvesters' count + note) override header_right_class with the modifier
    class.
 
+   Report pages without any facet groups normally get the single-column
+   (content-layout--full) layout. Pages that still want the two-pane frame
+   with a *blank* sidebar — so they line up with their section's other
+   pages (series and suggestions in the Datasets group) — pass
+   show_facet_pane in the view context.
+
    App-like pages get the app layout (body.app-layout, see
    pages/app-layout.css): a viewport-height frame with the header row and
    facets fixed, and the table scrolling in the section below. #}
 
-{% set has_facets = facet_groups is defined and facet_groups %}
+{% set has_facet_groups = facet_groups is defined and facet_groups %}
+{% set has_facets = has_facet_groups or show_facet_pane %}
 
 {% block body_attrs %}
   class="app-layout"
@@ -48,7 +55,7 @@
 {% block content %}
   <div class="content-layout{% if not has_facets %} content-layout--full{% endif %}">
     {% if has_facets %}
-      <aside class="facets" aria-label="Filters">
+      <aside class="facets{% if not has_facet_groups %} facets--empty{% endif %}" aria-label="Filters">
         {% block facets %}
           {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
         {% endblock facets %}

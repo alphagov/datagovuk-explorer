@@ -51,9 +51,12 @@ def series_list(request):
         "series.html",
         {
             "title": "Series — data.gov.uk Explorer",
-            "section": "series",
+            "section": "datasets",
             "series": series,
             "total": total,
+            # Two-pane frame with a blank facets sidebar so Series lines up
+            # with the other Datasets-group pages (see _app_layout.html).
+            "show_facet_pane": True,
             **pagination,
             "pager_base": pager_base,
             "sort": sort,
@@ -90,7 +93,7 @@ def series_detail(request, series_id):
         "series_detail.html",
         {
             "title": f"{s['root_title']} — Series — data.gov.uk Explorer",
-            "section": "series",
+            "section": "datasets",
             "series": s,
             "datasets": datasets,
         },

@@ -1,10 +1,11 @@
 /* ---------------------------------------------------------------------------
  * components/subnav.css — sub-report nav (macros/_subnav.html), the page
  * group that sits under a primary nav item (Links → Links + Errors,
- * Publishers → Publishers + Harvesters; later Metadata, Datasets… reuse
- * the macro). Rendered at the top of each child page, on the /links,
- * /links/errors, /organisations and /harvesters pages — loaded from their
- * styles blocks.
+ * Publishers → Publishers + Harvesters, Datasets → Datasets + Series +
+ * Reviews + Suggestions; later Metadata… reuses the macro). Rendered at
+ * the top of each child page, on the /links, /links/errors, /organisations,
+ * /harvesters, /datasets, /series, /reviews and /suggestions pages —
+ * loaded from their styles blocks.
  *
  * The links reuse .nav-link / .nav-link--active from layout.css, so the
  * sub-nav looks exactly like the primary site nav. The current report is an

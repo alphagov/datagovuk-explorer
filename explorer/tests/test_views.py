@@ -65,6 +65,22 @@ def _primary_nav(html: str) -> str:
     return m.group(1)
 
 
+def _assert_report_subnav(html, active, links, absent_from_main, main_item):
+    """One report-group page's sub-nav contract — the same macro the Links,
+    Publishers and Datasets groups use. `active` is the current report
+    (rendered as the page's active h1 heading), `links` are the (label, url)
+    sibling reports in the strip, `absent_from_main` are the group's reports
+    that must no longer be their own main-nav items, and `main_item` is the
+    href of the main-nav item that stays highlighted for the group."""
+    assert f'<h1 class="nav-link nav-link--active" aria-current="page">{active}</h1>' in html
+    for label, url in links:
+        assert f'<a href="{url}" class="nav-link">{label}</a>' in html
+    primary = _primary_nav(html)
+    for url in absent_from_main:
+        assert f'href="{url}"' not in primary
+    assert f'href="{main_item}"' in primary
+
+
 # ---------------------------------------------------------------------------
 # Health + 404s
 # ---------------------------------------------------------------------------
@@ -246,13 +262,15 @@ def test_organisations(client):
 
     # Publishers group sub-nav — Harvesters is a sub-report of Publishers
     # (the same macro as the Links group): the current report renders as
-    # the active h1 heading, with a link to the other report beside it.
-    assert '<h1 class="nav-link nav-link--active" aria-current="page">Publishers</h1>' in html
-    assert '<a href="/harvesters" class="nav-link">Harvesters</a>' in html
-    # Harvesters was removed from the main nav — it's only a sub-report now
-    primary = _primary_nav(html)
-    assert 'href="/harvesters"' not in primary
-    assert 'href="/organisations"' in primary
+    # the active h1 heading, with the sibling report linked beside it, and
+    # Harvesters is no longer its own main-nav item.
+    _assert_report_subnav(
+        html,
+        "Publishers",
+        (("Harvesters", "/harvesters"),),
+        ("/harvesters",),
+        "/organisations",
+    )
 
     # every sort column, both directions — page rows match the builder
     for sort in (
@@ -271,9 +289,7 @@ def test_organisations(client):
             expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
             r = client.get(f"/organisations?sort={sort}&dir={dir_}")
             assert r.status_code == 200
-            assert esc(expect[0]["display_name"] or expect[0]["name"]) in r.content.decode(), (
-                f"sort={sort} dir={dir_}"
-            )
+            assert esc(expect[0]["display_name"] or expect[0]["name"]) in r.content.decode(), f"sort={sort} dir={dir_}"
 
     # invalid sort falls back to name asc; bogus dir → asc
     r3 = client.get("/organisations?sort=bogus&dir=bogus")
@@ -403,9 +419,7 @@ def test_organisation_detail(client):
             expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
             r = client.get(f"/organisation/{slug}?sort={sort}&dir={dir_}")
             assert r.status_code == 200
-            assert esc(expect[0]["title"] or expect[0]["name"]) in r.content.decode(), (
-                f"sort={sort} dir={dir_}"
-            )
+            assert esc(expect[0]["title"] or expect[0]["name"]) in r.content.decode(), f"sort={sort} dir={dir_}"
 
     # invalid sort falls back to metadata_modified desc; bogus dir → asc
     r = client.get(f"/organisation/{slug}?sort=bogus&dir=bogus")
@@ -416,9 +430,12 @@ def test_organisation_detail(client):
     # page 2 exists for orgs with > 100 datasets; pager links keep sort/dir
     if count > PAGE_SIZE:
         # page 1 links forward to page 2; page 2 links back via Previous
-        assert "?sort=metadata_modified&amp;dir=desc&amp;page=2" in client.get(
-            f"/organisation/{slug}",
-        ).content.decode()
+        assert (
+            "?sort=metadata_modified&amp;dir=desc&amp;page=2"
+            in client.get(
+                f"/organisation/{slug}",
+            ).content.decode()
+        )
         r2 = client.get(f"/organisation/{slug}?page=2")
         assert r2.status_code == 200
         assert "?sort=metadata_modified&amp;dir=desc&amp;page=1" in r2.content.decode()
@@ -454,15 +471,16 @@ def test_harvesters(client):
     # count header: "X-Y of Z" with the filtered total
     assert f"1-{len(page1):,} of {total:,}" in html
 
-    # Harvesters now sits under the Publishers group: the Publishers main-nav
-    # item stays highlighted, and the sub-nav shows Publishers ↔ Harvesters
-    # with this report as the active h1 heading (no separate page heading).
-    primary = _primary_nav(html)
-    assert 'href="/organisations"' in primary
-    assert 'href="/harvesters"' not in primary
-    assert 'aria-current="page"' in primary  # Publishers is the active item
-    assert '<h1 class="nav-link nav-link--active" aria-current="page">Harvesters</h1>' in html
-    assert '<a href="/organisations" class="nav-link">Publishers</a>' in html
+    # Harvesters is a sub-report of Publishers — active h1 heading in the
+    # group's sub-nav, no longer its own main-nav item (Publishers stays
+    # highlighted in the main nav)
+    _assert_report_subnav(
+        html,
+        "Harvesters",
+        (("Publishers", "/organisations"),),
+        ("/harvesters",),
+        "/organisations",
+    )
 
     # every sort column, both directions — page rows match the builder
     for sort in ("title", "org_name", "type", "active", "frequency", "dataset_count", "last_run"):
@@ -610,16 +628,17 @@ def test_harvester_detail(client):
             expect = out["list"].all(*out["params"], PAGE_SIZE, 0)
             r = client.get(f"/harvester/{source['id']}?sort={sort}&dir={dir_}")
             assert r.status_code == 200
-            assert esc(expect[0]["title"] or expect[0]["name"]) in r.content.decode(), (
-                f"sort={sort} dir={dir_}"
-            )
+            assert esc(expect[0]["title"] or expect[0]["name"]) in r.content.decode(), f"sort={sort} dir={dir_}"
 
     # page 2 exists for sources with > 100 datasets; pager links keep sort/dir
     if count > PAGE_SIZE:
         # page 1 links forward to page 2; page 2 links back via Previous
-        assert "?sort=metadata_modified&amp;dir=desc&amp;page=2" in client.get(
-            f"/harvester/{source['id']}",
-        ).content.decode()
+        assert (
+            "?sort=metadata_modified&amp;dir=desc&amp;page=2"
+            in client.get(
+                f"/harvester/{source['id']}",
+            ).content.decode()
+        )
         r2 = client.get(f"/harvester/{source['id']}?page=2")
         assert r2.status_code == 200
         assert "?sort=metadata_modified&amp;dir=desc&amp;page=1" in r2.content.decode()
@@ -850,6 +869,16 @@ def test_datasets(client):
     r = client.get("/datasets")
     html = r.content.decode()
     assert r.status_code == 200
+    # Datasets group sub-nav — Series / Reviews / Suggestions are sub-reports
+    # (the same macro as the Links and Publishers groups); the current report
+    # is the active h1 heading and the group is gone from the main nav.
+    _assert_report_subnav(
+        html,
+        "Datasets",
+        (("Series", "/series"), ("Reviews", "/reviews"), ("Suggestions", "/suggestions")),
+        ("/series", "/reviews", "/suggestions"),
+        "/datasets",
+    )
     assert f"1-{PAGE_SIZE:,} of {total:,}" in html
 
     out = datasets_stmts({}, "organisation", "asc")
@@ -921,6 +950,14 @@ def test_series_pages(client):
     r = client.get("/series")
     html = r.content.decode()
     assert r.status_code == 200
+    # Series is a sub-report of Datasets (same sub-nav macro as the Links
+    # and Publishers groups) — active report is the h1 heading, and Series
+    # is no longer its own main-nav item.
+    _assert_report_subnav(html, "Series", (("Datasets", "/datasets"),), ("/series",), "/datasets")
+    # reserves the (blank, cardless) facets sidebar so the table lines up
+    # with the other Datasets-group pages
+    assert 'class="facets facets--empty"' in html
+    assert "content-layout--full" not in html
     assert f"{total:,}" in html
 
     default = series_list_stmt("dataset_count", "desc").all(50, 0)
@@ -939,6 +976,11 @@ def test_series_pages(client):
     series_row = SERIES_BY_ID.get(sid)
     assert series_row is not None
     assert esc(series_row["root_title"]) in h3
+    # series detail is a drill-down of the Series report — Datasets stays
+    # the highlighted main-nav item
+    primary = _primary_nav(h3)
+    assert 'href="/datasets"' in primary
+    assert 'aria-current="page"' in primary
 
     assert client.get("/series/abc").status_code == 404
     assert client.get("/series/99999999").status_code == 404
@@ -978,6 +1020,9 @@ def test_reviews(client):
     r = client.get("/reviews")
     html = r.content.decode()
     assert r.status_code == 200
+    # Reviews is a sub-report of Datasets — active h1 heading in the group's
+    # sub-nav, no longer its own main-nav item
+    _assert_report_subnav(html, "Reviews", (("Datasets", "/datasets"),), ("/reviews",), "/datasets")
     assert f"Dataset reviews ({total})" in html
     assert page_ids(html) == expect
 
@@ -1049,6 +1094,13 @@ def test_suggestions(client):
     r = client.get("/suggestions")
     html = r.content.decode()
     assert r.status_code == 200
+    # Suggestions is a sub-report of Datasets — active h1 heading in the
+    # group's sub-nav, no longer its own main-nav item
+    _assert_report_subnav(html, "Suggestions", (("Datasets", "/datasets"),), ("/suggestions",), "/datasets")
+    # reserves the (blank, cardless) facets sidebar so the table lines up
+    # with the other Datasets-group pages
+    assert 'class="facets facets--empty"' in html
+    assert "content-layout--full" not in html
     assert f"Suggestions ({total})" in html
 
     for sort in ("title", "org", "theme", "confidence"):

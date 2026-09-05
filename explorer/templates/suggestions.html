@@ -2,11 +2,34 @@
 
 {% block styles %}
   {{ super() }}
+  <link rel="stylesheet" href="{{ static('css/components/subnav.css') }}" />
   <link rel="stylesheet" href="{{ static('css/pages/suggestions.css') }}" />
 {% endblock styles %}
 
 {% block header_left %}
-  <h1>Suggestions</h1>
+  {% set subnav_tabs = [
+    {
+      "key": "datasets",
+      "label": "Datasets",
+      "url": "/datasets"
+    },
+    {
+      "key": "series",
+      "label": "Series",
+      "url": "/series"
+    },
+    {
+      "key": "reviews",
+      "label": "Reviews",
+      "url": "/reviews"
+    },
+    {
+      "key": "suggestions",
+      "label": "Suggestions",
+      "url": "/suggestions"
+    }
+  ] %}
+  {{ subnav(subnav_tabs, "suggestions", "Datasets") }}
 
   <p class="subtitle">
     LLM-suggested theme, tags, title and description improvements for
