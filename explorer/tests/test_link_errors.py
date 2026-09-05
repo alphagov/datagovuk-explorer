@@ -37,8 +37,15 @@ def link_errors_loaded():
 
 
 def _count(filters):
-    out = link_errors_stmts(filters, "checked", "desc")
+    out = link_errors_stmts(filters, "url", "asc")
     return out["count"].get(*out["params"])["n"]
+
+
+def _url_host(url):
+    """Host of a resource URL — the same split the SQL url sort uses
+    (scheme://host[:port]/path -> lowercased host, '' when scheme-less)."""
+    m = re.search(r"://([^/]+)", url or "")
+    return m.group(1).split(":", 1)[0].lower() if m else ""
 
 
 def _without(filters, key):
@@ -61,7 +68,7 @@ def test_link_errors_stats_shape(link_errors_loaded):
 
 
 def test_link_errors_list_shape_and_sort_whitelist(link_errors_loaded):
-    out = link_errors_stmts({}, "checked", "desc")
+    out = link_errors_stmts({}, "url", "asc")
     n = out["count"].get(*out["params"])["n"]
     assert n == link_errors_loaded
     rows = out["list"].all(*out["params"], 100, 0)
@@ -78,16 +85,16 @@ def test_link_errors_list_shape_and_sort_whitelist(link_errors_loaded):
         "category",
         "error_detail",
         "to_delete",
-        "checked_at",
         "org_slug",
         "harvest_state",
         "harvest_source_title",
     ):
         assert col in rows[0], f"list row missing {col}"
 
-    # the default page is the most-recent check first
-    assert rows[0]["checked_at"] >= rows[-1]["checked_at"]
-    print("ok: list shape + default checked desc sort")
+    # the default page sorts by URL (host asc, ingest-order tiebreak)
+    hosts = [_url_host(r["resource_url"]) for r in rows]
+    assert hosts == sorted(hosts)
+    print("ok: list shape + default url asc sort")
 
 
 @pytest.mark.parametrize("sort", LINK_ERRORS_SORT_COLUMNS)
@@ -129,8 +136,8 @@ def test_harvest_state_join_includes_unknown(link_errors_loaded):
     # isn't in the datasets snapshot (d.org_slug NULL when not joined)
     n_unknown = _count({"harvested": "unknown"})
     assert n_unknown == states["unknown"]
-    unknown_rows = link_errors_stmts({"harvested": "unknown"}, "checked", "desc")["list"].all(
-        *link_errors_stmts({"harvested": "unknown"}, "checked", "desc")["params"],
+    unknown_rows = link_errors_stmts({"harvested": "unknown"}, "url", "asc")["list"].all(
+        *link_errors_stmts({"harvested": "unknown"}, "url", "asc")["params"],
         100,
         0,
     )

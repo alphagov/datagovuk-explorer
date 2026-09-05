@@ -147,12 +147,11 @@ def _links_facet_counts(filters: dict) -> dict:
             "no_format": format_params,
             "years": year_params,
         },
+        # No cap — every host in the pool is a facet (1612 of them, not
+        # just the biggest link publishers); the view cuts the rendered list
+        # behind its "More domains" toggle, mirroring /links/errors.
         "hosts": Query(
-            "SELECT host, COUNT(*) AS count"
-            " FROM links l"
-            f"{host_where}"
-            " GROUP BY host ORDER BY count DESC, LOWER(host)"
-            " LIMIT 12",
+            f"SELECT host, COUNT(*) AS count FROM links l{host_where} GROUP BY host ORDER BY count DESC, LOWER(host)",
         ),
         "no_url": Query(f"SELECT COUNT(*) AS n FROM links l{no_url_where}"),
         "formats": Query(
@@ -177,7 +176,8 @@ def links_facet_counts(filters: dict) -> dict:
     """Sidebar facet counts for /links — each group counts over the pool
     filtered by the other groups (self-excluding). Returns:
 
-      'hosts':     [{'host': ..., 'count': n}, ...] (top 12)
+      'hosts':     [{'host': ..., 'count': n}, ...] all hosts, count desc
+                   (no cap — the view's More toggle cuts the list)
       'no_url':    int — links with no host (the trailing bucket)
       'formats':   [{'fmt': ..., 'count': n}, ...]
       'no_format': int — links with no format (the trailing bucket)

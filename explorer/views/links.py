@@ -23,9 +23,11 @@ from explorer.queries.links import (
 
 from .core import _sort_dir, paginate
 
-# Facet sidebar: formats beyond this cutoff are hidden behind the
-# "More formats" toggle (all other facet lists are always shown).
+# Facet sidebar cutoffs — formats/domains beyond these hide behind their
+# "More …" toggles (the standard facet-list expand/collapse; all other facet
+# lists are always shown).
 FORMAT_FACET_CUTOFF = 10
+HOST_FACET_CUTOFF = 15
 
 # Hostnames — RFC 1035/2181 caps a fully-qualified name at 253 chars.
 MAX_HOST_LENGTH = 253
@@ -48,6 +50,11 @@ def links(request):
     # toggle expands/collapses the list client-side (with a ?formats=all
     # fallback when JS is off). formats_expanded only sets the initial state.
     formats_expanded = request.GET.get("formats") == "all"
+
+    # Domain facet state — every host is a facet; the long list collapses
+    # past HOST_FACET_CUTOFF behind the same "More domains" toggle the
+    # /links/errors domain facet uses (?hosts=all, JS-free fallback).
+    host_expanded = request.GET.get("hosts") == "all"
 
     # Validate against the full list so any format can be filtered even when
     # it's beyond the top 10 shown by default.
@@ -76,7 +83,14 @@ def links(request):
 
     # Query-string fragments shared by sort links / facet links / pills.
     # Dicts preserve insertion order, so urlencode emits the fixed
-    # parameter order: sort, dir, then host, format, year, formats.
+    # parameter order: sort, dir, then host, format, year, formats, hosts.
+    # The extras carry the expanded-lists state (?formats=all / ?hosts=all)
+    # so facet/sort/pager links keep the lists expanded.
+    expanded_extras = {}
+    if formats_expanded:
+        expanded_extras["formats"] = "all"
+    if host_expanded:
+        expanded_extras["hosts"] = "all"
     base_params = facets.preserve_params(
         sort,
         dir_,
@@ -85,7 +99,7 @@ def links(request):
             ("format", current_format),
             ("year", current_year),
         ],
-        {"formats": "all"} if formats_expanded else None,
+        expanded_extras or None,
     )
     facet_url = facets.facet_url_for(base_params)
 
@@ -98,6 +112,10 @@ def links(request):
     facet_groups = [
         group
         for group in (
+            # The pool returns every host in it (count desc), so master and
+            # counts come from the same rows — the list mirrors the current
+            # sibling-filter pool, not a global top-N. Scheme-less URLs trail
+            # as the No URL bucket.
             facets.facet_counts_group(
                 "host",
                 "Domain",
@@ -106,6 +124,12 @@ def links(request):
                 {h["host"]: h["count"] for h in pool["hosts"]},
                 current_host,
                 proportions=True,
+                cutoff=HOST_FACET_CUTOFF,
+                toggle_base=base_params,
+                toggle_param="hosts",
+                toggle_label="domains",
+                expanded=host_expanded,
+                list_id="host-facet-list",
                 trailing=(
                     [
                         {

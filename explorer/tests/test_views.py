@@ -657,6 +657,16 @@ def test_links(client):
     section = _facet_section(h5, "Filter by format")
     assert ">No format<" in section
 
+    # the Domain facet is uncapped: every host is a facet, the sidebar
+    # starts with the top few and expands via the More toggle (same as the
+    # /links/errors domain facet); scheme-less URLs trail as No URL
+    assert 'id="host-facet-list"' in h5
+    assert "More domains" in h5
+    host_section = _facet_section(h5, "Filter by domain")
+    assert ">No URL<" in host_section
+    expanded = client.get("/links?hosts=all").content.decode()
+    assert "Fewer domains" in expanded
+
     # out-of-range page clamps
     assert client.get("/links?page=99999").status_code == 200
 

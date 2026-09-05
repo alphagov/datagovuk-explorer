@@ -8,7 +8,7 @@ are now resolved (shown, styled positively, not filtered out). Sortable via
 host), HTTP status (with the "No response" bucket for the code-less
 DNS/timeout rows), harvest state (Harvested/Manual/Unknown) and publisher
 via the single-select sidebar facets, paginated (100/page). Default sort is
-most-recent check first.
+URL (host) first.
 
 The harvest state rides the datasets LEFT JOIN (queries/link_errors.py):
 harvested/manual from the snapshot, unknown when the package is absent
@@ -111,7 +111,7 @@ def link_errors(request):
         "publisher": current_publisher,
     }
 
-    sort, dir_ = _sort_dir(request, LINK_ERRORS_SORT_COLUMNS, "checked", "desc")
+    sort, dir_ = _sort_dir(request, LINK_ERRORS_SORT_COLUMNS, "url")
 
     # Count + page in SQL — only the page's rows are fetched (the LEFT
     # JOIN supplies org slug / harvest state / harvest source per row).

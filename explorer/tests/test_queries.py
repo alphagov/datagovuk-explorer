@@ -621,11 +621,11 @@ def test_links_stmts_count_matches_list(filters, sort, dir_):
 # ---------------------------------------------------------------------------
 # Each group counts over the pool filtered by the *other* groups (the
 # /datasets self-exclusion contract). The pools deliberately exclude
-# NULL/'' values — and the hosts pool caps at the top 12 — so the pool
-# total equals the list count with that group's filter cleared, minus the
-# excluded rows. The host and format groups each split their pool into
-# two halves (top-12 hosts + the "No URL" trailing bucket; formats + the
-# "No format" trailing bucket) that partition it.
+# NULL/'' values — so the pool total equals the list count with that
+# group's filter cleared, minus the excluded rows. The host and format
+# groups each split their pool into two halves (all hosts + the "No URL"
+# trailing bucket; all formats + the "No format" trailing bucket) that
+# partition it.
 
 
 def _assert_links_pool_consistency(filters):
@@ -635,12 +635,13 @@ def _assert_links_pool_consistency(filters):
         total = _links_count(_without(filters, group))
         frag, params = facet_where(_LINKS_CLAUSES, filters, exclude=group)
         if group == "host":
-            top12 = sum(r["count"] for r in counts["hosts"])
+            hosts_total = sum(r["count"] for r in counts["hosts"])
             no_value = counts["no_url"]
             non_null_where = f"{frag} AND l.host IS NOT NULL" if frag else " WHERE l.host IS NOT NULL"
             non_null = Query(f"SELECT COUNT(*) AS n FROM links l{non_null_where}").get(*params)["n"]
             assert no_value + non_null == total, (filters, group)
-            assert top12 <= non_null, (filters, group)
+            # the hosts pool is uncapped — it covers every non-NULL host
+            assert hosts_total == non_null, (filters, group)
         else:
             pool = sum(r["count"] for r in counts[pool_keys[group]])
             col = "format_norm" if group == "format" else "year_created"
@@ -663,8 +664,8 @@ def _links_count(filters):
 def test_links_facet_pools_total_to_list_count():
     """Each group's pool total equals the list count with that group's
     filter cleared, minus the rows the pool deliberately excludes — the
-    NULL/'' values, and (host) the no-URL bucket + the hosts beyond the
-    top-12 cap. Combos use real hosts/formats/years from the live pools."""
+    NULL/'' values, and (host) the no-URL bucket (the hosts pool itself
+    is uncapped). Combos use real hosts/formats/years from the live pools."""
     base = links_facet_counts({})
     host = base["hosts"][0]["host"]
     fmt = base["formats"][0]["fmt"]

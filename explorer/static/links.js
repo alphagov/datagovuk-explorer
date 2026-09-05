@@ -1,8 +1,9 @@
 // Links report — expand/collapse facet lists in place.
 //
-// The "More formats" toggle is a real link (?formats=all) so it works with
-// JS off; when JS is available we intercept the click and show/hide the
-// extra items without a page load.
+// The "More …" toggles (e.g. "More domains", "More formats") are real
+// links (?hosts=all, ?formats=all) so they work with JS off; when JS is
+// available we intercept the click and show/hide the extra items without
+// a page load.
 //
 // Works for any number of toggles: each .facet-toggle lives inside the
 // .facet-list it controls (as its last <li>), and the items beyond the

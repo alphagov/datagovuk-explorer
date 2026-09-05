@@ -77,7 +77,7 @@ TO_DELETE_VALUES = [
 
 # Sortable column key -> SQL ORDER BY expression (already LOWER()/COALESCE'd,
 # so the builder only appends ASC/DESC). Text columns sort case-insensitively.
-LINK_ERRORS_SORT_COLUMNS = ["url", "dataset", "publisher", "status", "checked", "to_delete"]
+LINK_ERRORS_SORT_COLUMNS = ["url", "dataset", "publisher", "status", "to_delete"]
 
 # The checked URL's host — substring's capture group pulls "host[:port]" out
 # of "scheme://host:port/path" (no match -> NULL -> COALESCE'd to ''), then
@@ -94,8 +94,6 @@ LINK_ERRORS_SORT_EXPRS = {
     # No-response rows (http_status NULL) sort below real codes on asc,
     # above them on desc — COALESCE(-1), the reviews scores pattern.
     "status": "COALESCE(e.http_status, -1)",
-    # ISO timestamps sort chronologically as text (same format across runs)
-    "checked": "e.checked_at",
     "to_delete": "e.to_delete",
 }
 
@@ -204,7 +202,7 @@ def link_errors_stmts(filters: dict, sort: str, dir_: str) -> dict:
     where, params = facet_where(_CLAUSES, filters)
     order_sql = f"{LINK_ERRORS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}"
     # `, e.id` pins tied rows to ingest order — an unpinned ORDER BY would
-    # reshuffle pages (89k rows, ~45k share each checked_at value).
+    # reshuffle pages whenever rows share a sort value (same host/status/…).
     order_sql += ", e.id"
 
     return {
@@ -214,7 +212,7 @@ def link_errors_stmts(filters: dict, sort: str, dir_: str) -> dict:
             "SELECT e.id, e.package_id, e.package_name, e.resource_id,"
             "  e.resource_url, e.datagovuk_url, e.org_name, e.org_id,"
             "  e.http_status AS status, e.category, e.error_detail,"
-            "  e.to_delete, e.checked_at,"
+            "  e.to_delete,"
             "  d.org_slug,"
             f"  {_PUBLISHER_NAME} AS org_display_name,"
             "  CASE WHEN d.id IS NULL THEN 'unknown'"

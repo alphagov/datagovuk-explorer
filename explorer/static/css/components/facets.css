@@ -105,8 +105,8 @@
 	border-top: 1px dashed var(--color-border);
 }
 
-/* Items beyond the visible cut-off (top 10) — hidden until the facet
-   list is expanded by the "More formats" toggle (public/links.js). */
+/* Items beyond the visible cut-off — hidden until the facet list is
+   expanded by its "More …" toggle (public/links.js). */
 .facet-extra {
 	display: none;
 }

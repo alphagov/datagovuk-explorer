@@ -39,7 +39,6 @@
           <th class="col-text">{{ sort_link("publisher", "Publisher", sort, dir, facet_qs) }}</th>
           <th class="col-text">Harvested</th>
           <th class="col-text">{{ sort_link("to_delete", "To delete", sort, dir, facet_qs) }}</th>
-          <th class="col-date">{{ sort_link("checked", "Checked", sort, dir, facet_qs) }}</th>
         </tr>
       </thead>
       <tbody>
@@ -69,7 +68,6 @@
             </td>
             <td class="col-text">{{ harvested_state_badge(e) }}</td>
             <td class="col-text">{{ "Yes" if e.to_delete else "No" }}</td>
-            <td class="col-date">{{ e.checked_at | date_short }}</td>
           </tr>
         {% endfor %}
       </tbody>
