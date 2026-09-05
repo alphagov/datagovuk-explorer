@@ -6,8 +6,7 @@ absent. /health is exempt — a health check behind auth is useless to
 Railway's uptime checks.
 
 Production without BASIC_AUTH_USER/BASIC_AUTH_PASS is a configuration error:
-raising at startup beats silently running without the gate (the old
-behaviour — `enabled` required both creds, so a missing one turned auth off).
+raising at startup beats silently running without the gate.
 
 Dev-only note: whitenoise.runserver_nostatic (see config/settings.py) makes
 WhiteNoise serve /static/ through the middleware chain locally too, so the

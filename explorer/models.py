@@ -277,11 +277,9 @@ class SeriesDataset(models.Model):
 class Review(models.Model):
     """One row per LLM review record.
 
-    The typed columns mirror the record's suggestion fields; `json` holds the
-    full JSONL record verbatim and is what the views read
-    (via explorer/queries), so the dict shape the templates expect is
-    preserved byte-for-byte. Timestamps are TEXT like every other table in
-    this schema (reviewed_at from the record).
+    `json` holds the JSONL record verbatim and is what the views read (via
+    explorer/queries), so the dict shape the templates expect is preserved;
+    the typed columns mirror its suggestion fields.
     """
 
     id = models.AutoField(primary_key=True)
@@ -313,14 +311,13 @@ class Review(models.Model):
 
 
 class LinkError(models.Model):
-    """One row per link-check result from data/errors-current.csv, ingested
-    by scripts/ingest_link_errors.py (TRUNCATE + reload, like reviews).
+    """One row per link-check result from data/errors-current.csv, loaded by
+    scripts/ingest_link_errors.py (TRUNCATE + reload).
 
-    package_id is deliberately NOT a FK: ~3.6% of rows reference packages
-    absent from the datasets snapshot (they render as Unknown on the
-    /links/errors report via the LEFT JOIN). http_status is NULL for the
-    DNS/timeout/connection rows that never got an HTTP response.
-    Timestamps are TEXT like the rest of the schema.
+    package_id is not a FK: some rows reference packages absent from the
+    datasets snapshot — they render as Unknown on /links/errors via the
+    LEFT JOIN. http_status is NULL for the DNS/timeout/connection rows that
+    never got an HTTP response.
     """
 
     id = models.BigAutoField(primary_key=True)

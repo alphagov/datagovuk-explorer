@@ -68,20 +68,14 @@ def _duplicate_url_report(request, report, url):
 
 
 def _report_facets(report, query_params, expanded) -> tuple[list, dict, list, dict]:
-    """Compile the report's single-select facet groups + active selections,
+    """The report's facet groups + active selections for one request,
     validated against the report's own unfiltered facet options.
 
-    Each facet's displayed counts are self-excluding (queries/reports.py's
-    report_facet_counts): they apply every other active facet's filter,
-    omitting their own — a no-op for the single-facet reports, and the real
-    case for datasets-has-api (?org= + ?api_type=, where org counts shrink
-    under an api_type selection and vice versa).
-
-    expanded: {facet key: True} — which facet lists are expanded past the
-    default cutoff (?<plural>=all). Long option lists (the Publisher org
-    pool can run to hundreds) collapse behind the shared More toggle; the
-    base params are built here so the group toggles can use them, and
-    returned for the caller's facet_url/pager links."""
+    Counts are self-excluding (queries/reports.py's report_facet_counts):
+    each group applies the other active facets' filters, omitting its own.
+    The base params are built here so the More toggles and the caller's
+    facet_url/pager links share them. Returns (facet_groups,
+    active_filters, active_facets, base_params)."""
     facet_groups = []
     active_filters: dict[str, str] = {}
     active_facets: list[dict] = []
