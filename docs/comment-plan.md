@@ -72,7 +72,7 @@ Ask, in order:
 
 ## Progress so far
 
-Done (commits `9f79fa0` and `3c4861d`):
+Done:
 
 - `explorer/queries/*` — all modules trimmed (history, jargon, long
   return-shape docstrings).
@@ -81,16 +81,26 @@ Done (commits `9f79fa0` and `3c4861d`):
 - `explorer/helpers.py` — fixed mangled docstring.
 - `scripts/download_datasets.py`, `scripts/build_db.py` — first pass
   (docstring wraps, "tail" wording, format-bucket essay, restating
-  comments).
+  comments).  (commits `9f79fa0`, `3c4861d`)
+- Rest of `scripts/` (commit `ffb1849`): `build_series.py` (stale
+  root_title/DATE_PATTERNS comments now match the code; figures dropped
+  from `MIN_WORDS`; "planned follow-up" cut), `experiment_series.py`
+  (v1/tail comments stale now that the range patterns live in
+  build_series — noted at the top), `review_suggest.py` ("earlier
+  outputs", JS `appendFileSync` ref, wrong `process_one` pointer),
+  `embeddings.py`, `embed_only.py` (broken comment wrap + UTF-16 corner
+  note), `fetch_harvest_sources.py` (site-count figure), `ingest_link_errors.py`
+  (run dates + ~figures in the docstring), `rate_limit.py` (dead
+  "async version" ref), `db.py` (docstring essay trimmed).
+- `config/settings.py` — long WhiteNoise/static comments trimmed to the
+  essential why.
+- Test sweep — tests keep their short per-case annotations; long or
+  jargon-y ones were reworded: "pins"/"tiebreak"/"workstream E/F"/
+  "regression ... fixed"/plan-doc refs in `explorer/tests`, hash-test
+  "pins" and the "(verified: ...)" aside in `tests/`.
 
-Still to do in another session:
-
-- Rest of `scripts/`: `build_series.py`, `experiment_series.py`,
-  `review_suggest.py`, `query_datasets.py`, `embeddings.py`,
-  `embed_only.py`, `fetch_*`, `ingest_*`, `rate_limit.py`, `db.py`.
-- `config/settings.py` (a few long WhiteNoise/static comments).
-- Test files: `tests/*` and `explorer/tests/*` — mostly short per-case
-  annotations (fine), but sweep for long or historical ones.
+Clean with nothing to change: `scripts/query_datasets.py`,
+`fetch_organisations.py`, `ingest_reviews.py`, `download_llm.py`.
 
 A useful starting point is a comment inventory by file:
 
