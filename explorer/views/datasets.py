@@ -2,8 +2,9 @@
 
 Server-side sortable via ?sort= & ?dir= and filterable via the sidebar
 facets — primary theme (?theme=), source (?source=harvested|manual),
-creation year (?year=), temporal coverage year (?temporal=) and metadata
-key/value (?metadata_key=&metadata_value=, linked from the /metadata value
+creation year (?year=), link count (?links=, the count-bucket facet),
+temporal coverage year (?temporal=) and metadata key/value
+(?metadata_key=&metadata_value=, linked from the /metadata value
 pages) — paginated (100/page).
 
 Sidebar facet counts are SQL aggregates from explorer/queries/datasets.py
@@ -22,10 +23,13 @@ from explorer import facets
 from explorer.helpers import theme_label
 from explorer.queries.datasets import (
     DATASET_TOTAL,
+    LINK_BUCKET_NAMES,
+    LINK_BUCKETS,
     TEMPORAL_MAX_YEAR,
     TEMPORAL_MIN_YEAR,
     TEMPORAL_YEARS,
     THEME_COUNTS,
+    VALID_LINK_BUCKETS,
     datasets_facet_counts,
     datasets_stmts,
     fetched_slugs,
@@ -74,10 +78,11 @@ def _year_master() -> list[str]:
 
 @dataclass(frozen=True)
 class DatasetsFilters:
-    """The five validated /datasets facet selections (None = not active)."""
+    """The six validated /datasets facet selections (None = not active)."""
 
     theme: str | None
     source: str | None
+    links: str | None
     year: str | None
     temporal: str | None
     metadata_key: str | None
@@ -102,6 +107,9 @@ def _parse_filters(request, valid_slugs, valid_years, valid_temporal_years) -> D
 
     source = request.GET.get("source")
     current_source = source if source in ("harvested", "manual") else None
+
+    links = request.GET.get("links")
+    current_links = links if links in VALID_LINK_BUCKETS else None
 
     year = request.GET.get("year")
     current_year = year if year in valid_years else None
@@ -128,6 +136,7 @@ def _parse_filters(request, valid_slugs, valid_years, valid_temporal_years) -> D
     return DatasetsFilters(
         theme=current_theme,
         source=current_source,
+        links=current_links,
         year=current_year,
         temporal=current_temporal,
         metadata_key=current_metadata_key,
@@ -188,6 +197,7 @@ def datasets(request):
         {
             "theme": filters.theme,
             "source": filters.source,
+            "links": filters.links,
             "year": filters.year,
             "temporal": filters.temporal,
         },
@@ -207,6 +217,7 @@ def datasets(request):
         [
             ("theme", filters.theme),
             ("source", filters.source),
+            ("links", filters.links),
             ("year", filters.year),
             ("temporal", filters.temporal),
             ("metadata_key", filters.metadata_key),
@@ -272,6 +283,15 @@ def datasets(request):
                 [("harvested", "Harvested"), ("manual", "Manual")],
                 facet_counts["source"],
                 filters.source,
+                proportions=True,
+            ),
+            facets.facet_counts_group(
+                "links",
+                "Links",
+                "Filter by number of links",
+                [(value, name) for value, name in LINK_BUCKETS],
+                {r["bucket"]: r["count"] for r in facet_counts["links"]},
+                filters.links,
                 proportions=True,
             ),
             facets.facet_counts_group(
@@ -341,6 +361,8 @@ def datasets(request):
             "theme": filters.theme,
             "theme_label": labels["theme_label"],
             "source": filters.source,
+            "links": filters.links,
+            "links_label": (LINK_BUCKET_NAMES[filters.links] if filters.links else None),
             "year": filters.year,
             "temporal": filters.temporal,
             "temporal_label": labels["temporal_label"],

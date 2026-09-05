@@ -22,6 +22,8 @@ import explorer.middleware as mw
 from explorer.queries.core import Query
 from explorer.queries.datasets import (
     DATASET_COUNT,
+    LINK_BUCKET_NAMES,
+    LINK_BUCKETS,
     THEME_COUNTS,
     datasets_facet_counts,
     datasets_stmts,
@@ -738,6 +740,39 @@ def test_theme_facet_order(client):
     assert names == [esc(t["label"]) for t in _theme_master()]
 
 
+def test_links_facet_order(client):
+    """The Links facet lists the link-count buckets in master order, each
+    with its SQL pool count (the /organisations Datasets facet shape)."""
+    counts = {r["bucket"]: r["count"] for r in datasets_facet_counts({})["links"]}
+    expected = [name for value, name in LINK_BUCKETS if counts.get(value, 0) > 0]
+    r = client.get("/datasets")
+    section = _facet_section(r.content.decode(), "Filter by number of links")
+    names = re.findall(r'<span class="facet-name">([^<]+)</span>', section)
+    assert names == [esc(n) for n in expected]
+    # and the facet count matches the SQL pool for a populated bucket
+    top = max(counts, key=lambda v: counts[v])
+    assert f'<span class="facet-count">{counts[top]:,}</span>' in section
+
+
+def test_datasets_links_filter(client):
+    """?links=<bucket> narrows the list to datasets whose link count falls
+    in that range, renders the filter pill, and keeps pager URLs clean."""
+    for bucket in ("0", "1-10", "11-50", "501-1000"):
+        expect = _datasets_sql_count({"links": bucket})
+        h = client.get(f"/datasets?links={bucket}").content.decode()
+        assert f"of {expect:,}" in h, bucket
+
+    # the pill renders with the human bucket label
+    h = client.get("/datasets?links=501-1000").content.decode()
+    assert "Remove links filter" in h
+    assert esc(LINK_BUCKET_NAMES["501-1000"]) in h
+
+    # a bogus bucket value falls back to the unfiltered list
+    h = client.get("/datasets?links=bogus").content.decode()
+    assert f"of {_datasets_sql_count({}):,}" in h
+    assert "Remove links filter" not in h
+
+
 def test_datasets(client):
     total = _datasets_sql_count({})
     r = client.get("/datasets")
@@ -995,7 +1030,7 @@ def test_pager_urls_never_undefined(client):
         assert hrefs, "metadata values pager should render"
         assert "undefined" not in "".join(hrefs)
         assert all(h.startswith("?page=") for h in hrefs)
-        # count display: "X–Y of Z" range in the header right pane
+        # count display: "X-Y of Z" range in the header right pane
         assert f"1-{PAGE_SIZE:,} of {n_values:,}" in html
 
     # /report/{key} — no sort UI: unfiltered links are clean ?page=N, and

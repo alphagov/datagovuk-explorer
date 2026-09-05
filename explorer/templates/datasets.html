@@ -7,6 +7,7 @@
   {% set pills = [
       {"label": "Theme", "value": theme_label, "href": facet_url("theme", "") , "aria": "Remove theme filter: " ~ theme_label} if theme else none,
       {"label": "Source", "value": source_name, "href": facet_url("source", "") , "aria": "Remove source filter: " ~ source_name} if source else none,
+      {"label": "Links", "value": links_label, "href": facet_url("links", "") , "aria": "Remove links filter: " ~ links_label} if links else none,
       {"label": "Year", "value": year, "href": facet_url("year", ""), "aria": "Remove year filter: " ~ year} if year else none,
       {"label": "Temporal", "value": temporal_label, "href": facet_url("temporal", "") , "aria": "Remove temporal year filter: " ~ temporal_label} if temporal else none,
       {"label": "Metadata", "value": metadata_label, "href": facet_url("metadata_key", "") , "aria": "Remove metadata filter: " ~ metadata_label} if metadata_key else none,

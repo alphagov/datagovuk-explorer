@@ -278,10 +278,14 @@ FACET_CONSISTENCY_COMBOS = [
     {"theme": "none"},
     {"source": "harvested"},
     {"source": "manual"},
+    {"links": "0"},
+    {"links": "1-10"},
+    {"links": "1000+"},
     {"temporal": "pre1900"},
     {"temporal": "post"},
     {"temporal": "none"},
     {"theme": "none", "source": "manual", "temporal": "post"},
+    {"theme": "none", "source": "harvested", "links": "0"},
 ]
 
 
@@ -327,6 +331,13 @@ def test_facet_pools_total_to_list_count(filters):
     in_window = sum(r["count"] for r in counts["temporal_years"])
     assert in_window + buckets["pre1900"] + buckets["post"] >= period_rows
 
+    # links: every dataset lands in exactly one bucket (NULL resource_count
+    # COALESCEs into the 0 bucket), so the pool total equals the page count
+    # with the links filter cleared.
+    assert sum(r["count"] for r in counts["links"]) == _datasets_count(
+        _without(filters, "links"),
+    )
+
 
 def test_facet_counts_with_live_year_and_theme():
     """Same consistency check with a real year + theme from the live data."""
@@ -343,6 +354,41 @@ def test_facet_counts_with_live_year_and_theme():
     buckets = counts["temporal_buckets"]
     period_rows = _datasets_count(_without(filters, "temporal")) - buckets["none"]
     assert sum(r["count"] for r in counts["temporal_years"]) + buckets["pre1900"] + buckets["post"] >= period_rows
+
+
+def test_links_facet_pool_matches_python_reference():
+    """The links pool equals the Python reference buckets over the same
+    datasets — the shared bucket tests applied to COALESCE(resource_count,
+    0) — for no filter and under another active facet (self-exclusion: the
+    links group's own filter never narrows its pool). Pins the 0 /
+    open-ended-top bucket boundaries and the COALESCE-into-0 fallback, the
+    same way the orgs bucket reference does for package_count."""
+    from explorer.buckets import bucket_tests  # noqa: PLC0415
+
+    rows = Query(
+        "SELECT COALESCE(resource_count, 0) AS rc, harvested, theme_primary FROM datasets",
+    ).all()
+    tests = bucket_tests()
+
+    def kept(row, filters):
+        """Reference `every other facet` match — the filters the SQL pool
+        applies when the links group is excluded."""
+        return not (filters.get("source") == "harvested" and row["harvested"] != 1) and not (
+            filters.get("theme") == "none" and row["theme_primary"] is not None
+        )
+
+    for filters in ({}, {"source": "harvested"}, {"theme": "none"}):
+        counts = datasets_facet_counts(filters)
+        pool = dict.fromkeys(tests, 0)
+        for row in rows:
+            if not kept(row, filters):
+                continue
+            for value, test in tests.items():
+                if test(row["rc"]):
+                    pool[value] += 1
+                    break
+        got = {r["bucket"]: r["count"] for r in counts["links"]}
+        assert got == {k: v for k, v in pool.items() if v}, filters
 
 
 def test_theme_none_counts_only_theme_primary_null():

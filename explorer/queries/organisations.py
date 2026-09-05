@@ -26,80 +26,33 @@ sidebar pools."""
 import functools
 from typing import Any
 
+from explorer.buckets import BUCKET_EDGES, bucket_case, bucket_pairs, bucket_ranges, bucket_tests
 from explorer.helpers import yearly_counts
 
 from .core import Query, cached_unfiltered, facet_where
 
 # Dataset-count facet buckets — 0 plus fixed ranges covering the full
 # spread (orgs are heavily skewed small, so the low end is fine-grained).
-# The bucket upper edges are listed once; keys, labels and membership
-# tests are derived from them so ranges and comparisons can't drift apart.
-DATASET_BUCKET_EDGES = (0, 10, 50, 100, 500, 1000)
-
-
-def _dataset_bucket(lo: int, hi: int) -> tuple[str, str]:
-    """(key, label) for the inclusive range [lo, hi]."""
-    return (f"{lo}-{hi}", f"{lo:,}-{hi:,}")
-
-
-def _dataset_buckets(edges: tuple[int, ...]) -> list[tuple[str, str]]:
-    """Buckets: 0, then [1, edge1], [edge1+1, edge2], …, open-ended top."""
-    buckets: list[tuple[str, str]] = [("0", "0")]
-    lo = 1
-    for hi in edges[1:]:
-        buckets.append(_dataset_bucket(lo, hi))
-        lo = hi + 1
-    top = edges[-1]
-    buckets.append((f"{top}+", f"{top:,}+"))
-    return buckets
-
-
-DATASET_BUCKETS = _dataset_buckets(DATASET_BUCKET_EDGES)
+# The edges and their derivation live in explorer/buckets (shared with the
+# /datasets Links facet and /harvesters' per-source bucket), so a bucket
+# key means the same range on every page; this module keeps the
+# DATASET_BUCKET_* names the views/tests/harvesters import.
+DATASET_BUCKET_EDGES = BUCKET_EDGES
+DATASET_BUCKETS = bucket_pairs()
 DATASET_BUCKET_NAMES = dict(DATASET_BUCKETS)
 VALID_DATASET_BUCKETS = set(DATASET_BUCKET_NAMES)
-
-# Inclusive [lo, hi] per bucket key (hi=None for the open-ended top) — the
-# boundary source for both the Python membership tests and the SQL clauses.
-DATASET_BUCKET_RANGES: dict[str, tuple[int, int | None]] = {}
-for _value, _ in DATASET_BUCKETS:
-    if _value == "0":
-        DATASET_BUCKET_RANGES[_value] = (0, 0)
-    elif _value.endswith("+"):
-        DATASET_BUCKET_RANGES[_value] = (int(_value[:-1]) + 1, None)
-    else:
-        lo, hi = _value.split("-")
-        DATASET_BUCKET_RANGES[_value] = (int(lo), int(hi))
-
+DATASET_BUCKET_RANGES = bucket_ranges()
 
 # The bucket membership tests — the reference semantics the SQL bucket
 # clauses must match (dataset_count is package_count or 0, exactly like
 # the SQL COALESCE below). Consumed by the facet-pool reference tests and
 # the /harvesters page's bucket helper (the org list's own filtering is
 # SQL since workstream F).
-def _bucket_test(lo: int, hi: int | None):
-    """Membership predicate for one bucket: inclusive [lo, hi], n > lo for
-    the open-ended top, and the "0" bucket falls out as [0, 0] ≡ n == 0."""
-    if hi is None:
-        return lambda n, lo=lo: n > lo
-    return lambda n, lo=lo, hi=hi: lo <= n <= hi
-
-
-DATASET_BUCKET_TESTS = {value: _bucket_test(lo, hi) for value, (lo, hi) in DATASET_BUCKET_RANGES.items()}
+DATASET_BUCKET_TESTS = bucket_tests()
 
 # CASE expression mapping COALESCE(package_count, 0) to its bucket key —
-# generated from the same ranges so the SQL boundaries can't drift.
-_DATASET_BUCKET_CASE = (
-    "CASE "
-    + " ".join(
-        (
-            f"WHEN COALESCE(o.package_count, 0) > {lo} THEN '{value}'"
-            if hi is None
-            else f"WHEN COALESCE(o.package_count, 0) BETWEEN {lo} AND {hi} THEN '{value}'"
-        )
-        for value, (lo, hi) in DATASET_BUCKET_RANGES.items()
-    )
-    + f" ELSE '{DATASET_BUCKETS[-1][0]}' END"
-)
+# generated from the shared ranges so the SQL boundaries can't drift.
+_DATASET_BUCKET_CASE = bucket_case("COALESCE(o.package_count, 0)")
 
 
 # All organisations, in display-name order

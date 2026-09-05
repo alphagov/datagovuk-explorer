@@ -5,14 +5,15 @@ import functools
 from datetime import UTC, datetime
 from typing import Any
 
+from explorer.buckets import bucket_case, bucket_pairs, bucket_ranges
 from explorer.helpers import yearly_counts
 
 from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
 # --- /datasets query builder ---
 #
-# Compiled per (filters, sort, dir). filters: { theme, source, year,
-# temporal, metadata_key, metadata_value }.
+# Compiled per (filters, sort, dir). filters: { theme, source, links,
+# year, temporal, metadata_key, metadata_value }.
 #
 # The WHERE clauses drive the page list + count (filtering, sorting and
 # pagination happen in the database instead of sorting the whole table in
@@ -156,25 +157,56 @@ def _temporal_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     return [], []
 
 
-# The four /datasets clause builders, keyed by facet — the dict
+# --- /datasets Links facet (count buckets over resource_count) ------------
+# Buckets datasets by how many links each has — the same edges as the
+# publishers page's Datasets facet (both derive from explorer/buckets), so
+# a bucket key means the same range on every page. resource_count is the
+# per-dataset COUNT of its links rows (the build keeps it in sync), so the
+# bucket CASE below mirrors the list/sort's COALESCE(resource_count, 0).
+LINK_BUCKETS = bucket_pairs()
+LINK_BUCKET_NAMES = dict(LINK_BUCKETS)
+VALID_LINK_BUCKETS = set(LINK_BUCKET_NAMES)
+_LINK_BUCKET_RANGES = bucket_ranges()
+_LINK_BUCKET_CASE = bucket_case("COALESCE(d.resource_count, 0)")
+
+
+def _links_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """links (link-count bucket) WHERE fragment + params, or ([], []) when
+    skipped/excluded. Boundaries come from the shared bucket ranges, applied
+    to COALESCE(resource_count, 0) — the same `or 0` semantics the list's
+    resource_count column and the /organisations datasets clause use."""
+    if exclude == "links":
+        return [], []
+    bucket = filters.get("links")
+    if bucket:
+        lo, hi = _LINK_BUCKET_RANGES[bucket]
+        col = "COALESCE(d.resource_count, 0)"
+        if hi is None:
+            return [f"{col} > %s"], [lo]
+        return [f"{col} BETWEEN %s AND %s"], [lo, hi]
+    return [], []
+
+
+# The five /datasets clause builders, keyed by facet — the dict
 # core.facet_where ANDs together (minus the excluded facet) for both the
 # page list/count and the sidebar facet pools.
 _FACET_CLAUSES = {
     "theme": _theme_clause,
     "source": _source_clause,
+    "links": _links_clause,
     "year": _year_clause,
     "temporal": _temporal_clause,
 }
 
 
 def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
-    """WHERE fragment + params for the theme/source/year/temporal filters,
-    omitting `exclude` (the facet group being counted).
+    """WHERE fragment + params for the theme/source/links/year/temporal
+    filters, omitting `exclude` (the facet group being counted).
 
     The metadata filter is deliberately not handled here — it applies to the
     page list/count only, never to the facet counts (contract item 1), so
     `datasets_stmts` adds its clause after this. Routed through the shared
-    core.facet_where helper with the four clause builders above.
+    core.facet_where helper with the five clause builders above.
     """
     return facet_where(_FACET_CLAUSES, filters, exclude)
 
@@ -272,11 +304,12 @@ def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
 
 
 def _facet_counts(filters: dict) -> dict:
-    """Compiled facet-count statements for one (theme/source/year/temporal)
-    combo — the {themes, source, years, temporal_years, temporal_buckets}
-    Queries plus the per-statement params."""
+    """Compiled facet-count statements for one (theme/source/links/year/
+    temporal) combo — the {themes, source, links, years, temporal_years,
+    temporal_buckets} Queries plus the per-statement params."""
     theme_where, theme_params = _facet_where(filters, exclude="theme")
     source_where, source_params = _facet_where(filters, exclude="source")
+    links_where, links_params = _facet_where(filters, exclude="links")
     year_where, year_params = _facet_where(filters, exclude="year")
     temporal_where, temporal_params = _facet_where(filters, exclude="temporal")
 
@@ -289,6 +322,7 @@ def _facet_counts(filters: dict) -> dict:
         "params": {
             "themes": theme_params,
             "source": source_params,
+            "links": links_params,
             "years": year_params,
             "temporal_years": temporal_params,
             "temporal_buckets": temporal_params,
@@ -302,6 +336,13 @@ def _facet_counts(filters: dict) -> dict:
             "SELECT COUNT(*) FILTER (WHERE harvested = 1) AS harvested,"
             "       COUNT(*) FILTER (WHERE harvested = 0) AS manual"
             f" FROM datasets d{source_where}",
+        ),
+        # Link-count buckets in one pass — the shared bucket CASE over
+        # resource_count, so every dataset lands in exactly one bucket
+        # (NULL resource_count COALESCEs into the 0 bucket, mirroring the
+        # list's `or 0`).
+        "links": Query(
+            f"SELECT {_LINK_BUCKET_CASE} AS bucket, COUNT(*) AS count FROM datasets d{links_where} GROUP BY 1",
         ),
         "years": Query(
             "SELECT substr(metadata_created, 1, 4) AS year, COUNT(*) AS count"
@@ -356,12 +397,13 @@ def datasets_facet_counts(filters: dict) -> dict:
 
       'themes':          [{'theme': slug | '__none__', 'count': n}, ...]
       'source':          {'harvested': n, 'manual': n}
+      'links':           [{'bucket': '0'|'1-10'|..., 'count': n}, ...]
       'years':           [{'year': 'YYYY', 'count': n}, ...]
       'temporal_years':  [{'year': int, 'count': n}, ...]
       'temporal_buckets': {'pre1900': n, 'post': n, 'none': n}
 
-    The five pools are five independent single-SELECT aggregates, so they
-    run concurrently via core.fetch_parallel.
+    The six pools are six independent single-SELECT aggregates, so they run
+    concurrently via core.fetch_parallel.
 
     No-filter calls (the common /datasets view) return the memoised
     unfiltered pools via core.cached_unfiltered — the temporal pools alone
@@ -370,10 +412,11 @@ def datasets_facet_counts(filters: dict) -> dict:
     """
     entry = _facet_counts(filters)
     p = entry["params"]
-    themes, source, years, temporal_years, temporal_buckets = fetch_parallel(
+    themes, source, links, years, temporal_years, temporal_buckets = fetch_parallel(
         [
             lambda: entry["themes"].all(*p["themes"]),
             lambda: entry["source"].get(*p["source"]),
+            lambda: entry["links"].all(*p["links"]),
             lambda: entry["years"].all(*p["years"]),
             lambda: entry["temporal_years"].all(*p["temporal_years"]),
             lambda: entry["temporal_buckets"].get(*p["temporal_buckets"]),
@@ -382,6 +425,7 @@ def datasets_facet_counts(filters: dict) -> dict:
     return {
         "themes": themes,
         "source": source,
+        "links": links,
         "years": years,
         "temporal_years": temporal_years,
         "temporal_buckets": temporal_buckets,
