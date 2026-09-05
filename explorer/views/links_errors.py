@@ -45,8 +45,8 @@ TO_DELETE_LABELS = dict(TO_DELETE_VALUES)
 # orgs), but the sidebar starts with the top few and expands via the
 # standard More link (?hosts=all / ?publishers=all, JS-free fallback like
 # /links formats).
-HOST_FACET_CUTOFF = 15
-PUBLISHER_FACET_CUTOFF = 15
+HOST_FACET_CUTOFF = 10
+PUBLISHER_FACET_CUTOFF = 10
 
 
 def _category_name(value: str) -> str:

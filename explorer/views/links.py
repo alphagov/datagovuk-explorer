@@ -27,7 +27,7 @@ from .core import _sort_dir, paginate
 # "More …" toggles (the standard facet-list expand/collapse; all other facet
 # lists are always shown).
 FORMAT_FACET_CUTOFF = 10
-HOST_FACET_CUTOFF = 15
+HOST_FACET_CUTOFF = 10
 
 # Hostnames — RFC 1035/2181 caps a fully-qualified name at 253 chars.
 MAX_HOST_LENGTH = 253

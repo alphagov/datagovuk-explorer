@@ -43,8 +43,8 @@ from .core import _sort_dir, paginate
 # Temporal-year facet window: years above this count collapse behind a
 # "More years" toggle; the Publisher facet's org list does the same behind
 # a "More publishers" toggle (1176 orgs in the unfiltered pool).
-TEMPORAL_FACET_CUTOFF = 15
-PUBLISHER_FACET_CUTOFF = 15
+TEMPORAL_FACET_CUTOFF = 10
+PUBLISHER_FACET_CUTOFF = 10
 
 # In-window temporal years (latest first) — filter-independent, memoised at
 # module level (the DB is a build-time snapshot, so the result is stable).
