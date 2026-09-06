@@ -33,7 +33,22 @@ llm/       Embedding model (gitignored) — fetch with `just download-llm`
 
 ## Quickstart
 
-Requires Python 3.13, `uv`, and a local PostgreSQL server.
+Requires Python 3.13, `uv`, and PostgreSQL 16+ with the `vector` extension
+(pgvector). The extension is not optional: migration 0002 creates it and a
+`vector(768)` column, so a Postgres without pgvector fails at `migrate`.
+
+### PostgreSQL
+
+On macOS the straightforward install is Postgres.app, which bundles
+pgvector: install it, initialise a server when first launched, and use its
+"Set up PATH for command line tools" menu item — the `justfile` calls
+`createdb`/`psql`/`pg_dump` directly. Local connections are passwordless,
+matching the default `DATABASE_URL`.
+
+With Homebrew instead: `brew install postgresql@18 pgvector`, put that keg
+on PATH (`/opt/homebrew/opt/postgresql@18/bin` on Apple Silicon), then
+`brew services start postgresql@18`. On Debian/Ubuntu install `postgresql`
+plus the matching `postgresql-XX-pgvector` package.
 
 ```bash
 just setup                    # uv sync --dev
