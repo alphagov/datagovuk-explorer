@@ -158,9 +158,12 @@ unused-css:
                  badge-rejected badge-pending \
       | python3 -c 'import json,sys; [print(x["file"].split("/")[-1] + ": " + (", ".join(r.strip() for r in x["rejected"] if r.strip()) or "clean")) for x in json.load(sys.stdin)]'
 
-# Download datasets (pass args through)
+# Download datasets. Defaults to --continuous --per-org all (the full build).
+# The 1000/org default in the script silently truncates large publishers
+# (ONS, Natural England, etc.) and causes FK violations in ingest-reviews.
+# Pass explicit flags to override, e.g. --per-org 1000 for a quick sample.
 download-datasets *args:
-    uv run python -m scripts.download_datasets {{args}}
+    uv run python -m scripts.download_datasets {{ if args == "" { "--continuous --per-org all" } else { args } }}
 
 # Query datasets for one org
 query-datasets *args:
