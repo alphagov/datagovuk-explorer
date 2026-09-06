@@ -66,7 +66,13 @@ def _int(v):
 
 
 def ingest(db, records: list[dict]) -> int:
-    """Truncate + insert the deduped records; returns the row count."""
+    """Truncate + insert records whose dataset exists locally; returns inserted count."""
+    ids = [r["dataset_id"] for r in records]
+    existing = {str(row["id"]) for row in db.prepare("SELECT id FROM datasets WHERE id = ANY(?)").all(ids)}
+    present = [r for r in records if r["dataset_id"] in existing]
+    skipped = len(records) - len(present)
+    if skipped:
+        print(f"Skipped {skipped} review(s) — dataset not in local DB.")
 
     def _run(tx) -> None:
         tx.exec("TRUNCATE reviews RESTART IDENTITY")
@@ -76,7 +82,7 @@ def ingest(db, records: list[dict]) -> int:
                 theme, tags, title, "desc", theme_confidence, created_at, json)
                VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         )
-        for r in records:
+        for r in present:
             stmt.run(
                 r["dataset_id"],
                 bool(r.get("ok")),
@@ -94,7 +100,7 @@ def ingest(db, records: list[dict]) -> int:
             )
 
     db.transaction(_run)
-    return len(records)
+    return len(present)
 
 
 def main(file: str = str(DEFAULT_FILE)) -> None:
