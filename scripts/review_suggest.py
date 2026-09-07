@@ -368,6 +368,13 @@ def check_server(client: httpx.Client, base_url: str) -> None:
         raise ReviewError(f'server reports status "{body.get("status")}"')
 
 
+def _is_anthropic(base_url: str, model: str = "") -> bool:
+    # Direct Anthropic API, or a proxy serving Bedrock models (eu./us./ap. prefix).
+    return "api.anthropic.com" in base_url or bool(
+        re.match(r"(eu|us|ap)\.anthropic\.", model)
+    )
+
+
 def send_request(
     client: httpx.Client,
     base_url: str,
@@ -377,11 +384,23 @@ def send_request(
 ) -> str:
     """One chat completion call. Returns the trimmed reply content.
 
-    Request body is compact JSON (compact separators, raw unicode, key
-    order model/messages/thinking/max_tokens/temperature — thinking only
-    when an API key is present).
+    Routes to the Anthropic Messages API when base_url contains
+    api.anthropic.com; otherwise uses the OpenAI-compatible
+    /v1/chat/completions endpoint (remote or local llama).
     """
 
+    if _is_anthropic(base_url, model):
+        return _send_anthropic(client, base_url, api_key, model, digest)
+    return _send_openai_compat(client, base_url, api_key, model, digest)
+
+
+def _send_openai_compat(
+    client: httpx.Client,
+    base_url: str,
+    api_key: str,
+    model: str,
+    digest: dict,
+) -> str:
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -408,6 +427,53 @@ def send_request(
     except (KeyError, IndexError, TypeError):
         message = None
     content = (message or {}).get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ReviewError("empty reply content (max_tokens may be too low)")
+    return content.strip()
+
+
+def _send_anthropic(
+    client: httpx.Client,
+    base_url: str,
+    api_key: str,
+    model: str,
+    digest: dict,
+) -> str:
+    # Split system message from user messages — Anthropic takes system as a
+    # top-level field, not a messages entry.
+    messages = build_prompt(digest)
+    system_text = next((m["content"] for m in messages if m["role"] == "system"), None)
+    user_messages = [m for m in messages if m["role"] != "system"]
+
+    # API keys start with "sk-ant-api"; anything else is treated as an
+    # OAuth bearer token (e.g. ANTHROPIC_AUTH_TOKEN from Claude Code).
+    is_oauth = not api_key.startswith("sk-ant-api")
+    headers: dict = {"Content-Type": "application/json", "anthropic-version": "2023-06-01"}
+    if is_oauth:
+        headers["Authorization"] = f"Bearer {api_key}"
+        headers["anthropic-beta"] = "oauth-2025-04-20"
+    else:
+        headers["x-api-key"] = api_key
+
+    body: dict = {"model": model, "max_tokens": MAX_TOKENS, "messages": user_messages}
+    if system_text:
+        body["system"] = system_text
+
+    res = client.post(
+        f"{base_url}/v1/messages",
+        headers=headers,
+        content=json.dumps(body, ensure_ascii=False, separators=(",", ":")),
+    )
+    if not res.is_success:
+        raise ReviewError(
+            f"HTTP {res.status_code}: {truncate(res.text, 200)}",
+            status=res.status_code,
+        )
+    data = res.json()
+    try:
+        content = next(b["text"] for b in data["content"] if b.get("type") == "text")
+    except (KeyError, IndexError, StopIteration, TypeError):
+        content = None
     if not isinstance(content, str) or not content.strip():
         raise ReviewError("empty reply content (max_tokens may be too low)")
     return content.strip()
@@ -794,7 +860,7 @@ def main(
         print("--limit must be >= 1", file=sys.stderr)
         raise typer.Exit(1)
 
-    key = (api_key or os.environ.get("LLM") or "").strip()
+    key = (api_key or os.environ.get("LLM") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY") or "").strip()
     is_remote = bool(key)
     base = base_url or (os.environ.get("LLM_BASE_URL") if is_remote else os.environ.get("LOCAL_BASE_URL"))
     mdl = model or (os.environ.get("LLM_MODEL") if is_remote else os.environ.get("LOCAL_MODEL"))
