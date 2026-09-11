@@ -70,7 +70,12 @@ fresh-db db_name="datagovuk_explorer":
 build-series:
     uv run --env-file .env python -m scripts.build_series
 
-# Embed dataset embeddings (needs llama-server up on :8080; DATABASE_URL from .env)
+# Start llama-server with the embedding model on :8080 (keep running in a separate terminal)
+llama-server:
+    llama-server -m llm/bge-base-en-v1.5-q8_0.gguf \
+      --embeddings --pooling cls --embd-normalize 2 --gpu-layers all --port 8080
+
+# Embed dataset embeddings (run `just llama-server` in another terminal first; DATABASE_URL from .env)
 embed-only:
     uv run --env-file .env python -m scripts.embed_only
 

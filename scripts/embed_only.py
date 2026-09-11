@@ -158,14 +158,15 @@ def main() -> None:
 
         print("Computing embeddings via llama-server...", file=sys.stderr)
 
+        LOG_EVERY = 20  # batches between progress lines
         start_time = time.time()
         with httpx.Client(follow_redirects=True, timeout=TIMEOUT) as client:
-            for batch_start in range(0, len(texts), BATCH):
+            for batch_num, batch_start in enumerate(range(0, len(texts), BATCH)):
                 batch_end = min(batch_start + BATCH, len(texts))
                 embed_batch(client, db, texts, rows, batch_start, batch_end)
 
                 done = batch_end
-                if done % 5000 == 0 or done >= len(texts):
+                if batch_num % LOG_EVERY == 0 or done >= len(texts):
                     elapsed = (time.time() - start_time) / 60
                     print(
                         f"  {done}/{len(texts)} ({elapsed:.1f} min)...",
