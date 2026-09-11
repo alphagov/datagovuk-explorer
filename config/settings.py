@@ -111,8 +111,10 @@ USE_TZ = True
 # the staticfiles handler in dev. Templates reference assets via
 # {{ static('...') }}. No MEDIA_URL override: we serve no media, and the
 # Django default ("") stays distinct from "/static/".
+# `explorer` is in INSTALLED_APPS, so AppDirectoriesFinder already collects
+# explorer/static/. Don't also list it in STATICFILES_DIRS: that makes every
+# asset appear twice and collectstatic reports "N skipped due to conflict".
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "explorer" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
     "staticfiles": {
