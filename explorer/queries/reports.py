@@ -304,7 +304,18 @@ REPORTS = [
             "often HTML or free text pasted into the URL field."
         ),
         "kind": "links",
-        **_link_report_sql("(url IS NOT NULL AND url != '') AND host IS NULL"),
+        "facets": [
+            {
+                "key": "org",
+                "label": "Publisher",
+                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
+            FROM links WHERE (url IS NOT NULL AND url != '') AND host IS NULL{facet_and}
+            GROUP BY org_slug, org_display_name
+            ORDER BY count DESC, LOWER(org_display_name)""",
+                "filter_sql": " AND org_slug = %s",
+            },
+        ],
+        **_link_report_sql("(url IS NOT NULL AND url != '') AND host IS NULL{org}"),
     },
     {
         "key": "links-no-format",
@@ -312,7 +323,18 @@ REPORTS = [
         "description": "Links with no file format recorded.",
         "kind": "links",
         "hidden_cols": ["format"],
-        **_link_report_sql("format_norm IS NULL OR format_norm = ''"),
+        "facets": [
+            {
+                "key": "org",
+                "label": "Publisher",
+                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
+            FROM links WHERE (format_norm IS NULL OR format_norm = ''){facet_and}
+            GROUP BY org_slug, org_display_name
+            ORDER BY count DESC, LOWER(org_display_name)""",
+                "filter_sql": " AND org_slug = %s",
+            },
+        ],
+        **_link_report_sql("(format_norm IS NULL OR format_norm = ''){org}"),
     },
     {
         "key": "links-no-name",
