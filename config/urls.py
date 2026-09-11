@@ -65,6 +65,13 @@ urlpatterns += [
     path("suggestions", views.suggestions, name="suggestions"),
 ]
 
+# --- search -------------------------------------------------------
+urlpatterns += [
+    path("search", views.search, name="search"),
+    path("search/publishers", views.search_publishers, name="search-publishers"),
+    path("search/datasets", views.search_datasets, name="search-datasets"),
+]
+
 # Catch-all 404 — last pattern, so it only sees paths no route matched
 # (missing static files fall through WhiteNoise to here too). Renders
 # 404.html in both DEBUG modes; NotFoundMiddleware still converts Http404s

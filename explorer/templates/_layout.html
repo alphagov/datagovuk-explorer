@@ -19,6 +19,7 @@
     <title>{{ title }}</title>
     <link rel="stylesheet" href="{{ static('css/base.css') }}" />
     <link rel="stylesheet" href="{{ static('css/layout.css') }}" />
+    <link rel="stylesheet" href="{{ static('css/components/search.css') }}" />
     <link rel="stylesheet" href="{{ static('css/components/table.css') }}" />
     <link rel="stylesheet" href="{{ static('css/components/badges.css') }}" />
     <link rel="stylesheet" href="{{ static('css/components/pagination.css') }}" />
@@ -38,6 +39,18 @@
           <img src="{{ static('images/logo-ndl.svg') }}" alt="Home" />
           <span class="wordmark-sub">Explorer</span>
         </a>
+        <form class="site-search" action="/search" method="get" role="search">
+          <input class="site-search__input" type="search" name="q"
+                 placeholder="Search publishers, datasets…"
+                 value="{{ q if q is defined else '' }}"
+                 autocomplete="off" />
+          <button class="site-search__button" type="submit" aria-label="Search">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M10 10L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </form>
         <nav class="site-nav" aria-label="Primary">
           {{ nav_link('/', 'Home', 'dashboard') }}
           {{ nav_link('/organisations', 'Publishers', 'orgs') }}

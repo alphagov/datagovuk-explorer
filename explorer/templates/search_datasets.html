@@ -1,0 +1,31 @@
+{% extends "_layout.html" %}
+
+{% block styles %}
+  <link rel="stylesheet" href="{{ static('css/components/search.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/pagination.css') }}" />
+{% endblock styles %}
+
+{% block content %}
+  <div class="search-results">
+    {{ back_link("/search?q=" ~ q, "Back to search") }}
+
+    <h1 class="search-results__heading">
+      Datasets matching <span class="search-results__term">{{ q }}</span>
+    </h1>
+
+    {% if datasets %}
+      <p class="count">{{ start_index | num }}–{{ end_index | num }} of {{ total | num }}</p>
+      <ul class="search-list">
+        {% for d in datasets %}
+          <li class="search-item">
+            <a class="search-item__title" href="/dataset/{{ d.org_slug }}/{{ d.id }}">{{ d.title }}</a>
+            <span class="search-item__meta">{{ d.org_display_name }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+      {{ pagination(start_index, end_index, total, page, total_pages, pager_base) }}
+    {% else %}
+      <p class="subtitle">No datasets matched <strong>{{ q }}</strong>.</p>
+    {% endif %}
+  </div>
+{% endblock content %}

@@ -1,0 +1,63 @@
+{% extends "_layout.html" %}
+
+{% block styles %}
+  <link rel="stylesheet" href="{{ static('css/components/search.css') }}" />
+{% endblock styles %}
+
+{% block content %}
+  <div class="search-results">
+
+    {% if not q %}
+      <p class="subtitle">Enter a term in the search box to find publishers and datasets.</p>
+
+    {% elif not publisher_count and not dataset_count %}
+      <p class="subtitle">No results for <strong>{{ q }}</strong>.</p>
+
+    {% else %}
+
+      <h1 class="search-results__heading">Results for <span class="search-results__term">{{ q }}</span></h1>
+
+      {% if publisher_count %}
+        <section class="search-section">
+          <h2 class="search-section__title">
+            Publishers
+            <span class="search-section__count">{{ publisher_count | num }}</span>
+          </h2>
+          <ul class="search-list">
+            {% for org in publishers %}
+              <li class="search-item">
+                <a class="search-item__title" href="/organisation/{{ org.slug }}">{{ org.display_name }}</a>
+                <span class="search-item__meta">{{ org.package_count | num }} dataset{{ 's' if org.package_count != 1 }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if publisher_count > publishers | length %}
+            <a class="search-more" href="/search/publishers?q={{ q }}">More results</a>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      {% if dataset_count %}
+        <section class="search-section">
+          <h2 class="search-section__title">
+            Datasets
+            <span class="search-section__count">{{ dataset_count | num }}</span>
+          </h2>
+          <ul class="search-list">
+            {% for d in datasets %}
+              <li class="search-item">
+                <a class="search-item__title" href="/dataset/{{ d.org_slug }}/{{ d.id }}">{{ d.title }}</a>
+                <span class="search-item__meta">{{ d.org_display_name }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if dataset_count > datasets | length %}
+            <a class="search-more" href="/search/datasets?q={{ q }}">More results</a>
+          {% endif %}
+        </section>
+      {% endif %}
+
+    {% endif %}
+
+  </div>
+{% endblock content %}

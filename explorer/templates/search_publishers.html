@@ -1,0 +1,31 @@
+{% extends "_layout.html" %}
+
+{% block styles %}
+  <link rel="stylesheet" href="{{ static('css/components/search.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/pagination.css') }}" />
+{% endblock styles %}
+
+{% block content %}
+  <div class="search-results">
+    {{ back_link("/search?q=" ~ q, "Back to search") }}
+
+    <h1 class="search-results__heading">
+      Publishers matching <span class="search-results__term">{{ q }}</span>
+    </h1>
+
+    {% if publishers %}
+      <p class="count">{{ start_index | num }}–{{ end_index | num }} of {{ total | num }}</p>
+      <ul class="search-list">
+        {% for org in publishers %}
+          <li class="search-item">
+            <a class="search-item__title" href="/organisation/{{ org.slug }}">{{ org.display_name }}</a>
+            <span class="search-item__meta">{{ org.package_count | num }} dataset{{ 's' if org.package_count != 1 }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+      {{ pagination(start_index, end_index, total, page, total_pages, pager_base) }}
+    {% else %}
+      <p class="subtitle">No publishers matched <strong>{{ q }}</strong>.</p>
+    {% endif %}
+  </div>
+{% endblock content %}
