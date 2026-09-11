@@ -34,12 +34,22 @@
     {% endmacro %}
 
     <header class="site-header">
-      <div class="header-inner">
+      <div class="header-inner" id="header-inner">
         <a href="/" class="site-title">
           <img src="{{ static('images/logo-ndl.svg') }}" alt="Home" />
           <span class="wordmark-sub">Explorer</span>
         </a>
-        <form class="site-search" action="/search" method="get" role="search">
+        <button class="menu-toggle" aria-expanded="false" aria-controls="header-menu" aria-label="Open navigation menu">
+          <svg class="menu-toggle__icon menu-toggle__icon--open" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <rect y="4"  width="22" height="2" rx="1" fill="currentColor"/>
+            <rect y="10" width="22" height="2" rx="1" fill="currentColor"/>
+            <rect y="16" width="22" height="2" rx="1" fill="currentColor"/>
+          </svg>
+          <svg class="menu-toggle__icon menu-toggle__icon--close" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <path d="M3 3L19 19M19 3L3 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <form class="site-search" id="header-menu" action="/search" method="get" role="search">
           <input class="site-search__input" type="search" name="q"
                  placeholder="Search publishers, datasets…"
                  value="{{ q if q is defined else '' }}"
@@ -60,6 +70,17 @@
         </nav>
       </div>
     </header>
+    <script>
+      (function () {
+        var btn = document.querySelector('.menu-toggle');
+        var inner = document.getElementById('header-inner');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          var open = inner.classList.toggle('is-open');
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      })();
+    </script>
 
     <main class="container{% if narrow %} container--narrow{% endif %}">
       {% block page_header %}

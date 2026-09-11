@@ -35,9 +35,7 @@
 
 .site-nav {
 	display: flex;
-	row-gap: 10px;
 	column-gap: 20px;
-	flex-wrap: wrap;
 	justify-self: end;
 }
 
@@ -61,4 +59,101 @@
 .nav-link--active {
 	color: var(--color-accent);
 	border-bottom-color: var(--color-accent);
+}
+
+/* ---------- Menu toggle button (desktop: hidden) ---------- */
+.menu-toggle {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 6px;
+	color: var(--color-muted);
+	margin-bottom: 20px;
+	border-radius: 4px;
+}
+
+.menu-toggle:hover {
+	color: var(--color-text);
+}
+
+.menu-toggle__icon--close { display: none; }
+
+.header-inner.is-open .menu-toggle__icon--open  { display: none; }
+.header-inner.is-open .menu-toggle__icon--close { display: block; }
+
+/* ---------- Compact layout ---------- */
+@media (max-width: 1160px) {
+	.header-inner {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		padding-bottom: 0;
+	}
+
+	.site-title {
+		flex: 1;
+		gap: 8px;
+		margin-bottom: 12px;
+	}
+
+	.site-title img {
+		height: 32px;
+		width: auto;
+	}
+
+	.wordmark-sub {
+		font-size: 0.95rem;
+		margin-left: -4px;
+		letter-spacing: 0.4px;
+	}
+
+	.menu-toggle {
+		display: flex;
+		margin-bottom: 12px;
+	}
+
+	/* More specific than search.css's .site-search { display: flex } */
+	.header-inner .site-search {
+		display: none;
+		flex: 0 0 100%;
+		margin-bottom: 12px;
+	}
+
+	.header-inner .site-search .site-search__input {
+		flex: 1;
+		width: auto;
+	}
+
+	.site-nav {
+		display: none;
+		flex: 0 0 100%;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 0;
+		padding-bottom: 8px;
+	}
+
+	.site-nav .nav-link {
+		padding: 10px;
+		border-bottom: none;
+		border-left: 3px solid transparent;
+	}
+
+	.site-nav .nav-link:hover {
+		border-bottom-color: transparent;
+		border-left-color: var(--color-border);
+	}
+
+	.site-nav .nav-link--active {
+		border-bottom-color: transparent;
+		border-left-color: var(--color-accent);
+	}
+
+	.header-inner.is-open .site-search,
+	.header-inner.is-open .site-nav {
+		display: flex;
+	}
 }
