@@ -30,6 +30,7 @@ from .core import paginate
 # Facets without an entry render fully shown (no collapse).
 REPORT_FACET_PLURALS = {
     "org": "publishers",
+    "api_category": "categories",
     "api_type": "api types",
 }
 
@@ -172,6 +173,7 @@ def report(request, key):
         report,
         {
             "org": request.GET.get("org"),
+            "api_category": request.GET.get("api_category"),
             "api_type": request.GET.get("api_type"),
         },
         expanded,
