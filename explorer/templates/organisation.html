@@ -3,6 +3,11 @@
 {% block styles %}
   <link rel="stylesheet" href="{{ static('css/components/chart.css') }}" />
   <link rel="stylesheet" href="{{ static('css/pages/dataset.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/pages/dashboard.css') }}" />
+  <style>
+    .org-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+    .org-cards .dashboard-card { flex: 1; min-width: 120px; }
+  </style>
 {% endblock styles %}
 
 {% block content %}
@@ -11,35 +16,41 @@
   <article class="dataset-detail">
     <h1>{{ org.display_name }}</h1>
 
-    <section class="section">
-      <dl class="detail-list">
-        <dt>Datasets</dt>
-        <dd>
-          {{ org.dataset_count | num }}
-          — {{ org.harvested_count | num }} harvested, {{ org.manual_count | num }} manual
-        </dd>
-        <dt>Links</dt>
-        <dd>{{ org.total_resources | num }}</dd>
-        <dt>Views</dt>
-        <dd>{{ org.total_views | num }}</dd>
-        {% if org.state %}
-          <dt>Status</dt>
-          <dd><span class="badge badge-{{ org.state }}">{{ org.state }}</span></dd>
-        {% endif %}
-        {% if org.approval_status %}
-          <dt>Approved</dt>
-          <dd><span class="badge badge-{{ org.approval_status }}">{{ org.approval_status }}</span></dd>
-        {% endif %}
-        {% if org.created %}
-          <dt>Created</dt>
-          <dd>{{ org.created | date_short }}</dd>
-        {% endif %}
-      </dl>
-    </section>
+    <div class="org-cards">
+      <a href="/datasets?publisher={{ org.slug }}" class="dashboard-card">
+        <span class="dashboard-card-count">{{ org.dataset_count | num }}</span>
+        <span class="dashboard-card-label">
+          Datasets<br>{{ org.harvested_count | num }} harvested, {{ org.manual_count | num }} manual
+        </span>
+      </a>
+      <a href="/links/errors?publisher={{ org.slug }}" class="dashboard-card">
+        <span class="dashboard-card-count">{{ org.total_resources | num }}</span>
+        <span class="dashboard-card-label">Links</span>
+      </a>
+      <div class="dashboard-card">
+        <span class="dashboard-card-count">{{ org.total_views | num }}</span>
+        <span class="dashboard-card-label">Views</span>
+      </div>
+    </div>
 
-    <section class="section">
-      <a href="/datasets?publisher={{ org.slug }}">Browse all {{ org.dataset_count | num }} datasets →</a>
-    </section>
+    {% if org.state or org.approval_status or org.created %}
+      <section class="section">
+        <dl class="detail-list">
+          {% if org.state %}
+            <dt>Status</dt>
+            <dd><span class="badge badge-{{ org.state }}">{{ org.state }}</span></dd>
+          {% endif %}
+          {% if org.approval_status %}
+            <dt>Approved</dt>
+            <dd><span class="badge badge-{{ org.approval_status }}">{{ org.approval_status }}</span></dd>
+          {% endif %}
+          {% if org.created %}
+            <dt>Created</dt>
+            <dd>{{ org.created | date_short }}</dd>
+          {% endif %}
+        </dl>
+      </section>
+    {% endif %}
 
     {% if yearly and max_yearly %}
       <section class="section chart-section">

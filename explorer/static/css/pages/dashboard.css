@@ -57,8 +57,14 @@
 		background var(--transition);
 }
 
-.dashboard-card:hover {
+a.dashboard-card:hover {
 	border-color: var(--color-accent);
+}
+
+div.dashboard-card {
+	cursor: default;
+	background: transparent;
+	box-shadow: none;
 }
 
 .dashboard-card-count {
