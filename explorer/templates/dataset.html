@@ -30,7 +30,10 @@
     {# ── Description ── #}
     {% if dataset.notes %}
       <section class="section">
-        <div class="notes-content">{{ dataset.notes | safe }}</div>
+        <div class="notes-wrap">
+          <div class="notes-content notes-content--clamped" id="notes-content">{{ dataset.notes | safe }}</div>
+          <button class="notes-toggle" id="notes-toggle" aria-expanded="false" aria-controls="notes-content">Show more</button>
+        </div>
       </section>
     {% endif %}
     {% if review and review.suggested_description %}
@@ -382,4 +385,18 @@
     {% endif %}
 
   </article>
+  <script>
+    (function () {
+      var content = document.getElementById('notes-content');
+      var btn = document.getElementById('notes-toggle');
+      if (!content || !btn) return;
+      if (content.scrollHeight <= content.clientHeight) { btn.hidden = true; return; }
+      btn.addEventListener('click', function () {
+        var expanded = btn.getAttribute('aria-expanded') === 'true';
+        content.classList.toggle('notes-content--clamped', expanded);
+        btn.setAttribute('aria-expanded', String(!expanded));
+        btn.textContent = expanded ? 'Show more' : 'Show less';
+      });
+    })();
+  </script>
 {% endblock content %}
