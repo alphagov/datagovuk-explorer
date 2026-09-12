@@ -2,54 +2,86 @@
 
 {% block styles %}
   <link rel="stylesheet" href="{{ static('css/components/chart.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/pages/dataset.css') }}" />
 {% endblock styles %}
 
 {% block content %}
-  {{ back_link('/', 'All publishers') }}
+  {{ back_link('/organisations', 'All publishers') }}
 
-  <h1>{{ org.display_name }}</h1>
+  <article class="dataset-detail">
+    <h1>{{ org.display_name }}</h1>
 
-  <p class="count">
-    {{ org.dataset_count | num }} dataset
-    {% if org.dataset_count != 1 %}s{% endif %}
-    — {{ org.harvested_count | num }} harvested, {{ (org.dataset_count - org.harvested_count) | num }} manual
-  </p>
-
-  {% if yearly %}
-    <section class="chart-section">
-      <h2>Datasets created per year</h2>
-      {{ bar_chart(yearly, max_yearly) }}
+    <section class="section">
+      <dl class="detail-list">
+        <dt>Datasets</dt>
+        <dd>
+          {{ org.dataset_count | num }}
+          — {{ org.harvested_count | num }} harvested, {{ org.manual_count | num }} manual
+        </dd>
+        <dt>Links</dt>
+        <dd>{{ org.total_resources | num }}</dd>
+        <dt>Views</dt>
+        <dd>{{ org.total_views | num }}</dd>
+        {% if org.state %}
+          <dt>Status</dt>
+          <dd><span class="badge badge-{{ org.state }}">{{ org.state }}</span></dd>
+        {% endif %}
+        {% if org.approval_status %}
+          <dt>Approved</dt>
+          <dd><span class="badge badge-{{ org.approval_status }}">{{ org.approval_status }}</span></dd>
+        {% endif %}
+        {% if org.created %}
+          <dt>Created</dt>
+          <dd>{{ org.created | date_short }}</dd>
+        {% endif %}
+      </dl>
     </section>
-  {% endif %}
 
-  {{ pagination(start_index, end_index, org.dataset_count, page, total_pages, pager_base) }}
+    <section class="section">
+      <a href="/datasets?publisher={{ org.slug }}">Browse all {{ org.dataset_count | num }} datasets →</a>
+    </section>
 
-  <div class="table-wrap">
-    <table class="data-table data-table--wide-first">
-      <thead>
-        <tr>
-          <th class="col-text">{{ sort_link("title", "Title", sort, dir) }}</th>
-          <th class="col-date">{{ sort_link("metadata_created", "Created", sort, dir) }}</th>
-          <th class="col-date">{{ sort_link("metadata_modified", "Updated", sort, dir) }}</th>
-          <th class="col-num">{{ sort_link("resources", "Links", sort, dir) }}</th>
-          <th class="col-num">{{ sort_link("views", "Views", sort, dir) }}</th>
-          <th class="col-text">{{ sort_link("harvested", "Harvested", sort, dir) }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for ds in org.datasets %}
-          <tr>
-            <th scope="row" class="col-text">
-              <a href="/dataset/{{ org.slug }}/{{ ds.id }}">{{ ds.title or ds.name }}</a>
-            </th>
-            <td class="col-date">{{ ds.metadata_created | date_short if ds.metadata_created else "—" }}</td>
-            <td class="col-date">{{ ds.metadata_modified | date_short if ds.metadata_modified else "—" }}</td>
-            <td class="col-num">{{ ds.resource_count | num }}</td>
-            <td class="col-num">{{ ds.views | num }}</td>
-            <td class="col-text">{{ harvested_badge(ds) }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+    {% if yearly and max_yearly %}
+      <section class="section chart-section">
+        <h2>Datasets created per year</h2>
+        {{ bar_chart(yearly, max_yearly) }}
+      </section>
+    {% endif %}
+
+    {% if harvesters %}
+      <section class="section">
+        <h2>Harvesters ({{ harvesters | length | num }})</h2>
+        <div class="table-wrap">
+          <table class="data-table data-table--wide-first">
+            <thead>
+              <tr>
+                <th class="col-text">Source</th>
+                <th class="col-text">Type</th>
+                <th class="col-text">Status</th>
+                <th class="col-text">Frequency</th>
+                <th class="col-num">Datasets</th>
+                <th class="col-date">Last run</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for h in harvesters %}
+                <tr>
+                  <th scope="row" class="col-text">
+                    <a href="/harvester/{{ h.id }}">{{ h.title or h.id }}</a>
+                  </th>
+                  <td class="col-text">{{ h.type_label }}</td>
+                  <td class="col-text">
+                    <span class="badge badge-{{ 'active' if h.active else 'manual' }}">{{ h.active_label }}</span>
+                  </td>
+                  <td class="col-text">{{ h.frequency_label }}</td>
+                  <td class="col-num">{{ h.dataset_count | num }}</td>
+                  <td class="col-date">{{ h.last_run | date_short if h.last_run else "—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+  </article>
 {% endblock content %}

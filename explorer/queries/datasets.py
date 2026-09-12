@@ -488,6 +488,12 @@ ORG_HARVESTED_COUNT = Query(
     "SELECT COUNT(*) AS n FROM datasets WHERE org_slug = %s AND harvested = 1",
 )
 
+# Aggregate resource count and views for one org — the org overview page.
+ORG_STATS = Query(
+    "SELECT SUM(resource_count) AS total_resources, SUM(views) AS total_views"
+    " FROM datasets WHERE org_slug = %s",
+)
+
 # Full dataset JSON for the detail page
 DATASET_JSON = Query("SELECT json FROM dataset_json WHERE id = %s")
 

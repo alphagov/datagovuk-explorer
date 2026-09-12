@@ -1,70 +1,72 @@
-"""GET /organisation/{slug} — datasets for one organisation, paginated
-100/page (SQL LIMIT/OFFSET).
-
-Sortable via ?sort= (DATASET_SORT_COLUMNS whitelist) and ?dir=asc|desc.
-Default: metadata_modified desc (most recently updated first).
-"""
+"""GET /organisation/{slug} — publisher overview: stats, harvesters, chart."""
 
 from django.http import Http404
 from django.shortcuts import render
 
-from explorer import facets
 from explorer.helpers import yearly_counts
 from explorer.queries.datasets import (
     DATASET_COUNT,
     ORG_HARVESTED_COUNT,
+    ORG_STATS,
     YEARLY_BY_ORG,
-    org_datasets_stmts,
 )
+from explorer.queries.harvesters import HARVESTERS_BY_ORG
 from explorer.queries.organisations import ORG
-from explorer.sort import DATASET_SORT_COLUMNS
 
-from .core import _sort_dir, paginate
+_TYPE_LABELS = {
+    "ckan": "CKAN",
+    "dcat_json": "DCAT JSON",
+    "dcat_rdf": "DCAT RDF",
+    "gemini-csw": "Gemini CSW",
+    "gemini-single": "Gemini single",
+    "gemini-waf": "Gemini WAF",
+    "inventory": "Inventory",
+}
+_FREQUENCY_LABELS = {
+    "ALWAYS": "Always",
+    "DAILY": "Daily",
+    "WEEKLY": "Weekly",
+    "MONTHLY": "Monthly",
+    "MANUAL": "Manual",
+}
 
 
 def organisation(request, slug):
-    """GET /organisation/{slug} — one org's datasets, sorted by ?sort/?dir.
-
-    Count + page come from the SQL builder (org_datasets_stmts).
-    """
     org_row = ORG.get(slug)
     if org_row is None:
         raise Http404
 
-    sort, dir_ = _sort_dir(request, DATASET_SORT_COLUMNS, "metadata_modified", "desc")
+    dataset_count = DATASET_COUNT.get(slug)["count"]
+    harvested_count = ORG_HARVESTED_COUNT.get(slug)["n"]
+    stats = ORG_STATS.get(slug) or {}
 
-    stmts = org_datasets_stmts(slug, sort, dir_)
-    total = stmts["count"].get(*stmts["params"])["n"]
-    pagination = paginate(request, total)
-    datasets = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
+    harvesters = HARVESTERS_BY_ORG.all(slug)
+    for h in harvesters:
+        h["type_label"] = _TYPE_LABELS.get(h["type"], (h["type"] or "").title())
+        h["active_label"] = "Active" if h["active"] else "Inactive"
+        h["frequency_label"] = _FREQUENCY_LABELS.get(h["frequency"], (h["frequency"] or "").title())
 
-    # Pager base = sort/dir only (this page has no facets)
-    pager_base = facets.pager_base({"sort": sort, "dir": dir_})
-
-    org = {
-        "slug": org_row["slug"],
-        "display_name": org_row["display_name"] or org_row["slug"],
-        "dataset_count": DATASET_COUNT.get(slug)["count"],
-        "harvested_count": ORG_HARVESTED_COUNT.get(slug)["n"],
-        "datasets": datasets,
-    }
-
-    # Datasets created per year for this org's chart
     yearly = yearly_counts(YEARLY_BY_ORG.all(slug))
     max_yearly = max((x["count"] for x in yearly), default=0)
 
-    return render(
-        request,
-        "organisation.html",
-        {
-            "title": f"{org['display_name']} — Datasets",
-            "section": "orgs",
-            "org": org,
-            "sort": sort,
-            "dir": dir_,
-            "yearly": yearly,
-            "max_yearly": max_yearly,
-            **pagination,
-            "pager_base": pager_base,
+    return render(request, "organisation.html", {
+        "title": org_row["display_name"] or org_row["slug"],
+        "section": "orgs",
+        "narrow": True,
+        "org": {
+            "slug": org_row["slug"],
+            "display_name": org_row["display_name"] or org_row["slug"],
+            "state": org_row["state"],
+            "approval_status": org_row["approval_status"],
+            "type": org_row["type"],
+            "created": org_row["created"],
+            "dataset_count": dataset_count,
+            "harvested_count": harvested_count,
+            "manual_count": dataset_count - harvested_count,
+            "total_resources": stats.get("total_resources") or 0,
+            "total_views": stats.get("total_views") or 0,
         },
-    )
+        "harvesters": harvesters,
+        "yearly": yearly,
+        "max_yearly": max_yearly,
+    })

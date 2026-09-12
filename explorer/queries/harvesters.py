@@ -166,6 +166,19 @@ def harvest_sources_stmts(filters: dict, sort: str, dir_: str) -> dict:
     }
 
 
+# Harvest sources belonging to one org — the org overview page.
+HARVESTERS_BY_ORG = Query(
+    """SELECT h.id, h.title, h.type, h.active, h.frequency,
+              NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None') AS last_run,
+              COUNT(d.id) AS dataset_count
+         FROM harvest_sources h
+         LEFT JOIN datasets d ON d.harvest_source_id = h.id
+        WHERE h.org_slug = %s
+        GROUP BY h.id
+        ORDER BY LOWER(COALESCE(h.title, '')), h.id""",
+)
+
+
 @functools.cache
 def harvest_source_rows() -> list[dict[str, Any]]:
     """All harvest source rows (HARVEST_SOURCES.all) — memoised:
