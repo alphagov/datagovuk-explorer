@@ -202,11 +202,23 @@ REPORTS = [
         "key": "datasets-short-description",
         "label": "Datasets with a short description",
         "description": (
-            "Datasets whose description is under 80 characters — too little to say what the data is about."
+            "Datasets with a description under 80 characters"
         ),
         "kind": "datasets",
+        "facets": [
+            {
+                "key": "org",
+                "label": "Publisher",
+                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
+            FROM datasets
+            WHERE notes IS NOT NULL AND TRIM(notes) != '' AND LENGTH(TRIM(notes)) < 80{facet_and}
+            GROUP BY org_slug, org_display_name
+            ORDER BY count DESC, LOWER(org_display_name)""",
+                "filter_sql": " AND org_slug = %s",
+            },
+        ],
         **_dataset_report_sql(
-            "notes IS NOT NULL AND TRIM(notes) != '' AND LENGTH(TRIM(notes)) < 80",
+            "notes IS NOT NULL AND TRIM(notes) != '' AND LENGTH(TRIM(notes)) < 80{org}",
         ),
     },
     {
