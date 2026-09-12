@@ -52,11 +52,14 @@
 	border-radius: var(--radius);
 	color: var(--color-text);
 	text-decoration: none;
-	transition: box-shadow var(--transition);
+	transition:
+		box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+		transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 a.dashboard-card:hover {
-    box-shadow: var(--shadow);
+	box-shadow: var(--shadow-hover);
+	transform: translateY(-2px);
 }
 
 div.dashboard-card {
