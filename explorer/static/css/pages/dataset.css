@@ -3,10 +3,16 @@
  * including the LLM review card. Loaded via {% block styles %} in dataset.njk.
  * ------------------------------------------------------------------------- */
 
-/* Dataset title is an h1 (page title) — sized by the base type scale in
-   base.css; this page keeps a little extra room under it. */
+
 .dataset-detail h1 {
 	margin-bottom: 20px;
+}
+
+.dataset-detail h1 a,
+.dataset-detail h1 a:visited {
+    color: var(--color-text);
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
 }
 
 .detail-list {
