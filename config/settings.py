@@ -64,6 +64,8 @@ MIDDLEWARE = [
     # Serves collectstatic output in production; passes through to the
     # staticfiles handler in dev. Missing static renders 404.html.
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "explorer.middleware.CacheControlMiddleware",
+    "django.middleware.http.ConditionalGetMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",

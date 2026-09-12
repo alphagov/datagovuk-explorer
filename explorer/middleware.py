@@ -20,8 +20,29 @@ import os
 
 from django.core.exceptions import ImproperlyConfigured
 from django.http import Http404, HttpResponse
+from django.utils.cache import patch_cache_control
 
 from . import views
+
+
+class CacheControlMiddleware:
+    """Set Cache-Control: private, max-age=300 on GET responses.
+
+    private — browsers may cache; shared proxies must not.
+    max-age=300 — serve from cache for 5 minutes without hitting the server;
+    after expiry the browser revalidates via If-None-Match and ConditionalGetMiddleware
+    returns 304 Not Modified when content is unchanged.
+    Only applied to 200/304 GET responses; errors and non-GET methods are left alone.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if request.method == "GET" and response.status_code in (200, 304):
+            patch_cache_control(response, private=True, max_age=300)
+        return response
 
 
 class NotFoundMiddleware:
