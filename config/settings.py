@@ -112,9 +112,13 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "explorer" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    }
+}
 
-# Caching — dev max-age=0 so an edited CSS/JS file shows on refresh; prod
-# keeps WhiteNoise's default (60s), since asset filenames have no hashes.
+# Caching — dev uses finders to skip collectstatic on every change.
 if DEBUG:
     WHITENOISE_USE_FINDERS = True
     WHITENOISE_MAX_AGE = 0
