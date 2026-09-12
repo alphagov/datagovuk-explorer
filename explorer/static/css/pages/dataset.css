@@ -4,6 +4,12 @@
  * ------------------------------------------------------------------------- */
 
 
+.dataset-detail {
+	background: var(--color-surface);
+	padding: 32px;
+	border-radius: var(--radius);
+}
+
 .dataset-detail h1 {
 	margin-bottom: 20px;
 }
@@ -54,10 +60,7 @@
 }
 
 .notes-wrap {
-	background: var(--color-surface);
-	padding: 20px;
-	border-radius: var(--radius);
-	box-shadow: var(--shadow);
+	padding: 20px 0;
 }
 
 .notes-content {
@@ -175,7 +178,7 @@
 }
 
 .tag {
-	background: var(--color-surface);
+	background: var(--color-bg);
 	padding: 4px 11px;
 	border-radius: var(--radius-pill);
 	font-size: var(--text-sm);
@@ -183,7 +186,7 @@
 }
 
 .tag--suggested {
-	background: var(--color-surface);
+	background: var(--color-bg);
 	color: var(--color-text);
 }
 
@@ -277,7 +280,7 @@
 }
 
 .related-list a {
-	font-weight: 600;
+	font-weight: normal;
 }
 
 .related-org {

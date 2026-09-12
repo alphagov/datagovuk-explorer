@@ -318,7 +318,6 @@
                   {% if series.type == 'timeseries' %}<th>Period</th>{% endif %}
                   <th>Publisher</th>
                   <th class="col-date">Created</th>
-                  <th>Theme</th>
                   <th class="col-num">Links</th>
                 </tr>
               </thead>
@@ -333,7 +332,6 @@
                       <a href="/organisation/{{ ds.org_slug }}">{{ ds.org_display_name }}</a>
                     </td>
                     <td class="col-date">{{ ds.metadata_created | date_short if ds.metadata_created else '—' }}</td>
-                    <td class="col-text">{{ ds.theme_primary or '—' }}</td>
                     <td class="col-num">{{ ds.resource_count | num }}</td>
                   </tr>
                 {% endfor %}
