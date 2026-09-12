@@ -2,6 +2,7 @@
 table (populated by scripts/ingest_reviews.py from the JSONL)."""
 
 import json
+from functools import cache
 
 from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
@@ -28,6 +29,7 @@ _REVIEW_FOR = Query(
 )
 
 
+@cache
 def latest_reviews() -> list[dict]:
     """All ok reviews, one (latest) per dataset."""
     return [json.loads(row["json"]) for row in _LATEST_REVIEWS.all()]

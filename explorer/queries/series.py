@@ -1,6 +1,8 @@
 """/series list builder — list statements built per (sort, dir) call, plus
 the fixed series statements and the series_built() helper."""
 
+from functools import cache
+
 from .core import Query
 
 # --- /series list builder ---
@@ -62,6 +64,7 @@ SERIES_DATASETS = Query(
 _SERIES_EXISTS = Query("SELECT EXISTS (SELECT 1 FROM series) AS exists")
 
 
+@cache
 def series_built() -> bool:
     """True when the series tables hold data (the /series views' "not built"
     guard — the table always exists since migrations own the schema, so
