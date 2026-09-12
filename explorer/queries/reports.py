@@ -233,12 +233,29 @@ REPORTS = [
             "the old copy."
         ),
         "kind": "datasets",
+        "facets": [
+            {
+                "key": "org",
+                "label": "Publisher",
+                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
+            FROM (
+              SELECT d.org_slug, d.org_display_name,
+                     COUNT(*) OVER (PARTITION BY d.org_slug, lower(trim(d.title))) AS c
+              FROM datasets d
+              WHERE d.title IS NOT NULL AND TRIM(d.title) != ''
+            ) sub
+            WHERE c > 1{facet_and}
+            GROUP BY org_slug, org_display_name
+            ORDER BY count DESC, LOWER(org_display_name)""",
+                "filter_sql": " AND org_slug = %s",
+            },
+        ],
         # Window-function COUNT(*) OVER per org/title pair — one pass over
-        # datasets, no self-join.
+        # datasets, no self-join. {org} is the publisher facet filter placeholder.
         "count_sql": """SELECT COUNT(*) AS n FROM (
                SELECT d.id, COUNT(*) OVER (PARTITION BY org_slug, lower(trim(title))) AS c
                FROM datasets d
-               WHERE title IS NOT NULL AND TRIM(title) != ''
+               WHERE title IS NOT NULL AND TRIM(title) != ''{org}
              ) WHERE c > 1""",
         "list_sql": f"""SELECT {_DATASET_REPORT_COLS_D}
               FROM datasets d
@@ -246,7 +263,7 @@ REPORTS = [
                 SELECT id FROM (
                   SELECT d.id, COUNT(*) OVER (PARTITION BY org_slug, lower(trim(title))) AS c
                   FROM datasets d
-                  WHERE title IS NOT NULL AND TRIM(title) != ''
+                  WHERE title IS NOT NULL AND TRIM(title) != ''{{org}}
                 ) WHERE c > 1
               ) dups ON dups.id = d.id
               ORDER BY LOWER(d.org_display_name), LOWER(d.title), d.metadata_created, d.id
