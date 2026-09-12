@@ -65,10 +65,22 @@ def _created_year_clause(filters: dict, exclude: str | None) -> tuple[list, list
     return [], []
 
 
+def _publisher_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """Publisher (org_slug) WHERE fragment + params, or ([], []) when
+    skipped/excluded."""
+    if exclude == "publisher":
+        return [], []
+    publisher = filters.get("publisher")
+    if publisher:
+        return ["l.org_slug = %s"], [publisher]
+    return [], []
+
+
 _LINKS_CLAUSES = {
     "domain": _domain_clause,
     "format": _format_clause,
     "created_year": _created_year_clause,
+    "publisher": _publisher_clause,
 }
 
 
@@ -107,12 +119,13 @@ def links_stmts(filters: dict, sort: str, dir_: str) -> dict:
 
 
 def _links_facet_counts(filters: dict) -> dict:
-    """Compiled facet-count statements for one (domain/format/created_year)
-    combo — the {domains, no_url, formats, no_format, created_years}
-    Queries plus per-statement params."""
+    """Compiled facet-count statements for one (domain/format/created_year/
+    publisher) combo — the {domains, no_url, formats, no_format,
+    created_years, publishers} Queries plus per-statement params."""
     domain_frag, domain_params = facet_where(_LINKS_CLAUSES, filters, exclude="domain")
     format_frag, format_params = facet_where(_LINKS_CLAUSES, filters, exclude="format")
     year_frag, year_params = facet_where(_LINKS_CLAUSES, filters, exclude="created_year")
+    pub_frag, pub_params = facet_where(_LINKS_CLAUSES, filters, exclude="publisher")
 
     # The pool guards join the (possibly empty) WHERE fragments. `no_url`
     # reuses the domain fragment with host IS NULL instead; `no_format`
@@ -134,6 +147,11 @@ def _links_facet_counts(filters: dict) -> dict:
         if year_frag
         else " WHERE l.year_created IS NOT NULL AND l.year_created != ''"
     )
+    pub_where = (
+        f"{pub_frag} AND l.org_slug IS NOT NULL AND l.org_slug != ''"
+        if pub_frag
+        else " WHERE l.org_slug IS NOT NULL AND l.org_slug != ''"
+    )
 
     entry = {
         "params": {
@@ -142,6 +160,7 @@ def _links_facet_counts(filters: dict) -> dict:
             "formats": format_params,
             "no_format": format_params,
             "created_years": year_params,
+            "publishers": pub_params,
         },
         # Every host in the pool is a facet (the view collapses the list
         # behind a "More domains" toggle, as on /links/errors).
@@ -164,6 +183,16 @@ def _links_facet_counts(filters: dict) -> dict:
             f"{year_where}"
             " GROUP BY year_created ORDER BY year_created DESC",
         ),
+        # Every publisher in the pool is a facet (the view collapses the
+        # list behind a "More publishers" toggle). value = org_slug, name =
+        # display name.
+        "publishers": Query(
+            "SELECT l.org_slug AS value, l.org_display_name AS name, COUNT(*) AS count"
+            " FROM links l"
+            f"{pub_where}"
+            " GROUP BY l.org_slug, l.org_display_name"
+            " ORDER BY count DESC, LOWER(COALESCE(l.org_display_name, l.org_slug))",
+        ),
     }
     return entry
 
@@ -172,8 +201,8 @@ def _links_facet_counts(filters: dict) -> dict:
 def links_facet_counts(filters: dict) -> dict:
     """Sidebar facet counts for /links — each group counts over the pool
     filtered by the other groups (self-excluding). Returns 'domains',
-    'no_url', 'formats', 'no_format' and 'created_years' — shapes as
-    described by the queries above.
+    'no_url', 'formats', 'no_format', 'created_years' and 'publishers' —
+    shapes as described by the queries above.
 
     No-filter calls (used on every request to validate format/year facet
     values) return the memoised pools via core.cached_unfiltered; filtered
@@ -187,6 +216,7 @@ def links_facet_counts(filters: dict) -> dict:
         "formats": entry["formats"].all(*p["formats"]),
         "no_format": (entry["no_format"].get(*p["no_format"]) or {}).get("n", 0),
         "created_years": entry["created_years"].all(*p["created_years"]),
+        "publishers": entry["publishers"].all(*p["publishers"]),
     }
 
 

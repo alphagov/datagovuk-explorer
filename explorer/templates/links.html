@@ -26,6 +26,7 @@
       {"label": "Domain", "value": domain_name, "href": facet_url("domain", "") , "aria": "Remove domain filter: " ~ domain_name} if current_domain else none,
       {"label": "Format", "value": format_name, "href": facet_url("format", "") , "aria": "Remove format filter: " ~ format_name} if current_format else none,
       {"label": "Created year", "value": current_created_year, "href": facet_url("created_year", ""), "aria": "Remove created year filter: " ~ current_created_year} if current_created_year else none,
+      {"label": "Publisher", "value": publisher_label, "href": facet_url("publisher", ""), "aria": "Remove publisher filter: " ~ publisher_label} if publisher else none,
     ] %}
   {{ filter_pills(pills) }}
 {% endblock header_left %}

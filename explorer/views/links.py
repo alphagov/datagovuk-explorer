@@ -33,12 +33,14 @@ def links(request):
     no_url_links = stats.get("no_url") or 0
 
     # Sidebar facet pools — self-excluding SQL aggregates. The unfiltered
-    # pools drive the format/created_year validation whitelists; the
-    # filtered pools drive the sidebar counts once the selections are
+    # pools drive the format/created_year/publisher validation whitelists;
+    # the filtered pools drive the sidebar counts once the selections are
     # validated.
     base_pool = links_facet_counts({})
     valid_formats = {f["fmt"] for f in base_pool["formats"]}
     valid_created_years = {r["created_year"] for r in base_pool["created_years"]}
+    publisher_names = {p["value"]: p["name"] for p in base_pool["publishers"]}
+    valid_publishers = set(publisher_names)
 
     # Format list — collapses past the default cutoff behind its "More
     # formats" toggle (?formats=all fallback when JS is off).
@@ -53,6 +55,10 @@ def links(request):
     # "More created years" toggle (?created_years=all).
     created_year_expanded = request.GET.get("created_years") == "all"
 
+    # Publisher list collapses past the default cutoff behind its
+    # "More publishers" toggle (?publishers=all).
+    publisher_expanded = request.GET.get("publishers") == "all"
+
     # Validate against the full list so any format can be filtered even when
     # it's beyond the top 10 shown by default.
     # Facet values — bound as WHERE parameters, never interpolated.
@@ -66,13 +72,18 @@ def links(request):
     format_ = request.GET.get("format")
     current_format = "__none__" if format_ == "__none__" else format_ if format_ in valid_formats else None
     current_created_year = request.GET.get("created_year")
-    current_created_year = (
-        current_created_year if current_created_year in valid_created_years else None
-    )
+    current_created_year = current_created_year if current_created_year in valid_created_years else None
+    publisher = request.GET.get("publisher")
+    current_publisher = publisher if publisher in valid_publishers else None
 
     sort, dir_ = _sort_dir(request, LINK_SORT_COLUMNS, "domain")
 
-    filters = {"domain": current_domain, "format": current_format, "created_year": current_created_year}
+    filters = {
+        "domain": current_domain,
+        "format": current_format,
+        "created_year": current_created_year,
+        "publisher": current_publisher,
+    }
     pool = links_facet_counts(filters)
     stmts_out = links_stmts(filters, sort, dir_)
 
@@ -81,11 +92,10 @@ def links(request):
     link_rows = stmts_out["list"].all(*stmts_out["params"], pagination["page_size"], pagination["offset"])
 
     # Query-string fragments shared by sort links / facet links / pills.
-    # Dicts preserve insertion order, so urlencode emits the fixed
-    # parameter order: sort, dir, then domain, format, created_year,
-    # formats, domains, created_years. The extras carry the expanded-lists
-    # state (?formats=all / ?domains=all / ?created_years=all) so
-    # facet/sort/pager links keep the lists expanded.
+    # Dicts preserve insertion order, so urlencode emits the fixed parameter
+    # order: sort, dir, then domain, format, created_year, publisher. The
+    # extras carry the expanded-lists state so facet/sort/pager links keep
+    # the lists expanded.
     expanded_extras = {}
     if formats_expanded:
         expanded_extras["formats"] = "all"
@@ -93,6 +103,8 @@ def links(request):
         expanded_extras["domains"] = "all"
     if created_year_expanded:
         expanded_extras["created_years"] = "all"
+    if publisher_expanded:
+        expanded_extras["publishers"] = "all"
     base_params = facets.preserve_params(
         sort,
         dir_,
@@ -100,6 +112,7 @@ def links(request):
             ("domain", current_domain),
             ("format", current_format),
             ("created_year", current_created_year),
+            ("publisher", current_publisher),
         ],
         expanded_extras or None,
     )
@@ -179,6 +192,22 @@ def links(request):
                 toggle_base=base_params,
                 expanded=created_year_expanded,
             ),
+            # The pool returns every publisher in it (count desc), so master
+            # and counts come from the same rows. value = org_slug (the URL/
+            # filter key); name = display name shown.
+            facets.facet_counts_group(
+                "publisher",
+                "Publisher",
+                "Filter by publisher",
+                [(p["value"], p["name"] or p["value"]) for p in pool["publishers"]],
+                {p["value"]: p["count"] for p in pool["publishers"]},
+                current_publisher,
+                proportions=True,
+                plural="publishers",
+                toggle_base=base_params,
+                expanded=publisher_expanded,
+                search="Search publishers",
+            ),
         )
         if group is not None
     ]
@@ -194,6 +223,8 @@ def links(request):
             "current_domain": current_domain,
             "current_format": current_format,
             "current_created_year": current_created_year,
+            "publisher": current_publisher,
+            "publisher_label": publisher_names.get(current_publisher, current_publisher) if current_publisher else None,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
