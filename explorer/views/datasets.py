@@ -74,7 +74,7 @@ def _created_year_master() -> list[str]:
 
 @dataclass(frozen=True)
 class DatasetsFilters:
-    """The seven validated /datasets facet selections (None = not active)."""
+    """The eight validated /datasets facet selections (None = not active)."""
 
     theme: str | None
     publisher: str | None
@@ -84,6 +84,7 @@ class DatasetsFilters:
     temporal_year: str | None
     metadata_key: str | None
     metadata_value: str | None
+    api: str | None
 
 
 def _parse_filters(
@@ -141,6 +142,9 @@ def _parse_filters(
         current_metadata_key = metadata_key
         current_metadata_value = metadata_value
 
+    api = request.GET.get("api")
+    current_api = api if api in ("data-apis", "map-layers") else None
+
     return DatasetsFilters(
         theme=current_theme,
         publisher=current_publisher,
@@ -150,6 +154,7 @@ def _parse_filters(
         temporal_year=current_temporal_year,
         metadata_key=current_metadata_key,
         metadata_value=current_metadata_value,
+        api=current_api,
     )
 
 
@@ -211,6 +216,7 @@ def datasets(request):
             "links": filters.links,
             "created_year": filters.created_year,
             "temporal_year": filters.temporal_year,
+            "api": filters.api,
         },
     )
 
@@ -246,6 +252,7 @@ def datasets(request):
             ("links", filters.links),
             ("created_year", filters.created_year),
             ("temporal_year", filters.temporal_year),
+            ("api", filters.api),
             ("metadata_key", filters.metadata_key),
             ("metadata_value", filters.metadata_value),
         ],
@@ -371,6 +378,15 @@ def datasets(request):
                 trailing=trailing_items,
                 always_render=True,
             ),
+            facets.facet_counts_group(
+                "api",
+                "API",
+                "Filter by API type",
+                [("data-apis", "Data API"), ("map-layers", "Map layers")],
+                {r["api"]: r["count"] for r in facet_counts["api"]},
+                filters.api,
+                proportions=True,
+            ),
         )
         if group is not None
     ]
@@ -404,6 +420,8 @@ def datasets(request):
             return f"?{urlencode(params)}" if params else "?"
         return base_facet_url(key, value)
 
+    _api_names = {"data-apis": "Data API", "map-layers": "Map layers"}
+
     return render(
         request,
         "datasets.html",
@@ -426,6 +444,8 @@ def datasets(request):
             "created_year": filters.created_year,
             "temporal_year": filters.temporal_year,
             "temporal_label": labels["temporal_label"],
+            "api": filters.api,
+            "api_label": (_api_names[filters.api] if filters.api else None),
             "metadata_key": filters.metadata_key,
             "metadata_value": filters.metadata_value,
             "metadata_label": labels["metadata_label"],

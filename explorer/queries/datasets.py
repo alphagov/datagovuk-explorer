@@ -162,6 +162,18 @@ _LINK_BUCKET_RANGES = bucket_ranges()
 _LINK_BUCKET_CASE = bucket_case("COALESCE(d.resource_count, 0)")
 
 
+def _api_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """api (category) WHERE fragment + params, or ([], []) when skipped/excluded."""
+    if exclude == "api":
+        return [], []
+    api = filters.get("api")
+    if api:
+        return [
+            "EXISTS (SELECT 1 FROM dataset_api da WHERE da.dataset_id = d.id AND da.api_category = %s)"
+        ], [api]
+    return [], []
+
+
 def _links_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     """links (link-count bucket) WHERE fragment + params, or ([], []) when
     skipped/excluded. Boundaries come from the shared bucket ranges, applied
@@ -197,7 +209,7 @@ def _publisher_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     return [], []
 
 
-# The six /datasets clause builders, keyed by facet — core.facet_where
+# The seven /datasets clause builders, keyed by facet — core.facet_where
 # ANDs them together, minus the excluded facet, for the facet pools.
 _FACET_CLAUSES = {
     "theme": _theme_clause,
@@ -206,6 +218,7 @@ _FACET_CLAUSES = {
     "links": _links_clause,
     "created_year": _created_year_clause,
     "temporal_year": _temporal_year_clause,
+    "api": _api_clause,
 }
 
 
@@ -305,8 +318,8 @@ def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
 
 def _facet_counts(filters: dict) -> dict:
     """Compiled facet-count statements for one (theme/publisher/source/
-    links/created_year/temporal_year) combo — the {themes, publishers,
-    source, links, created_years, temporal_years, temporal_buckets}
+    links/created_year/temporal_year/api) combo — the {themes, publishers,
+    source, links, created_years, temporal_years, temporal_buckets, api}
     Queries plus the per-statement params."""
     theme_where, theme_params = _facet_where(filters, exclude="theme")
     publisher_where, publisher_params = _facet_where(filters, exclude="publisher")
@@ -314,6 +327,7 @@ def _facet_counts(filters: dict) -> dict:
     links_where, links_params = _facet_where(filters, exclude="links")
     year_where, year_params = _facet_where(filters, exclude="created_year")
     temporal_where, temporal_params = _facet_where(filters, exclude="temporal_year")
+    api_where, api_params = _facet_where(filters, exclude="api")
 
     # metadata_created IS NOT NULL joins the (possibly empty) where fragment
     year_where = (
@@ -329,6 +343,7 @@ def _facet_counts(filters: dict) -> dict:
             "created_years": year_params,
             "temporal_years": temporal_params,
             "temporal_buckets": temporal_params,
+            "api": api_params,
         },
         "themes": Query(
             "SELECT COALESCE(theme_primary, '__none__') AS theme, COUNT(*) AS count"
@@ -392,6 +407,11 @@ def _facet_counts(filters: dict) -> dict:
             f"  COUNT(*) FILTER (WHERE {COVERS_AFTER_CLAUSE}) AS post"
             f" FROM datasets d{temporal_where}",
         ),
+        "api": Query(
+            "SELECT da.api_category AS api, COUNT(*) AS count"
+            f" FROM datasets d JOIN dataset_api da ON da.dataset_id = d.id{api_where}"
+            " GROUP BY da.api_category",
+        ),
     }
     return entry
 
@@ -410,7 +430,7 @@ def datasets_facet_counts(filters: dict) -> dict:
     """
     entry = _facet_counts(filters)
     p = entry["params"]
-    themes, publishers, source, links, created_years, temporal_years, temporal_buckets = fetch_parallel(
+    themes, publishers, source, links, created_years, temporal_years, temporal_buckets, api = fetch_parallel(
         [
             lambda: entry["themes"].all(*p["themes"]),
             lambda: entry["publishers"].all(*p["publishers"]),
@@ -419,6 +439,7 @@ def datasets_facet_counts(filters: dict) -> dict:
             lambda: entry["created_years"].all(*p["created_years"]),
             lambda: entry["temporal_years"].all(*p["temporal_years"]),
             lambda: entry["temporal_buckets"].get(*p["temporal_buckets"]),
+            lambda: entry["api"].all(*p["api"]),
         ],
     )
     return {
@@ -429,6 +450,7 @@ def datasets_facet_counts(filters: dict) -> dict:
         "created_years": created_years,
         "temporal_years": temporal_years,
         "temporal_buckets": temporal_buckets,
+        "api": api,
     }
 
 

@@ -38,6 +38,7 @@
       {"label": "Links", "value": links_label, "href": facet_url("links", "") , "aria": "Remove links filter: " ~ links_label} if links else none,
       {"label": "Created year", "value": created_year, "href": facet_url("created_year", ""), "aria": "Remove created year filter: " ~ created_year} if created_year else none,
       {"label": "Temporal year", "value": temporal_label, "href": facet_url("temporal_year", "") , "aria": "Remove temporal year filter: " ~ temporal_label} if temporal_year else none,
+      {"label": "API", "value": api_label, "href": facet_url("api", ""), "aria": "Remove API filter: " ~ api_label} if api else none,
       {"label": "Metadata", "value": metadata_label, "href": facet_url("metadata_key", "") , "aria": "Remove metadata filter: " ~ metadata_label} if metadata_key else none,
     ] %}
   {{ filter_pills(pills) }}

@@ -11,8 +11,8 @@ from .core import Query, facet_where
 #
 # Regular reports differ only in their WHERE clause: `_dataset_report_sql` /
 # `_link_report_sql` build both statements from that one clause, so count
-# and list can't drift. The special reports (duplicate-titles, duplicate-urls,
-# has-api) keep hand-written SQL.
+# and list can't drift. The special reports (duplicate-titles, duplicate-urls)
+# keep hand-written SQL.
 #
 # Each report's SQL carries a {key} placeholder per facet, replaced by the
 # facet's filter_sql when a value is selected, or '' when not.
@@ -29,7 +29,6 @@ LINK_REPORT_ORDER = "LOWER(org_display_name), LOWER(dataset_title), id"
 # l. table aliases — the bare column names would be ambiguous with their
 # joins).
 _DATASET_REPORT_COLS_D = ", ".join(f"d.{c}" for c in DATASET_REPORT_COLS.split(", "))
-_DATASET_REPORT_COLS_T = ", ".join(f"datasets.{c}" for c in DATASET_REPORT_COLS.split(", "))
 _LINK_REPORT_COLS_L = ", ".join(f"l.{c}" for c in LINK_REPORT_COLS.split(", "))
 
 
@@ -56,106 +55,8 @@ def _link_report_sql(where: str) -> dict:
     }
 
 
-# --- "Datasets with an API" (positive finding) ---
-# A dataset "has an API" when any of its links has an API-ish format, a
-# service-endpoint URL pattern, or the word "api" in its name/description —
-# OR when the dataset title/notes mention "api" as a whole word (catches
-# datasets that describe an API but whose links point to documentation).
-# Deliberate choices:
-#  - Includes WMS — a rendering service rather than a data-access API, but
-#    many datasets match *only* via WMS and machine access is still access.
-#  - Never `LIKE '%api%'` — the word-boundary regex avoids "rapid", etc.
-
-# ILIKE patterns are doubled (%%…%%) because psycopg3 treats a single % in
-# a parameterized statement as a placeholder (see queries/core.py).
-_API_SIGNAL_SQL = (
-    "l.format_norm ILIKE '%%arcgis rest%%'"
-    " OR l.format_norm ILIKE '%%wms%%'"
-    " OR l.format_norm ILIKE '%%wfs%%'"
-    " OR l.format_norm ILIKE '%%ogc api%%'"
-    " OR (l.format_norm ILIKE '%%api%%' AND l.format_norm NOT ILIKE '%%mapinfo%%')"
-    " OR l.format_norm ILIKE '%%sparql%%'"
-    " OR l.format_norm = 'CSW'"
-    " OR l.format_norm ILIKE '%%georss%%'"
-    r" OR l.url ~ '/rest/services/'"
-    r" OR l.url ~* '\?service='"
-    r" OR l.url ~* '\?request='"
-    r" OR l.url ~* '\?f=json'"
-    r" OR l.url ~ 'ogcapi'"
-    r" OR l.url ~* '/wms(\?|$)'"
-    r" OR l.url ~* '/wfs(\?|$)'"
-    r" OR l.url ~ '/ogc/features'"
-    r" OR l.name ~* '\mapi\M'"
-    r" OR l.name ~* '\msparql\M'"
-    r" OR l.name ~* '\mwfs\M'"
-    r" OR l.name ~* '\mwms\M'"
-    r" OR l.description ~* '\mapi\M'"
-    r" OR l.description ~* '\msparql\M'"
-)
-
-# Per-link classification of *why* a link matched the API signal — the
-# "API type" facet. Order matters: specific formats precede the generic
-# '%api%' bucket, so combined formats like "WMS/WFS" land in one bucket.
-# Links matching only on name/description fall to 'unknown'.
-_API_TYPE_CASE = (
-    "CASE"
-    " WHEN l.format_norm ILIKE '%%arcgis rest%%' THEN 'arcgis-rest'"
-    " WHEN l.format_norm ILIKE '%%ogc api%%' THEN 'ogc-api'"
-    " WHEN l.format_norm ILIKE '%%sparql%%' THEN 'sparql'"
-    " WHEN l.format_norm ILIKE '%%wms%%' THEN 'wms'"
-    " WHEN l.format_norm ILIKE '%%wfs%%' THEN 'wfs'"
-    " WHEN l.format_norm ILIKE '%%api%%' AND l.format_norm NOT ILIKE '%%mapinfo%%' THEN 'api'"
-    " WHEN l.format_norm = 'CSW' THEN 'csw'"
-    " WHEN l.format_norm ILIKE '%%georss%%' THEN 'georss'"
-    r" WHEN l.url ~ '/rest/services/' THEN 'arcgis-rest'"
-    r" WHEN l.url ~* '\?service=WMS' THEN 'wms'"
-    r" WHEN l.url ~* '\?service=WFS' THEN 'wfs'"
-    r" WHEN l.url ~* '\?service=' OR l.url ~* '\?request=' OR l.url ~* '\?f=json' THEN 'ogc-api'"
-    r" WHEN l.url ~* '/wms(\?|$)' THEN 'wms'"
-    r" WHEN l.url ~* '/wfs(\?|$)' THEN 'wfs'"
-    r" WHEN l.url ~ '/ogc/features' OR l.url ~ 'ogcapi' THEN 'ogc-api'"
-    r" WHEN l.name ~* 'ogc api' THEN 'ogc-api'"
-    r" WHEN l.name ~* '\msparql\M' OR l.description ~* '\msparql\M' THEN 'sparql'"
-    r" WHEN l.name ~* '\mwfs\M' OR l.description ~* '\mwfs\M' THEN 'wfs'"
-    r" WHEN l.name ~* '\mwms\M' OR l.description ~* '\mwms\M' THEN 'wms'"
-    r" WHEN l.name ~* '\mapi\M' OR l.description ~* '\mapi\M' THEN 'unknown'"
-    " ELSE 'unknown' END"
-)
-
-# Display labels for the API-type facet buckets (used in the facet option SQL).
-_API_TYPE_LABEL_CASE = (
-    "CASE t.api_type"
-    " WHEN 'arcgis-rest' THEN 'ArcGIS REST'"
-    " WHEN 'wms' THEN 'WMS'"
-    " WHEN 'wfs' THEN 'WFS'"
-    " WHEN 'ogc-api' THEN 'OGC API'"
-    " WHEN 'api' THEN 'API'"
-    " WHEN 'csw' THEN 'CSW'"
-    " WHEN 'georss' THEN 'GeoRSS'"
-    " WHEN 'sparql' THEN 'SPARQL'"
-    " ELSE 'Unknown' END"
-)
-
 # The URL filter shared by links-duplicate-urls' count + list statements.
 _DUP_URLS_FILTER = "url IS NOT NULL AND url != ''"
-
-# EXISTS filters for the api_type / api_category facets. All reference the
-# outer `datasets` table by design (works in any subquery context).
-_API_TYPE_FILTER_EXISTS = f"""EXISTS (
-   SELECT 1 FROM links l
-   WHERE l.dataset_id = datasets.id
-     AND ({_API_SIGNAL_SQL})
-     AND ({_API_TYPE_CASE}) = %s
- )"""
-
-# dataset_api-backed category filters — simple PK lookup into the build-time
-# snapshot, used by both the filter clauses and the api_category facet counts.
-_API_MAPPING_FILTER_DA = (
-    "EXISTS (SELECT 1 FROM dataset_api WHERE dataset_id = datasets.id AND api_category = 'map-layers')"
-)
-_API_NON_MAPPING_FILTER_DA = (
-    "EXISTS (SELECT 1 FROM dataset_api WHERE dataset_id = datasets.id AND api_category = 'data-apis')"
-)
 
 # Shared per-facet clause builders for the reports' sidebar facet counts —
 # same (filters, exclude) shape as datasets.py, fed to core.facet_where.
@@ -171,32 +72,8 @@ def _report_org_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     return [], []
 
 
-def _report_api_type_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """api_type facet WHERE fragment — EXISTS re-applying the API signal."""
-    if exclude == "api_type":
-        return [], []
-    at = filters.get("api_type")
-    if at:
-        return [_API_TYPE_FILTER_EXISTS], [at]
-    return [], []
-
-
-def _report_api_category_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """api_category facet WHERE fragment — backed by dataset_api snapshot."""
-    if exclude == "api_category":
-        return [], []
-    cat = filters.get("api_category")
-    if cat == "map-layers":
-        return [_API_MAPPING_FILTER_DA], []
-    if cat == "data-apis":
-        return [_API_NON_MAPPING_FILTER_DA], []
-    return [], []
-
-
 _REPORT_FACET_CLAUSES = {
     "org": _report_org_clause,
-    "api_type": _report_api_type_clause,
-    "api_category": _report_api_category_clause,
 }
 
 REPORTS = [
@@ -462,98 +339,6 @@ REPORTS = [
                 ORDER BY LOWER(l.org_display_name), LOWER(l.dataset_title), l.id
                 LIMIT %s OFFSET %s""",
         "detail_count_sql": "SELECT COUNT(*) AS n FROM links WHERE url = %s",
-    },
-    {
-        "key": "datasets-has-api",
-        "label": "Datasets with an API",
-        "description": (
-            "Datasets that offer programmatic access to their data — detected "
-            "via link format (ArcGIS REST, WMS, WFS, OGC API, SPARQL, CSW, "
-            "GeoRSS), service-endpoint URL patterns (/rest/services/, ?service=, "
-            "?f=json), link name or description, or the dataset title/notes "
-            "mentioning API. A positive finding: these datasets expose their data "
-            "to software, not just the download button. The API links column shows "
-            "which link(s) matched and why."
-        ),
-        "kind": "datasets",
-        # Tells the report template to render the matched-resources column
-        # (and the route to parse the jsonb aggregate into a list).
-        "show_api_links": True,
-        # Three single-select facets. All filter the outer `datasets` table
-        # (deliberately unaliased).
-        "facets": [
-            {
-                "key": "org",
-                "label": "Publisher",
-                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
-            FROM datasets
-            JOIN dataset_api ON dataset_api.dataset_id = datasets.id
-            WHERE 1=1{facet_and}
-            GROUP BY org_slug, org_display_name
-            ORDER BY count DESC, LOWER(org_display_name)""",
-                "filter_sql": " AND org_slug = %s",
-            },
-            {
-                # Two values: 'map-layers' and 'data-apis' — read from the
-                # dataset_api snapshot (no link-level subquery needed).
-                "key": "api_category",
-                "label": "Category",
-                "counts_sql": """SELECT dataset_api.api_category AS slug,
-                          CASE dataset_api.api_category
-                            WHEN 'map-layers' THEN 'Map layers' ELSE 'Data APIs'
-                          END AS name,
-                          COUNT(*) AS count
-                   FROM datasets
-                   JOIN dataset_api ON dataset_api.dataset_id = datasets.id
-                   WHERE 1=1{facet_and}
-                   GROUP BY dataset_api.api_category
-                   ORDER BY count DESC, dataset_api.api_category""",
-                "filter_sql": {
-                    "map-layers": " AND dataset_api.api_category = 'map-layers'",
-                    "data-apis": " AND dataset_api.api_category = 'data-apis'",
-                },
-            },
-            {
-                # A dataset is counted under every API type its matched links
-                # classify as, so the counts don't sum to the report total.
-                "key": "api_type",
-                "label": "API type",
-                "counts_sql": f"""SELECT t.api_type AS slug,
-                          {_API_TYPE_LABEL_CASE} AS name,
-                          COUNT(DISTINCT t.dataset_id) AS count
-                   FROM (
-                     SELECT l.dataset_id, {_API_TYPE_CASE} AS api_type
-                     FROM links l
-                     WHERE ({_API_SIGNAL_SQL})
-                   ) t
-                   JOIN datasets ON datasets.id = t.dataset_id
-                   {{facet_where}}
-                   GROUP BY t.api_type
-                   ORDER BY count DESC, t.api_type""",
-                "filter_sql": f" AND {_API_TYPE_FILTER_EXISTS}",
-            },
-        ],
-        "count_sql": """SELECT COUNT(*) AS n FROM datasets
-               JOIN dataset_api ON dataset_api.dataset_id = datasets.id
-               WHERE 1=1{org}{api_category}{api_type}""",
-        # One row per dataset; api_links is computed on-demand (paginated list
-        # only — 25 rows) to avoid storing a large jsonb column in dataset_api.
-        "list_sql": f"""SELECT {_DATASET_REPORT_COLS_T},
-                     COALESCE((
-                       SELECT jsonb_agg(
-                         jsonb_build_object('name', l.name, 'format', l.format_norm, 'url', l.url)
-                         ORDER BY l.position NULLS LAST, l.id
-                       )
-                       FROM links l
-                       WHERE l.dataset_id = datasets.id
-                         AND ({_API_SIGNAL_SQL})
-                     ), '[]') AS api_links
-              FROM datasets
-              JOIN dataset_api ON dataset_api.dataset_id = datasets.id
-              WHERE 1=1{{org}}{{api_category}}{{api_type}}
-              ORDER BY datasets.views DESC NULLS LAST,
-                       LOWER(datasets.org_display_name), LOWER(datasets.title), datasets.id
-              LIMIT %s OFFSET %s""",
     },
 ]
 
