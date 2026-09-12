@@ -51,7 +51,7 @@
 	--color-bg: #f5f6f8;
 	--color-surface: #ffffff;
 	--color-text: #1a1a2e;
-	--color-muted: #6b7280;
+	--color-muted: #636975;
 	--color-border: #e5e7eb;
 	/* UI-component boundaries (text inputs, …) — must clear WCAG 1.4.11's
 	   3:1 non-text contrast against a white/light surface, which the
