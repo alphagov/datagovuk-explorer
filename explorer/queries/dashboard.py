@@ -45,7 +45,7 @@ def _active_card(org_rows: list, last_pub_rows: list) -> dict:
         "key": "orgs-active",
         "label": (f"Publishers have published since {since}" if since else "Publishers have published recently"),
         "count": count,
-        "link": (f"/organisations?pubyear={','.join(active_years)}" if active_years else "/organisations"),
+        "link": (f"/organisations?last_published_year={','.join(active_years)}" if active_years else "/organisations"),
     }
 
 
