@@ -21,7 +21,7 @@ from explorer.queries.links import (
     links_stmts,
 )
 
-from .core import _sort_dir, paginate
+from .core import _pill, _sort_dir, paginate
 
 # Hostnames — RFC 1035/2181 caps a fully-qualified name at 253 chars.
 MAX_DOMAIN_LENGTH = 253
@@ -210,6 +210,16 @@ def links(request):
         if g is not None
     }
 
+    domain_name = "No URL" if current_domain == "__none__" else current_domain
+    format_name = "No format" if current_format == "__none__" else current_format
+    publisher_label = publisher_names.get(current_publisher, current_publisher) if current_publisher else None
+    pills = [
+        _pill("Domain", domain_name, facet_url("domain", "")) if current_domain else None,
+        _pill("Format", format_name, facet_url("format", "")) if current_format else None,
+        _pill("Created year", current_created_year, facet_url("created_year", "")) if current_created_year else None,
+        _pill("Publisher", publisher_label, facet_url("publisher", "")) if current_publisher else None,
+    ]
+
     return render(
         request,
         "links.html",
@@ -218,11 +228,7 @@ def links(request):
             "section": "links",
             "links": link_rows,
             "facet_groups": facet_groups,
-            "current_domain": current_domain,
-            "current_format": current_format,
-            "current_created_year": current_created_year,
-            "publisher": current_publisher,
-            "publisher_label": publisher_names.get(current_publisher, current_publisher) if current_publisher else None,
+            "pills": pills,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,

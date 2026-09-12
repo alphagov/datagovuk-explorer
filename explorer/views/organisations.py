@@ -39,7 +39,7 @@ from explorer.queries.organisations import (
 )
 from explorer.sort import SORT_COLUMNS
 
-from .core import _sort_dir, paginate
+from .core import _pill, _sort_dir, paginate
 
 
 def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
@@ -172,8 +172,7 @@ def organisations(request):
     shown_orgs = stmts["count"].get(*stmts["params"])["n"]
     pagination = paginate(request, shown_orgs)
     page_rows = [
-        _page_row(r)
-        for r in stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
+        _page_row(r) for r in stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
     ]
 
     last_published_param = ",".join(filters.last_published_years) if filters.last_published_years else None
@@ -221,9 +220,7 @@ def organisations(request):
     )
     bucket_counts = {r["bucket"]: r["count"] for r in facet_counts["datasets"]}
     year_pool_counts = {r["created_year"]: r["count"] for r in facet_counts["created_years"]}
-    pub_year_pool_counts = {
-        r["last_published_year"]: r["count"] for r in facet_counts["last_published_years"]
-    }
+    pub_year_pool_counts = {r["last_published_year"]: r["count"] for r in facet_counts["last_published_years"]}
 
     # The last-published facet's trailing bucket — orgs that have never
     # published (no datasets at all). Its href toggles __none__ in the
@@ -288,6 +285,23 @@ def organisations(request):
         if g is not None
     }
 
+    last_published_label = (
+        "Never published"
+        if filters.last_published_years == ("__none__",)
+        else ", ".join(filters.last_published_years)
+        if filters.last_published_years
+        else None
+    )
+    pills = [
+        _pill("Datasets", DATASET_BUCKET_NAMES[filters.datasets], facet_url("datasets", ""))
+        if filters.datasets
+        else None,
+        _pill("Created year", filters.created_year, facet_url("created_year", "")) if filters.created_year else None,
+        _pill("Published in", last_published_label, facet_url("last_published_year", ""))
+        if filters.last_published_years
+        else None,
+    ]
+
     return render(
         request,
         "organisations.html",
@@ -298,16 +312,7 @@ def organisations(request):
             "shown_orgs": shown_orgs,
             "sort": sort,
             "dir": dir_,
-            "created_year": filters.created_year,
-            "last_published_year": (
-                "Never published"
-                if filters.last_published_years == ("__none__",)
-                else ", ".join(filters.last_published_years)
-                if filters.last_published_years
-                else None
-            ),
-            "datasets": filters.datasets,
-            "datasets_label": (DATASET_BUCKET_NAMES[filters.datasets] if filters.datasets else None),
+            "pills": pills,
             "facet_groups": facet_groups,
             "facet_qs": facet_qs,
             "facet_url": facet_url,

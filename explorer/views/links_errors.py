@@ -33,12 +33,13 @@ from explorer.queries.link_errors import (
     link_errors_stmts,
 )
 
-from .core import _sort_dir, paginate
+from .core import _pill, _sort_dir, paginate
 
 # Facet-group labels (sidebar order — to delete, outcome/category, domain,
 # HTTP status, harvest state, publisher).
 HARVEST_LABELS = dict(HARVEST_STATES)
 TO_DELETE_LABELS = dict(TO_DELETE_VALUES)
+
 
 def _category_name(value: str) -> str:
     """Display name for a raw category code (facet items and pills)."""
@@ -271,56 +272,21 @@ def link_errors(request):
         r["ok"] = r["category"] == "OK"
         r["status_text"] = f"{r['status']} {label}" if r["status"] is not None else label
 
-    # Pill labels for the active-filter strip (header left) — same order
-    # as the sidebar facets (to delete, outcome, domain, status, harvested,
-    # publisher).
     pills = [
-        {
-            "label": "To delete",
-            "value": TO_DELETE_LABELS[current_to_delete],
-            "href": facet_url("to_delete", ""),
-            "aria": "Remove to delete filter: " + TO_DELETE_LABELS[current_to_delete],
-        }
+        _pill("To delete", TO_DELETE_LABELS[current_to_delete], facet_url("to_delete", ""))
         if current_to_delete
         else None,
-        {
-            "label": "Outcome",
-            "value": _category_name(current_category),
-            "href": facet_url("category", ""),
-            "aria": "Remove outcome filter: " + _category_name(current_category),
-        }
-        if current_category
-        else None,
-        {
-            "label": "Domain",
-            "value": "No URL" if current_domain == "__none__" else current_domain,
-            "href": facet_url("domain", ""),
-            "aria": "Remove domain filter: " + ("No URL" if current_domain == "__none__" else current_domain),
-        }
+        _pill("Outcome", _category_name(current_category), facet_url("category", "")) if current_category else None,
+        _pill("Domain", "No URL" if current_domain == "__none__" else current_domain, facet_url("domain", ""))
         if current_domain
         else None,
-        {
-            "label": "Status",
-            "value": "No response" if current_status == "__none__" else current_status,
-            "href": facet_url("status", ""),
-            "aria": "Remove status filter: " + ("No response" if current_status == "__none__" else current_status),
-        }
+        _pill("Status", "No response" if current_status == "__none__" else current_status, facet_url("status", ""))
         if current_status
         else None,
-        {
-            "label": "Harvested",
-            "value": HARVEST_LABELS[current_harvested],
-            "href": facet_url("harvested", ""),
-            "aria": "Remove harvested filter: " + HARVEST_LABELS[current_harvested],
-        }
+        _pill("Harvested", HARVEST_LABELS[current_harvested], facet_url("harvested", ""))
         if current_harvested
         else None,
-        {
-            "label": "Publisher",
-            "value": publisher_names.get(current_publisher, current_publisher),
-            "href": facet_url("publisher", ""),
-            "aria": "Remove publisher filter: " + publisher_names.get(current_publisher, current_publisher),
-        }
+        _pill("Publisher", publisher_names.get(current_publisher, current_publisher), facet_url("publisher", ""))
         if current_publisher
         else None,
     ]

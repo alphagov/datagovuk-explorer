@@ -42,7 +42,7 @@ from explorer.queries.organisations import (
 )
 from explorer.sort import DATASET_SORT_COLUMNS, HARVESTER_SORT_COLUMNS
 
-from .core import _sort_dir, paginate
+from .core import _pill, _sort_dir, paginate
 
 # Fixed value → display-label maps for the type/frequency columns and
 # facets. The facet master lists are derived from the data (counts order),
@@ -258,6 +258,17 @@ def harvesters(request):
         if g is not None
     }
 
+    pills = [
+        _pill("Type", type_labels.get(filters.type, filters.type), facet_url("type", "")) if filters.type else None,
+        _pill("Status", ACTIVE_LABELS[filters.active], facet_url("active", "")) if filters.active else None,
+        _pill("Frequency", frequency_labels.get(filters.frequency, filters.frequency), facet_url("frequency", ""))
+        if filters.frequency
+        else None,
+        _pill("Datasets", DATASET_BUCKET_NAMES[filters.datasets], facet_url("datasets", ""))
+        if filters.datasets
+        else None,
+    ]
+
     return render(
         request,
         "harvesters.html",
@@ -276,14 +287,7 @@ def harvesters(request):
             "linked_datasets": sum(r["dataset_count"] for r in rows),
             "sort": sort,
             "dir": dir_,
-            "type": filters.type,
-            "type_label": type_labels.get(filters.type) if filters.type else None,
-            "active": filters.active,
-            "active_label": ACTIVE_LABELS[filters.active] if filters.active else None,
-            "frequency": filters.frequency,
-            "frequency_label": frequency_labels.get(filters.frequency) if filters.frequency else None,
-            "datasets": filters.datasets,
-            "datasets_label": (DATASET_BUCKET_NAMES[filters.datasets] if filters.datasets else None),
+            "pills": pills,
             "facet_groups": facet_groups,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
@@ -338,9 +342,7 @@ def harvester(request, source_id):
     meta_publisher = record.get("publisher_title") or record.get("publisher_id")
     publisher = (
         None
-        if org_name
-        and meta_publisher
-        and meta_publisher.strip().casefold() == org_name.strip().casefold()
+        if org_name and meta_publisher and meta_publisher.strip().casefold() == org_name.strip().casefold()
         else meta_publisher
     )
     source = {

@@ -22,7 +22,7 @@ from explorer.queries.reviews import (
     reviews_stmts,
 )
 
-from .core import _sort_dir, paginate
+from .core import _pill, _sort_dir, paginate
 
 # Score dimensions in sidebar order — the facet-group labels for the four
 # pools computed in SQL (queries/reviews.py owns the keys/clauses).
@@ -103,6 +103,17 @@ def reviews(request):
         if group is not None:
             facet_groups[group["key"]] = group
 
+    pills = [
+        _pill(
+            g["label"],
+            "No score" if filters.get(g["key"]) == "none" else f"{filters[g['key']]}/5",
+            facet_url(g["key"], ""),
+        )
+        if filters.get(g["key"])
+        else None
+        for g in SCORE_GROUPS
+    ]
+
     return render(
         request,
         "reviews.html",
@@ -116,7 +127,7 @@ def reviews(request):
             "sort": sort,
             "dir": dir_,
             "facet_groups": facet_groups,
-            "filters": filters,
+            "pills": pills,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,

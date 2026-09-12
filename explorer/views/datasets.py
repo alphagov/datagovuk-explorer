@@ -38,7 +38,7 @@ from explorer.queries.datasets import (
 )
 from explorer.sort import DATASETS_SORT_COLUMNS
 
-from .core import _sort_dir, paginate
+from .core import _pill, _sort_dir, paginate
 
 # In-window temporal years (latest first) — filter-independent, memoised at
 # module level (the DB is a build-time snapshot, so the result is stable).
@@ -188,7 +188,10 @@ def _active_labels(filters: DatasetsFilters) -> dict[str, str | None]:
     }
 
 
-def datasets(request):
+_API_NAMES = {"data-apis": "Data API", "map-layers": "Map layers"}
+
+
+def datasets(request):  # noqa: PLR0915
     """GET /datasets — the all-datasets report with sidebar facets."""
     fetched_slug_rows = fetched_slugs()
     harvested_count_value = harvested_count()
@@ -419,7 +422,19 @@ def datasets(request):
             return f"?{urlencode(params)}" if params else "?"
         return base_facet_url(key, value)
 
-    _api_names = {"data-apis": "Data API", "map-layers": "Map layers"}
+    source_name = "Harvested" if filters.source == "harvested" else "Manual"
+    pills = [
+        _pill("Theme", labels["theme_label"], facet_url("theme", "")) if filters.theme else None,
+        _pill("Publisher", publisher_label, facet_url("publisher", "")) if filters.publisher else None,
+        _pill("API", _API_NAMES[filters.api], facet_url("api", "")) if filters.api else None,
+        _pill("Source", source_name, facet_url("source", "")) if filters.source else None,
+        _pill("Links", LINK_BUCKET_NAMES[filters.links], facet_url("links", "")) if filters.links else None,
+        _pill("Created year", filters.created_year, facet_url("created_year", "")) if filters.created_year else None,
+        _pill("Temporal year", labels["temporal_label"], facet_url("temporal_year", ""))
+        if filters.temporal_year
+        else None,
+        _pill("Metadata", labels["metadata_label"], facet_url("metadata_key", "")) if filters.metadata_key else None,
+    ]
 
     return render(
         request,
@@ -433,21 +448,7 @@ def datasets(request):
             "shown_datasets": shown_count,
             "total_orgs": len(fetched_slug_rows),
             "harvested_count": harvested_count_value,
-            "theme": filters.theme,
-            "theme_label": labels["theme_label"],
-            "publisher": filters.publisher,
-            "publisher_label": publisher_label,
-            "source": filters.source,
-            "links": filters.links,
-            "links_label": (LINK_BUCKET_NAMES[filters.links] if filters.links else None),
-            "created_year": filters.created_year,
-            "temporal_year": filters.temporal_year,
-            "temporal_label": labels["temporal_label"],
-            "api": filters.api,
-            "api_label": (_api_names[filters.api] if filters.api else None),
-            "metadata_key": filters.metadata_key,
-            "metadata_value": filters.metadata_value,
-            "metadata_label": labels["metadata_label"],
+            "pills": pills,
             "sort": sort,
             "dir": dir_,
             "facet_groups": facet_groups,

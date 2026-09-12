@@ -23,7 +23,7 @@ from explorer.queries.reports import (
     report_unfiltered_options,
 )
 
-from .core import paginate
+from .core import _pill, paginate
 
 # Facet plural noun phrases — the "More …" text and, slugged (spaces →
 # underscores), the ?<plural>=all expand param for each report facet key.
@@ -61,6 +61,7 @@ def _duplicate_url_report(request, report, url):
                 "hidden_cols": {"url"},
             },
             "detail_url": url,
+            "pills": [],
             "pager_base": "",
             "rows": rows,
             **pagination,
@@ -203,6 +204,8 @@ def report(request, key):
         for row in rows:
             row["api_links"] = json.loads(row["api_links"]) if row.get("api_links") else []
 
+    pills = [_pill(f["label"], f["current_name"], facet_url(f["key"], "")) for f in active_facets]
+
     return render(
         request,
         "report.html",
@@ -219,7 +222,7 @@ def report(request, key):
                 "show_api_links": report.get("show_api_links", False),
             },
             "facet_groups": facet_groups,
-            "active_facets": active_facets,
+            "pills": pills,
             "facet_url": facet_url,
             "pager_base": pager_base,
             "rows": rows,

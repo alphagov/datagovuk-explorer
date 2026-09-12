@@ -22,13 +22,7 @@
     <p class="report-description">{{ current.description }}</p>
   {% endif %}
 
-  {% if active_facets %}
-    <div class="filter-pills" aria-label="Active filters">
-      {% for f in active_facets %}
-        {{ filter_pill(f.label, f.current_name, facet_url(f.key, "") , "Remove " ~ f.label | lower ~ " filter: " ~ f.current_name) }}
-      {% endfor %}
-    </div>
-  {% endif %}
+  {{ filter_pills(pills) }}
 {% endblock header_left %}
 
 {% block header_right %}

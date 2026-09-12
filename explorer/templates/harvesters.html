@@ -20,12 +20,6 @@
   ] %}
   {{ subnav(subnav_tabs, "harvesters", "Publishers") }}
 
-  {% set pills = [
-      {"label": "Type", "value": type_label, "href": facet_url("type", "") , "aria": "Remove type filter: " ~ type_label} if type else none,
-      {"label": "Status", "value": active_label, "href": facet_url("active", "") , "aria": "Remove status filter: " ~ active_label} if active else none,
-      {"label": "Frequency", "value": frequency_label, "href": facet_url("frequency", "") , "aria": "Remove frequency filter: " ~ frequency_label} if frequency else none,
-      {"label": "Datasets", "value": datasets_label, "href": facet_url("datasets", "") , "aria": "Remove datasets filter: " ~ datasets_label} if datasets else none,
-    ] %}
   {{ filter_pills(pills) }}
 {% endblock header_left %}
 
