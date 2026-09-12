@@ -220,7 +220,7 @@ def datasets(request):
         },
     )
 
-    sort, dir_ = _sort_dir(request, DATASETS_SORT_COLUMNS, "organisation")
+    sort, dir_ = _sort_dir(request, DATASETS_SORT_COLUMNS, "views", default_dir="desc")
 
     # Query-string base shared by sort links / facet links / pills and the
     # temporal-year / publisher More toggles. preserve_params gives the
@@ -336,6 +336,15 @@ def datasets(request):
                 search="Search publishers",
             ),
             facets.facet_counts_group(
+                "api",
+                "API",
+                "Filter by API type",
+                [("data-apis", "Data API"), ("map-layers", "Map layers")],
+                {r["api"]: r["count"] for r in facet_counts["api"]},
+                filters.api,
+                proportions=True,
+            ),
+            facets.facet_counts_group(
                 "source",
                 "Source",
                 "Filter by source",
@@ -377,15 +386,6 @@ def datasets(request):
                 expanded=temporal_year_expanded,
                 trailing=trailing_items,
                 always_render=True,
-            ),
-            facets.facet_counts_group(
-                "api",
-                "API",
-                "Filter by API type",
-                [("data-apis", "Data API"), ("map-layers", "Map layers")],
-                {r["api"]: r["count"] for r in facet_counts["api"]},
-                filters.api,
-                proportions=True,
             ),
         )
         if group is not None
