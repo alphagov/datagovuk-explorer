@@ -55,10 +55,10 @@
 
 .data-table th {
 	text-align: left;
+	font-weight: 400;
 	vertical-align: top;
 	padding: 12px 16px;
-	background: var(--color-resource-bg);
-	border-bottom: 1px solid var(--color-border);
+	background: var(--color-bg);
 	white-space: nowrap;
 }
 
@@ -83,7 +83,6 @@
 .data-table td {
 	padding: 10px 16px;
 	vertical-align: top;
-	border-bottom: 1px solid var(--color-border);
 	/* text cells wrap by default — the 400px cap lives on .col-text */
 	white-space: normal;
 }
@@ -94,9 +93,7 @@
 .data-table tbody th {
 	padding: 10px 16px;
 	vertical-align: top;
-	border-bottom: 1px solid var(--color-border);
 	font-size: inherit;
-	font-weight: 600;
 	text-transform: none;
 	letter-spacing: normal;
 	color: inherit;

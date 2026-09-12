@@ -44,7 +44,6 @@
 	/* Page header row (h1, count, filter pills) — fixed, doesn't scroll */
 	body.app-layout main.container > .content-layout:first-child {
 		flex: none;
-		border-bottom: 1px solid var(--color-border);
 	}
 
 	body.app-layout main.container > .content-layout:first-child .layout-header {

@@ -67,10 +67,10 @@
 	--color-active-bg: oklch(95.5% 0.018 161.1);
 	--color-pending-bg: oklch(97.2% 0.023 75.9);
 	--color-pending: oklch(48% 0.115 58.2);
-	--radius: 8px;
-	--radius-sm: 6px;
+	--radius: 20px;
+	--radius-sm: 10px;
 	--radius-pill: 999px;
-	--shadow: 0 1px 3px oklch(0% 0 none / 0.08);
+	--shadow: 0 1px 5px oklch(0% 0 none / 0.1);
 	--shadow-hover: 0 4px 12px oklch(0% 0 none / 0.1);
 	--transition: 0.15s;
 	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -129,7 +129,6 @@ h4 {
 .detail-list dt,
 .related-col h4 {
 	font-size: var(--text-xs);
-	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
 	color: var(--color-muted);

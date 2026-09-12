@@ -26,7 +26,7 @@ ACTIVE_YEAR_COUNT = 2
 
 
 def _active_card(org_rows: list, last_pub_rows: list) -> dict:
-    """'Publishers have published since …' card — pure, no DB.
+    """'Publishers have active since …' card — pure, no DB.
 
     org_rows: ORGS.all() rows; last_pub_rows: LAST_PUBLISHED_BY_ORG.all()
     rows. Callers fetch both once (see cards()).
@@ -43,7 +43,7 @@ def _active_card(org_rows: list, last_pub_rows: list) -> dict:
 
     return {
         "key": "orgs-active",
-        "label": (f"Publishers have published since {since}" if since else "Publishers have published recently"),
+        "label": (f"Publishers active since {since}" if since else "Publishers have published recently"),
         "count": count,
         "link": (f"/organisations?last_published_year={','.join(active_years)}" if active_years else "/organisations"),
     }

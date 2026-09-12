@@ -5,25 +5,28 @@
  * ------------------------------------------------------------------------- */
 
 .dashboard {
+    max-width: 1000px;
+    margin: auto;
 	display: grid;
 	grid-template-columns: repeat(3, 1fr);
-	gap: 20px;
-	margin-bottom: 32px;
+	gap: 30px;
+	margin-top: 40px;
+	margin-bottom: 150px;
 }
 
 .dashboard-group {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 20px;
 }
 
 .dashboard-group-title {
     display:flex;
     gap: 16px;
     align-items: baseline;
-    font-size: var(--text-heading);
+    font-size: var(--text-display);
 	font-weight: normal;
-	color: var(--color-muted);
+	color: var(--color-text);
 	padding-bottom: 8px;
 }
 
@@ -44,20 +47,16 @@
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
-	padding: 14px 16px;
+	padding: 20px;
 	background: var(--color-surface);
-	border: 1px solid var(--color-border);
 	border-radius: var(--radius);
-	box-shadow: var(--shadow);
 	color: var(--color-text);
 	text-decoration: none;
-	transition:
-		border-color var(--transition),
-		background var(--transition);
+	transition: box-shadow var(--transition);
 }
 
 a.dashboard-card:hover {
-	border-color: var(--color-accent);
+    box-shadow: var(--shadow);
 }
 
 div.dashboard-card {

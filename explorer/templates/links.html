@@ -28,8 +28,8 @@
 {% endblock header_right %}
 
 {% block facets %}
-  {{ facet_group("domain", search=true) }}
   {{ facet_group("format") }}
+  {{ facet_group("domain", search=true) }}
   {{ facet_group("created_year") }}
   {{ facet_group("publisher", search=true) }}
 {% endblock facets %}
