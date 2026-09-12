@@ -212,10 +212,22 @@ REPORTS = [
     {
         "key": "datasets-short-title",
         "label": "Datasets with a short title",
-        "description": ("Datasets whose title is under 20 characters — too little to say what the data is about."),
+        "description": ("Datasets with a title under 20 characters"),
         "kind": "datasets",
+        "facets": [
+            {
+                "key": "org",
+                "label": "Publisher",
+                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
+            FROM datasets
+            WHERE title IS NOT NULL AND TRIM(title) != '' AND LENGTH(TRIM(title)) < 20{facet_and}
+            GROUP BY org_slug, org_display_name
+            ORDER BY count DESC, LOWER(org_display_name)""",
+                "filter_sql": " AND org_slug = %s",
+            },
+        ],
         **_dataset_report_sql(
-            "title IS NOT NULL AND TRIM(title) != '' AND LENGTH(TRIM(title)) < 20",
+            "title IS NOT NULL AND TRIM(title) != '' AND LENGTH(TRIM(title)) < 20{org}",
         ),
     },
     {
