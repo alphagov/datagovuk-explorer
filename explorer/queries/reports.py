@@ -214,14 +214,31 @@ REPORTS = [
             "title or description — usually with a pointer to a replacement."
         ),
         "kind": "datasets",
+        "facets": [
+            {
+                "key": "org",
+                "label": "Publisher",
+                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
+            FROM datasets
+            WHERE (title LIKE '%%withdrawn%%'
+              OR notes LIKE '%%dataset has been withdrawn%%'
+              OR notes LIKE '%%no longer updated and has been retired%%'
+              OR notes LIKE '%%record has been retired%%'
+              OR notes LIKE '%%dataset has been retired%%'){facet_and}
+            GROUP BY org_slug, org_display_name
+            ORDER BY count DESC, LOWER(org_display_name)""",
+                "filter_sql": " AND org_slug = %s",
+            },
+        ],
         # The LIKE patterns are doubled (%%…%%) — see the psycopg3 binding
-        # rule in queries/core.py.
+        # rule in queries/core.py. The OR conditions are wrapped in parens so
+        # {org} appends as AND org_slug = %s with correct precedence.
         **_dataset_report_sql(
-            "title LIKE '%%withdrawn%%'"
+            "(title LIKE '%%withdrawn%%'"
             " OR notes LIKE '%%dataset has been withdrawn%%'"
             " OR notes LIKE '%%no longer updated and has been retired%%'"
             " OR notes LIKE '%%record has been retired%%'"
-            " OR notes LIKE '%%dataset has been retired%%'",
+            " OR notes LIKE '%%dataset has been retired%%'){org}",
         ),
     },
     {
