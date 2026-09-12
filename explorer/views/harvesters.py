@@ -215,9 +215,9 @@ def harvesters(request):
         _dataset_bucket(r["dataset_count"]) for r in rows if _matches(r, filters, exclude="datasets")
     )
 
-    facet_groups = [
-        group
-        for group in (
+    facet_groups = {
+        g["key"]: g
+        for g in (
             facets.facet_counts_group(
                 "type",
                 "Type",
@@ -255,8 +255,8 @@ def harvesters(request):
                 proportions=True,
             ),
         )
-        if group is not None
-    ]
+        if g is not None
+    }
 
     return render(
         request,

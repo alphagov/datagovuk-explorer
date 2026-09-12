@@ -35,6 +35,13 @@
   {{ pagination(start_index, end_index, filtered_links, page, total_pages, pager_base) }}
 {% endblock header_right %}
 
+{% block facets %}
+  {{ facet_group("domain", search=true) }}
+  {{ facet_group("format") }}
+  {{ facet_group("created_year") }}
+  {{ facet_group("publisher", search=true) }}
+{% endblock facets %}
+
 {% block table %}
   <div class="table-wrap">
     <table class="data-table">

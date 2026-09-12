@@ -97,11 +97,11 @@ def reviews(request):
     # Sidebar facet groups — each score group counts over the pool filtered
     # by every other group (the standard self-excluding sidebar).
     facet_counts = reviews_facet_counts(filters)
-    facet_groups = []
+    facet_groups = {}
     for g in SCORE_GROUPS:
         group = _score_facet_group(g["key"], g["label"], facet_counts[g["key"]], filters.get(g["key"]))
         if group is not None:
-            facet_groups.append(group)
+            facet_groups[group["key"]] = group
 
     return render(
         request,

@@ -57,7 +57,7 @@
     {% if has_facets %}
       <aside class="facets{% if not has_facet_groups %} facets--empty{% endif %}" aria-label="Filters">
         {% block facets %}
-          {% for g in facet_groups %}{{ facet_group(g, facet_url) }}{% endfor %}
+          {% for key in facet_groups %}{{ facet_group(key) }}{% endfor %}
         {% endblock facets %}
       </aside>
     {% endif %}

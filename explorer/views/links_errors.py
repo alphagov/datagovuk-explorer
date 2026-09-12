@@ -158,9 +158,9 @@ def link_errors(request):
     # dicts and simply don't render (facet_counts_group drops them).
     to_delete_master = [(value, TO_DELETE_LABELS[value]) for value in _count_desc_values(pool["to_delete"])]
     harvested_master = [(value, HARVEST_LABELS[value]) for value in _count_desc_values(pool["harvested"])]
-    facet_groups = [
-        group
-        for group in (
+    facet_groups = {
+        g["key"]: g
+        for g in (
             facets.facet_counts_group(
                 "to_delete",
                 "To delete",
@@ -197,7 +197,6 @@ def link_errors(request):
                 plural="domains",
                 toggle_base=base_params,
                 expanded=domain_expanded,
-                search="Search domains",
                 trailing=(
                     [
                         {
@@ -259,11 +258,10 @@ def link_errors(request):
                 plural="publishers",
                 toggle_base=base_params,
                 expanded=publisher_expanded,
-                search="Search publishers",
             ),
         )
-        if group is not None
-    ]
+        if g is not None
+    }
 
     # Decorate only the page's rows: the status cell text (code + category
     # name, or the category name alone for the code-less DNS/timeout rows).

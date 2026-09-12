@@ -32,7 +32,7 @@
 
   {% if filters.overall or filters.findability or filters.metadata or filters.resources %}
     <div class="filter-pills" aria-label="Active filters">
-      {% for g in facet_groups %}
+      {% for g in facet_groups.values() %}
         {% if filters[g.key] %}
           {% set value_name = "No score" if filters[g.key] == "none" else filters[g.key] + "/5" %}
           {{ filter_pill(g.label, value_name, facet_url(g.key, "") , "Remove " ~ g.label | lower ~ " filter: " ~ value_name) }}
@@ -45,6 +45,13 @@
 {% block header_right %}
   {{ pagination(start_index, end_index, shown, page, total_pages, pager_base) }}
 {% endblock header_right %}
+
+{% block facets %}
+  {{ facet_group("overall") }}
+  {{ facet_group("findability") }}
+  {{ facet_group("metadata") }}
+  {{ facet_group("resources") }}
+{% endblock facets %}
 
 {% block table %}
   <div class="table-wrap">

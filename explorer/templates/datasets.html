@@ -48,6 +48,16 @@
   {{ pagination(start_index, end_index, shown_datasets, page, total_pages, pager_base) }}
 {% endblock header_right %}
 
+{% block facets %}
+  {{ facet_group("theme") }}
+  {{ facet_group("publisher", search=true) }}
+  {{ facet_group("api") }}
+  {{ facet_group("source") }}
+  {{ facet_group("links") }}
+  {{ facet_group("created_year") }}
+  {{ facet_group("temporal_year") }}
+{% endblock facets %}
+
 {% block table %}
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">

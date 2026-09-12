@@ -33,6 +33,13 @@
   {{ pagination(start_index, end_index, shown_sources, page, total_pages, pager_base) }}
 {% endblock header_right %}
 
+{% block facets %}
+  {{ facet_group("type") }}
+  {{ facet_group("active") }}
+  {{ facet_group("frequency") }}
+  {{ facet_group("datasets") }}
+{% endblock facets %}
+
 {% block table %}
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">

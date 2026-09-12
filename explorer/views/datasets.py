@@ -303,9 +303,9 @@ def datasets(request):
     # the row links to /organisation/<slug> with.
     publisher_pool = facet_counts["publishers"]
     publisher_names = {p["value"]: p["name"] for p in publisher_pool}
-    facet_groups = [
-        group
-        for group in (
+    facet_groups = {
+        g["key"]: g
+        for g in (
             facets.facet_counts_group(
                 "theme",
                 "Theme",
@@ -333,7 +333,6 @@ def datasets(request):
                 plural="publishers",
                 toggle_base=base_params,
                 expanded=publisher_expanded,
-                search="Search publishers",
             ),
             facets.facet_counts_group(
                 "api",
@@ -388,8 +387,8 @@ def datasets(request):
                 always_render=True,
             ),
         )
-        if group is not None
-    ]
+        if g is not None
+    }
 
     # Datasets matching all active filters — count + page in SQL
     stmts_out = datasets_stmts(asdict(filters), sort, dir_)

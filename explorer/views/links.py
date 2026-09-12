@@ -124,9 +124,9 @@ def links(request):
     pager_base = facets.pager_base(base_params)
 
     # Facet groups for the sidebar (pool counts + current selection -> group)
-    facet_groups = [
-        group
-        for group in (
+    facet_groups = {
+        g["key"]: g
+        for g in (
             # The pool returns every domain in it (count desc), so master and
             # counts come from the same rows — the list mirrors the current
             # sibling-filter pool, not a global top-N. Scheme-less URLs trail
@@ -142,7 +142,6 @@ def links(request):
                 plural="domains",
                 toggle_base=base_params,
                 expanded=domain_expanded,
-                search="Search domains",
                 trailing=(
                     [
                         {
@@ -206,11 +205,10 @@ def links(request):
                 plural="publishers",
                 toggle_base=base_params,
                 expanded=publisher_expanded,
-                search="Search publishers",
             ),
         )
-        if group is not None
-    ]
+        if g is not None
+    }
 
     return render(
         request,

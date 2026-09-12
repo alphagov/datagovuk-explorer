@@ -1,31 +1,25 @@
 {# Facet group in the app-layout sidebar (the facets block). Renders
-   one <section class="facet-group"> from a facet_group() dict: the ordered
-   facet-link list (with optional proportion bars), an optional
-   "More/Fewer" toggle for long lists (g.more) and optional trailing
-   buckets (g.trailing — e.g. "No URL" on /links, the temporal After/
-   Before/No-year buckets on /datasets). Every variant is driven by
-   optional keys on the dict, so the plain pages (reports/reviews/orgs)
-   and the toggle-able pages (/links, /datasets) share one macro:
-   item.href falls back to facet_url (multi-select orgs pubyear toggles),
-   missing proportions render as a zero-width bar (CSS defaults to 0).
+   one <section class="facet-group"> for the facet keyed by `key` in the
+   context `facet_groups` dict. Returns nothing if the key is absent.
 
-   g.search — an opt-in live search box above the list (the value is the
-   input's aria-label; explorer/static/facet-search.js does the
-   filtering). The search icon is the lucide "search" glyph, bundled
-   locally (explorer/static/images/lucide/search.svg, rendered as a CSS
-   mask so it takes the muted text colour). Searching covers every value
-   in the list, overriding the More-toggle collapse for the duration of
-   the search. The visible no-match line and the screen-reader
-   announcement both use the generic "results" wording (announcement
-   text set by the JS into the sr-only role="status" line). #}
-{% macro facet_group(g, facet_url) %}
+   Pass search=true to enable a live search box above the list (aria-label
+   is "Search " + the group's label, e.g. "Search Publishers"). Alternatively
+   the view can pass search="<label>" directly on the group dict — both are
+   supported; the explicit parameter takes precedence.
+
+   The macro sees facet_url and facet_groups via `with context` (imported
+   in _layout.html). #}
+{% macro facet_group(key, search=false) %}
+{% set g = facet_groups[key] %}
+{% if g is not undefined %}
+{% set search_label = ("Search " ~ g.label) if search else g.search %}
   <section class="facet-group" aria-label="{{ g.aria_label }}">
     <h2 class="facet-heading">{{ g.label }}</h2>
-    {% if g.search %}
+    {% if search_label %}
       <div class="facet-search">
         <div class="facet-search-field">
           <span class="facet-search-icon" aria-hidden="true"></span>
-          <input type="search" class="facet-search-input" aria-label="{{ g.search }}" autocomplete="off" spellcheck="false" />
+          <input type="search" class="facet-search-input" aria-label="{{ search_label }}" autocomplete="off" spellcheck="false" />
         </div>
         <p class="facet-search-empty" hidden>No results matched your search</p>
         <p class="facet-search-live" role="status"></p>
@@ -72,4 +66,5 @@
       {% endfor %}
     </ul>
   </section>
+{% endif %}
 {% endmacro %}

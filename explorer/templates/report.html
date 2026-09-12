@@ -35,6 +35,10 @@
   {{ pagination(start_index, end_index, current.count, page, total_pages, pager_base) }}
 {% endblock header_right %}
 
+{% block facets %}
+  {% for key in facet_groups %}{{ facet_group(key) }}{% endfor %}
+{% endblock facets %}
+
 {% block table %}
   <div class="table-wrap">
     <table class="data-table{% if current.kind == "links" or current.show_api_links %} data-table--report{% endif %}">

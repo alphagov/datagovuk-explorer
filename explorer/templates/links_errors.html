@@ -28,6 +28,15 @@
   {{ pagination(start_index, end_index, filtered_errors, page, total_pages, pager_base) }}
 {% endblock header_right %}
 
+{% block facets %}
+  {{ facet_group("to_delete") }}
+  {{ facet_group("category") }}
+  {{ facet_group("domain", search=true) }}
+  {{ facet_group("status") }}
+  {{ facet_group("harvested") }}
+  {{ facet_group("publisher", search=true) }}
+{% endblock facets %}
+
 {% block table %}
   <div class="table-wrap">
     <table class="data-table">

@@ -68,7 +68,7 @@ def _duplicate_url_report(request, report, url):
     )
 
 
-def _report_facets(report, query_params, expanded) -> tuple[list, dict, list, dict]:
+def _report_facets(report, query_params, expanded) -> tuple[dict, dict, list, dict]:
     """The report's facet groups + active selections for one request,
     validated against the report's own unfiltered facet options.
 
@@ -77,7 +77,7 @@ def _report_facets(report, query_params, expanded) -> tuple[list, dict, list, di
     The base params are built here so the More toggles and the caller's
     facet_url/pager links share them. Returns (facet_groups,
     active_filters, active_facets, base_params)."""
-    facet_groups = []
+    facet_groups = {}
     active_filters: dict[str, str] = {}
     active_facets: list[dict] = []
 
@@ -127,20 +127,20 @@ def _report_facets(report, query_params, expanded) -> tuple[list, dict, list, di
         else:
             options = unfiltered_options[facet["key"]]
         current = active_filters.get(facet["key"])
-        facet_groups.append(
-            facets.facet_counts_group(
-                facet["key"],
-                facet["label"],
-                f"Filter by {facet['label'].lower()}",
-                [(o["slug"], o["name"]) for o in options],
-                {o["slug"]: o["count"] for o in options},
-                current,
-                proportions=True,
-                plural=REPORT_FACET_PLURALS.get(facet["key"]),
-                toggle_base=base_params,
-                expanded=bool(expanded.get(facet["key"])),
-            ),
+        group = facets.facet_counts_group(
+            facet["key"],
+            facet["label"],
+            f"Filter by {facet['label'].lower()}",
+            [(o["slug"], o["name"]) for o in options],
+            {o["slug"]: o["count"] for o in options},
+            current,
+            proportions=True,
+            plural=REPORT_FACET_PLURALS.get(facet["key"]),
+            toggle_base=base_params,
+            expanded=bool(expanded.get(facet["key"])),
         )
+        if group is not None:
+            facet_groups[group["key"]] = group
     return facet_groups, active_filters, active_facets, base_params
 
 

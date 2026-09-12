@@ -2,7 +2,7 @@
    this layout (directly or via _app_layout.html) gets all of them. #}
 {% from "macros/_bar_chart.html" import bar_chart %}
 {% from "macros/_back_link.html" import back_link %}
-{% from "macros/_facet_group.html" import facet_group %}
+{% from "macros/_facet_group.html" import facet_group with context %}
 {% from "macros/_filter_pills.html" import filter_pill, filter_pills %}
 {% from "macros/_format_badge.html" import format_badge %}
 {% from "macros/_harvested_badge.html" import harvested_badge, harvested_state_badge %}

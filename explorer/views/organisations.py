@@ -246,9 +246,9 @@ def organisations(request):
             },
         )
 
-    facet_groups = [
-        group
-        for group in (
+    facet_groups = {
+        g["key"]: g
+        for g in (
             facets.facet_counts_group(
                 "datasets",
                 "Datasets",
@@ -285,8 +285,8 @@ def organisations(request):
                 trailing=pubyear_trailing or None,
             ),
         )
-        if group is not None
-    ]
+        if g is not None
+    }
 
     return render(
         request,
