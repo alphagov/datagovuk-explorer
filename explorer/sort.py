@@ -68,7 +68,6 @@ RESOURCE_SORT_COLUMNS = [
     "format",
     "mimetype",
     "size",
-    "created",
     "last_modified",
 ]
 
@@ -107,9 +106,9 @@ def sort_resources(rows: list[dict[str, Any]], sort: str, dir_: str) -> None:
             reverse=reverse,
         )
     elif sort == "last_modified":
-        # last_modified is often null — fall back to metadata_modified for sorting
+        # last_modified is often null — fall back to created for sorting
         rows.sort(
-            key=lambda r: _text_key(r, "last_modified", fallback="metadata_modified"),
+            key=lambda r: _text_key(r, "last_modified", fallback="created"),
             reverse=reverse,
         )
     else:

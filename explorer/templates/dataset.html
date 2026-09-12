@@ -213,7 +213,6 @@
                   <th class="col-text">{{ sort_link("format", "Format", sort, dir) }}</th>
                   <th class="col-text">{{ sort_link("mimetype", "MIME type", sort, dir) }}</th>
                   <th class="col-num">{{ sort_link("size", "Size", sort, dir) }}</th>
-                  <th class="col-date">{{ sort_link("created", "Created", sort, dir) }}</th>
                   <th class="col-date">{{ sort_link("last_modified", "Updated", sort, dir) }}</th>
                 </tr>
               </thead>
@@ -225,13 +224,7 @@
                     <td class="col-text">{{ format_badge(r.format, fallback="?") }}</td>
                     <td class="col-text">{{ r.mimetype or "—" }}</td>
                     <td class="col-num">{{ r.size | num }}</td>
-                    <td class="col-date">{{ r.created | date_short if r.created else "—" }}</td>
-                    {% set createdDate = r.created | date_short if r.created else "" %}
-                    {% set updatedRaw = r.last_modified or r.metadata_modified or "" %}
-                    {% set updatedDate = updatedRaw | date_short if updatedRaw else "" %}
-                    <td class="col-date{% if createdDate and updatedDate and createdDate != updatedDate %} updated-diff{% endif %}">
-                      {{ updatedDate or "—" }}
-                    </td>
+                    <td class="col-date">{{ (r.last_modified or r.created) | date_short if (r.last_modified or r.created) else "—" }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
