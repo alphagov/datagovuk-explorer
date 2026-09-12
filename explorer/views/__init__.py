@@ -7,7 +7,7 @@ every view as views.<name>.
 
 from .core import _page_param, health, not_found, paginate
 from .dashboard import dashboard
-from .search import search, search_datasets, search_publishers
+from .search import publisher_suggest, search, search_datasets, search_publishers
 from .dataset import dataset
 from .datasets import datasets
 from .harvesters import harvester, harvesters
@@ -24,6 +24,7 @@ from .suggestions import suggestions
 __all__ = [
     "_page_param",
     "dashboard",
+    "publisher_suggest",
     "dataset",
     "datasets",
     "harvester",

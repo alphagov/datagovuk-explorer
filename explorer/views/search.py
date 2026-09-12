@@ -1,5 +1,6 @@
 """Search views: /search, /search/publishers, /search/datasets."""
 
+from django.http import JsonResponse
 from django.shortcuts import render
 
 from explorer.queries.search import (
@@ -9,6 +10,7 @@ from explorer.queries.search import (
     search_all,
     search_datasets_page,
     search_publishers_page,
+    suggest_publishers,
 )
 
 from .core import paginate
@@ -44,6 +46,17 @@ def search_publishers(request):
         "pager_base": f"?q={q}",
         **paging,
     })
+
+
+def publisher_suggest(request):
+    q = request.GET.get("q", "").strip()
+    if len(q) < 2:
+        return JsonResponse([], safe=False)
+    rows = suggest_publishers(q)
+    return JsonResponse(
+        [{"name": r["display_name"], "slug": r["slug"]} for r in rows],
+        safe=False,
+    )
 
 
 def search_datasets(request):

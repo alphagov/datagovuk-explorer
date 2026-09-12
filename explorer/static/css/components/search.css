@@ -25,6 +25,63 @@
 	box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 
+/* Autocomplete wrapper fits the search bar slot */
+#publisher-autocomplete {
+	position: relative;
+}
+
+#publisher-autocomplete .autocomplete__wrapper {
+	display: block;
+}
+
+#publisher-autocomplete .autocomplete__input {
+	height: 100%;
+	box-sizing: border-box;
+	border: 1px solid var(--color-border-strong) !important;
+	border-right: none !important;
+	border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important;
+}
+
+#publisher-autocomplete .autocomplete__input--focused {
+	border-color: var(--color-accent) !important;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 25%, transparent) !important;
+	outline: none !important;
+}
+
+#publisher-autocomplete .autocomplete__menu {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	width: 100%;
+	background: var(--color-bg);
+	border: 1px solid var(--color-border-strong);
+	border-top: none;
+	border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+	box-shadow: 0 4px 12px color-mix(in srgb, var(--color-text) 12%, transparent);
+	z-index: 100;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+#publisher-autocomplete .autocomplete__option {
+	padding: 8px 12px;
+	font-size: var(--text-sm);
+	font-family: inherit;
+	color: var(--color-text);
+	cursor: pointer;
+}
+
+#publisher-autocomplete .autocomplete__option--odd {
+	background: transparent;
+}
+
+#publisher-autocomplete .autocomplete__option:hover,
+#publisher-autocomplete .autocomplete__option--focused {
+	background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+	color: var(--color-text);
+}
+
 .site-search__button {
 	display: flex;
 	align-items: center;

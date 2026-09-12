@@ -70,6 +70,7 @@ urlpatterns += [
     path("search", views.search, name="search"),
     path("search/publishers", views.search_publishers, name="search-publishers"),
     path("search/datasets", views.search_datasets, name="search-datasets"),
+    path("api/publishers", views.publisher_suggest, name="publisher-suggest"),
 ]
 
 # Catch-all 404 — last pattern, so it only sees paths no route matched

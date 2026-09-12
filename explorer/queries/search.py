@@ -60,6 +60,19 @@ _DATASETS_PAGE = Query(
         LIMIT %s OFFSET %s""",
 )
 
+_PUBLISHERS_SUGGEST = Query(
+    """SELECT slug,
+              COALESCE(display_name, title, name) AS display_name
+         FROM organisations
+        WHERE COALESCE(display_name, title, name, '') ILIKE %s
+        ORDER BY
+              CASE WHEN COALESCE(display_name, title, name, '') ILIKE %s THEN 0 ELSE 1 END,
+              LOWER(COALESCE(display_name, title, name))
+        LIMIT %s""",
+)
+
+SUGGEST_LIMIT = 10
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def search_all(q: str) -> dict:
@@ -98,3 +111,9 @@ def count_publishers(q: str) -> int:
 
 def count_datasets(q: str) -> int:
     return (_DATASETS_COUNT.get(q) or {}).get("n", 0)
+
+
+def suggest_publishers(q: str) -> list[dict]:
+    like = f"%{q}%"
+    startswith = f"{q}%"
+    return _PUBLISHERS_SUGGEST.all(like, startswith, SUGGEST_LIMIT)

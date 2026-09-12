@@ -19,6 +19,7 @@
     <title>{{ title }}</title>
     <link rel="stylesheet" href="{{ static('css/base.css') }}" />
     <link rel="stylesheet" href="{{ static('css/layout.css') }}" />
+    <link rel="stylesheet" href="{{ static('css/accessible-autocomplete.min.css') }}" />
     <link rel="stylesheet" href="{{ static('css/components/search.css') }}" />
     <link rel="stylesheet" href="{{ static('css/components/table.css') }}" />
     <link rel="stylesheet" href="{{ static('css/components/badges.css') }}" />
@@ -50,10 +51,7 @@
           </svg>
         </button>
         <form class="site-search" id="header-menu" action="/search" method="get" role="search">
-          <input class="site-search__input" type="search" name="q"
-                 placeholder="Search publishers, datasets…"
-                 value="{{ q if q is defined else '' }}"
-                 autocomplete="off" />
+          <div id="publisher-autocomplete" data-default="{{ q if q is defined else '' }}"></div>
           <button class="site-search__button" type="submit" aria-label="Search">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/>
@@ -79,6 +77,55 @@
           var open = inner.classList.toggle('is-open');
           btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         });
+      })();
+    </script>
+
+    <script src="{{ static('accessible-autocomplete.min.js') }}"></script>
+    <script>
+      (function () {
+        var container = document.getElementById('publisher-autocomplete');
+        if (!container) return;
+
+        var navigating = false;
+        var form = container.closest('form');
+
+        accessibleAutocomplete({
+          element: container,
+          id: 'site-search-q',
+          name: 'q',
+          minLength: 2,
+          confirmOnBlur: false,
+          showNoOptionsFound: false,
+          inputClasses: 'site-search__input',
+          source: function (query, populateResults) {
+            fetch('/api/publishers?q=' + encodeURIComponent(query))
+              .then(function (r) { return r.json(); })
+              .then(function (results) { populateResults(results); })
+              .catch(function () { populateResults([]); });
+          },
+          templates: {
+            inputValue: function (r) { return r ? r.name : ''; },
+            suggestion: function (r) { return r ? r.name : ''; }
+          },
+          onConfirm: function (r) {
+            if (r && r.slug) {
+              navigating = true;
+              window.location.href = '/organisation/' + r.slug;
+            }
+          }
+        });
+
+        var defaultVal = container.dataset.default;
+        if (defaultVal) {
+          var input = container.querySelector('input');
+          if (input) input.value = defaultVal;
+        }
+
+        if (form) {
+          form.addEventListener('submit', function (e) {
+            if (navigating) e.preventDefault();
+          });
+        }
       })();
     </script>
 
