@@ -113,16 +113,11 @@
 		margin-bottom: 12px;
 	}
 
-	/* More specific than search.css's .site-search { display: flex } */
 	.header-inner .site-search {
 		display: none;
 		flex: 0 0 100%;
+		width: 100%;
 		margin-bottom: 12px;
-	}
-
-	.header-inner .site-search .site-search__input {
-		flex: 1;
-		width: auto;
 	}
 
 	.site-nav {
@@ -150,7 +145,10 @@
 		border-left-color: var(--color-accent);
 	}
 
-	.header-inner.is-open .site-search,
+	.header-inner.is-open .site-search {
+		display: block;
+	}
+
 	.header-inner.is-open .site-nav {
 		display: flex;
 	}
