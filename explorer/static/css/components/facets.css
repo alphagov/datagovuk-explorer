@@ -10,7 +10,7 @@
 	/* Big bottom padding inside the scroll area (the pane scrolls in the
 	   app layout), so the last facet group floats above the pane edge
 	   instead of sitting flush against it when scrolled to the bottom. */
-	padding: 16px 18px 60px;
+	padding: 30px 30px 60px 30px;
 }
 
 /* Reserved-but-blank facet pane — pages that keep the two-pane frame for
