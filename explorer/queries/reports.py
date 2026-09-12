@@ -184,7 +184,19 @@ REPORTS = [
         "label": "Datasets with no description",
         "description": ("Datasets with a missing or empty description — nothing to tell you what the data is about."),
         "kind": "datasets",
-        **_dataset_report_sql("notes IS NULL OR TRIM(notes) = ''"),
+        "facets": [
+            {
+                "key": "org",
+                "label": "Publisher",
+                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
+            FROM datasets
+            WHERE (notes IS NULL OR TRIM(notes) = ''){facet_and}
+            GROUP BY org_slug, org_display_name
+            ORDER BY count DESC, LOWER(org_display_name)""",
+                "filter_sql": " AND org_slug = %s",
+            },
+        ],
+        **_dataset_report_sql("(notes IS NULL OR TRIM(notes) = ''){org}"),
     },
     {
         "key": "datasets-short-description",
