@@ -80,7 +80,7 @@ REPORTS = [
     {
         "key": "datasets-no-description",
         "label": "Datasets with no description",
-        "description": ("Datasets with a missing or empty description — nothing to tell you what the data is about."),
+        "description":"",
         "kind": "datasets",
         "facets": [
             {
@@ -143,7 +143,7 @@ REPORTS = [
         "label": "Datasets that have been withdrawn",
         "description": (
             "Datasets marked as withdrawn, retired or no longer available in their "
-            "title or description — usually with a pointer to a replacement."
+            "title or description."
         ),
         "kind": "datasets",
         "facets": [
@@ -178,8 +178,7 @@ REPORTS = [
         "label": "Datasets with duplicate titles",
         "description": (
             "Datasets that share an identical title with another dataset from the same "
-            "organisation — usually a dataset that was re-published without removing "
-            "the old copy."
+            "organisation"
         ),
         "kind": "datasets",
         "facets": [
@@ -221,7 +220,7 @@ REPORTS = [
     {
         "key": "links-no-url",
         "label": "Links with no URL",
-        "description": "Links with a missing or empty download URL.",
+        "description":"",
         "kind": "links",
         # Columns the WHERE clause guarantees to be empty — hidden so the
         # table doesn't show a column of dashes (shared links table).
@@ -242,11 +241,8 @@ REPORTS = [
     },
     {
         "key": "links-bad-url",
-        "label": "Links with unparseable URLs",
-        "description": (
-            "Links with a URL that can't be parsed into a valid web address — "
-            "often HTML or free text pasted into the URL field."
-        ),
+        "label": "Links with broken URLs",
+        "description":"",
         "kind": "links",
         "facets": [
             {
@@ -264,7 +260,7 @@ REPORTS = [
     {
         "key": "links-no-format",
         "label": "Links with no format",
-        "description": "Links with no file format recorded.",
+        "description":"",
         "kind": "links",
         "hidden_cols": ["format"],
         "facets": [
@@ -283,9 +279,7 @@ REPORTS = [
     {
         "key": "links-no-name",
         "label": "Links with no name",
-        "description": (
-            "Links with neither a descriptive name nor a description — nothing to tell you what they contain."
-        ),
+        "description": "",
         "kind": "links",
         "hidden_cols": ["name", "description"],
         # Publisher facet (?org=<slug>) — same pattern as links-no-url.
@@ -310,10 +304,8 @@ REPORTS = [
         "key": "links-duplicate-urls",
         "label": "Duplicate URLs across datasets",
         "description": (
-            "URLs that appear on more than one dataset. Most are service endpoints "
-            "(WMS/WFS) or portal homepages published by the same organisation, but a "
-            "few span multiple organisations. Click a URL to see every dataset that "
-            "links to it."
+            "URLs that appear on more than one dataset."
+            "Click a URL to see every dataset that links to it."
         ),
         "kind": "duplicate-urls",
         # Count: unique URLs that appear in 2+ datasets
