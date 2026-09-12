@@ -63,10 +63,10 @@
 	--color-active: #00703c;
 	--color-resource-bg: #f0f4f8;
 	--color-on-accent: #fff;
-	--color-on-accent-dim: rgba(255, 255, 255, 0.85);
+	--color-on-accent-dim: rgba(255, 255, 255, 0.92);
 	--color-active-bg: #e6f4ec;
 	--color-pending-bg: #fff4e5;
-	--color-pending: #b25e00;
+	--color-pending: #8c4a00;
 	--radius: 8px;
 	--radius-sm: 6px;
 	--radius-pill: 999px;

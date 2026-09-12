@@ -93,7 +93,7 @@
 .score-1,
 .score-2 {
 	background: #fbe4e1;
-	color: #d4351c;
+	color: #b02c15;
 }
 
 /* Series type badges — template (info blue) / timeseries (warn amber).
@@ -102,10 +102,10 @@
    every page from _layout.njk.) */
 .badge-template {
 	background: #e8f0fe;
-	color: #1a73e8;
+	color: #1255b0;
 }
 
 .badge-timeseries {
 	background: #fef3e0;
-	color: #e37400;
+	color: #a85500;
 }
