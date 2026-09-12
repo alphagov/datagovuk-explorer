@@ -11,7 +11,7 @@ Plain CSS, split into files. No build step — files are loaded straight from
 | `layout.css` | Site header, nav, footer | every page (layout) |
 | `components/table.css` | The shared `.data-table` component — text wraps by default; columns are typed with `.col-num` / `.col-date` | every page (layout) |
 | `components/badges.css` | Status badges, format badges, score badges | every page (layout) |
-| `components/pagination.css` | `.pagination`, `.page-link`, `.page-info` | every page (layout) |
+| `components/pagination.css` | `.pagination`, `.page-link` | every page (layout) |
 | `components/chart.css` | Yearly bar chart | `/`, `/datasets`, `/organisation/:slug` |
 | `components/pills.css` | Active-filter pills | `/datasets`, `/links`, `/report/:key`, `/reviews` |
 | `components/facets.css` | Facet sidebar + `.links-layout` grid | `/datasets`, `/links`, `/report/:key`, `/reviews` |
@@ -23,7 +23,7 @@ Plain CSS, split into files. No build step — files are loaded straight from
 ## Rules
 
 - **Shared** CSS (base, layout, table, badges, pagination) is linked once in
-  `views/_layout.njk` and applies to every page.
+  `templates/_layout.html` and applies to every page.
 - **Feature/page** CSS is linked via `{% block styles %}` at the top of the
   template that uses it — see the table above for which template needs which
   file. Keep the mapping in sync if you add or move styles.

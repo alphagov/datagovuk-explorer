@@ -9,10 +9,6 @@
      content-main  pane → table        (table only — pagination lives in the
                                         header right)
 
-   Pages that need the right pane to stack its content vertically (e.g.
-   harvesters' count + note) override header_right_class with the modifier
-   class.
-
    Report pages without any facet groups normally get the single-column
    (content-layout--full) layout. Pages that still want the two-pane frame
    with a *blank* sidebar — so they line up with their section's other
@@ -44,7 +40,7 @@
         {% block header_left %}
         {% endblock header_left %}
       </div>
-      <div class="layout-header__right{% block header_right_class %}{% endblock header_right_class %}">
+      <div class="layout-header__right">
         {% block header_right %}
         {% endblock header_right %}
       </div>

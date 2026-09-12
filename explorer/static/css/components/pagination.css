@@ -1,12 +1,8 @@
 /* ---------------------------------------------------------------------------
  * components/pagination.css — result counts + pager.
  * Used on datasets, links, report pages and reviews.
- * Loaded on every page from _layout.njk (small, avoids per-page bookkeeping).
+ * Loaded on every page from _layout.html (small, avoids per-page bookkeeping).
  * ------------------------------------------------------------------------- */
-
-.page-info {
-	color: var(--color-muted);
-}
 
 .pagination {
 	display: flex;

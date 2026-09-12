@@ -91,21 +91,6 @@
 		margin: 0;
 	}
 
-	/* Harvesters page: count + explanatory note stacked, right-aligned */
-	body.app-layout .layout-header__right--stacked {
-		flex-direction: column;
-		align-items: flex-end;
-		gap: 4px;
-	}
-
-	body.app-layout .layout-header__right--stacked .count {
-		margin-bottom: 0;
-	}
-
-	body.app-layout .layout-header__right--stacked .count-note {
-		margin: 0; /* base.css pulls it up with a negative top margin */
-	}
-
 	/* The left group must not size to its max-content (the description lays
 	   out on one line) or it fills the row and the count/pager wrap below.
 	   flex: 1 lets it take the remaining space after the right group, so

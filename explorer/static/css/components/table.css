@@ -140,13 +140,6 @@
 	background: var(--color-resource-bg);
 }
 
-/* Highlight the Updated date when it differs from Created.
-   (Defined after .col-date so it wins on the same specificity.) */
-.data-table .updated-diff {
-	font-weight: 700;
-	color: var(--color-text);
-}
-
 .data-table a {
 	color: var(--color-accent);
 	text-decoration: none;

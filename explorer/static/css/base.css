@@ -190,11 +190,3 @@ body {
 	color: var(--color-muted);
 	margin-bottom: 20px;
 }
-
-/* Small explanatory note under a count line (e.g. /harvesters' attribution gap) */
-.count-note {
-	color: var(--color-muted);
-	font-size: 0.875rem;
-	margin-top: -12px;
-	margin-bottom: 20px;
-}
