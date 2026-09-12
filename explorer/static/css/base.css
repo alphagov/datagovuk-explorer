@@ -48,30 +48,30 @@
 /* ---- Design tokens ---- */
 
 :root {
-	--color-bg: #f5f6f8;
-	--color-surface: #ffffff;
-	--color-text: #1a1a2e;
-	--color-muted: #636975;
-	--color-border: #e5e7eb;
+	--color-bg: oklch(97.3% 0.003 264.5);
+	--color-surface: oklch(100% 0 none);
+	--color-text: oklch(22.8% 0.038 282.9);
+	--color-muted: oklch(52% 0.02 264.4);
+	--color-border: oklch(92.8% 0.006 264.5);
 	/* UI-component boundaries (text inputs, …) — must clear WCAG 1.4.11's
 	   3:1 non-text contrast against a white/light surface, which the
 	   structural --color-border above does not. #767676 is ~4.5:1 vs
 	   white. */
-	--color-border-strong: #767676;
-	--color-accent: #1d70b8;
+	--color-border-strong: oklch(56.6% 0 none);
+	--color-accent: oklch(53.5% 0.136 249.9);
 	--color-accent-hover: color-mix(in srgb, var(--color-accent) 85%, black);
-	--color-active: #00703c;
-	--color-resource-bg: #f0f4f8;
-	--color-on-accent: #fff;
-	--color-on-accent-dim: rgba(255, 255, 255, 0.92);
-	--color-active-bg: #e6f4ec;
-	--color-pending-bg: #fff4e5;
-	--color-pending: #8c4a00;
+	--color-active: oklch(47.8% 0.121 154.1);
+	--color-resource-bg: oklch(96.5% 0.007 247.9);
+	--color-on-accent: oklch(100% 0 none);
+	--color-on-accent-dim: oklch(100% 0 none / 0.92);
+	--color-active-bg: oklch(95.5% 0.018 161.1);
+	--color-pending-bg: oklch(97.2% 0.023 75.9);
+	--color-pending: oklch(48% 0.115 58.2);
 	--radius: 8px;
 	--radius-sm: 6px;
 	--radius-pill: 999px;
-	--shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-	--shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
+	--shadow: 0 1px 3px oklch(0% 0 none / 0.08);
+	--shadow-hover: 0 4px 12px oklch(0% 0 none / 0.1);
 	--transition: 0.15s;
 	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 

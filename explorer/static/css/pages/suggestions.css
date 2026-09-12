@@ -1,20 +1,20 @@
 /* ---------------------------------------------------------------------------
  * pages/suggestions.css — the suggestions report page. Loaded via
- * {% block styles %} in suggestions.html (previously an inline <style>).
+ * {% block styles %} in suggestions.html (previously an inline \3c style>).
  * ------------------------------------------------------------------------- */
 
 /* LLM-suggested improvements — green/amber confidence tiers */
 .suggestion {
-	color: #2a7d2a;
+	color: oklch(52.1% 0.143 143.2);
 }
 .suggestion--low {
-	color: #b85c00;
+	color: oklch(57.5% 0.144 53.8);
 }
 .suggestion--med {
-	color: #5a7d2a;
+	color: oklch(54.5% 0.118 129.2);
 }
 .suggestion--high {
-	color: #2a6e2a;
+	color: oklch(47.8% 0.123 143.4);
 }
 
 /* Tags */
@@ -35,6 +35,6 @@
 }
 
 .tag--suggested {
-	background: #d4edda;
-	color: #2a7d2a;
+	background: oklch(92.3% 0.037 152.8);
+	color: oklch(52.1% 0.143 143.2);
 }

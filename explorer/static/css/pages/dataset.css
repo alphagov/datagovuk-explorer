@@ -113,7 +113,7 @@
 
 .tag--suggested {
 	background: var(--color-accent);
-	color: #fff;
+	color: oklch(100% 0 none);
 }
 
 /* ---- LLM classification ---- */

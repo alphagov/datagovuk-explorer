@@ -62,8 +62,8 @@
 
 /* LLM suggestion badge — inline with suggested title/description */
 .badge-suggestion {
-	background: #fef3cd;
-	color: #856404;
+	background: oklch(96.3% 0.051 93.7);
+	color: oklch(52.3% 0.106 85.5);
 }
 
 /* LLM review scores (0–5) — reviews table + dataset detail review card */
@@ -92,8 +92,8 @@
 .score-0,
 .score-1,
 .score-2 {
-	background: #fbe4e1;
-	color: #b02c15;
+	background: oklch(93.7% 0.026 26.5);
+	color: oklch(50% 0.172 32.2);
 }
 
 /* Series type badges — template (info blue) / timeseries (warn amber).
@@ -101,11 +101,11 @@
    (Moved here from pages/series.css + pages/dataset.css so they load on
    every page from _layout.njk.) */
 .badge-template {
-	background: #e8f0fe;
-	color: #1255b0;
+	background: oklch(95.3% 0.021 261.8);
+	color: oklch(46.5% 0.159 258.2);
 }
 
 .badge-timeseries {
-	background: #fef3e0;
-	color: #a85500;
+	background: oklch(96.8% 0.028 81.5);
+	color: oklch(54% 0.134 54.8);
 }
