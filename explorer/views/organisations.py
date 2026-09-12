@@ -33,9 +33,9 @@ from explorer.queries.organisations import (
     VALID_DATASET_BUCKETS,
     all_org_rows,
     org_aggregate_rows,
+    org_created_years,
     organisations_facet_counts,
     organisations_stmts,
-    yearly_org_counts,
 )
 from explorer.sort import SORT_COLUMNS
 
@@ -143,16 +143,14 @@ def organisations(request):
     # the page list is fetched per request (SQL, one page of 100).
     org_rows = all_org_rows()
     agg_rows = org_aggregate_rows()
-    yearly = yearly_org_counts()
-
     rows = _merge_org_rows(org_rows, agg_rows)
 
     sort, dir_ = _sort_dir(request, SORT_COLUMNS, "name")
 
     # Facet master lists — the validation whitelists and the facet builders
-    # consume these (computed once, not per consumer). Created years come
-    # from the chart data; last-published years from the merged rows.
-    created_years = [y["year"] for y in yearly][::-1]
+    # consume these (computed once, not per consumer). Last-published years
+    # come from the merged rows.
+    created_years = org_created_years()
     last_published_years = sorted(
         {o["last_published_year"] for o in rows if o["last_published_year"]},
         reverse=True,
@@ -300,7 +298,6 @@ def organisations(request):
             "shown_orgs": shown_orgs,
             "sort": sort,
             "dir": dir_,
-            "yearly": yearly,
             "created_year": filters.created_year,
             "last_published_year": (
                 "Never published"

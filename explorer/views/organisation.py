@@ -1,9 +1,10 @@
 """GET /organisation/{slug} — publisher overview: stats, harvesters, chart."""
 
+from datetime import UTC, datetime
+
 from django.http import Http404
 from django.shortcuts import render
 
-from explorer.helpers import yearly_counts
 from explorer.queries.datasets import (
     DATASET_COUNT,
     ORG_HARVESTED_COUNT,
@@ -12,6 +13,20 @@ from explorer.queries.datasets import (
 )
 from explorer.queries.harvesters import HARVESTERS_BY_ORG
 from explorer.queries.organisations import ORG
+
+_CHART_START_YEAR = 2010
+
+
+def _yearly_counts(rows):
+    if not rows:
+        return []
+    counts = {r["year"]: r["count"] for r in rows}
+    last = max(datetime.now(UTC).year, *[int(y) for y in counts])
+    return [
+        {"year": str(y), "label": str(y), "count": counts.get(str(y), 0)}
+        for y in range(_CHART_START_YEAR, last + 1)
+    ]
+
 
 _TYPE_LABELS = {
     "ckan": "CKAN",
@@ -46,7 +61,7 @@ def organisation(request, slug):
         h["active_label"] = "Active" if h["active"] else "Inactive"
         h["frequency_label"] = _FREQUENCY_LABELS.get(h["frequency"], (h["frequency"] or "").title())
 
-    yearly = yearly_counts(YEARLY_BY_ORG.all(slug))
+    yearly = _yearly_counts(YEARLY_BY_ORG.all(slug))
     max_yearly = max((x["count"] for x in yearly), default=0)
 
     return render(request, "organisation.html", {
@@ -65,6 +80,7 @@ def organisation(request, slug):
             "manual_count": dataset_count - harvested_count,
             "total_resources": stats.get("total_resources") or 0,
             "total_views": stats.get("total_views") or 0,
+            "last_published": stats.get("last_published"),
         },
         "harvesters": harvesters,
         "yearly": yearly,

@@ -30,11 +30,11 @@ from explorer.queries.datasets import (
     TEMPORAL_YEARS,
     THEME_COUNTS,
     VALID_LINK_BUCKETS,
+    dataset_created_years,
     datasets_facet_counts,
     datasets_stmts,
     fetched_slugs,
     harvested_count,
-    yearly_dataset_counts,
 )
 from explorer.sort import DATASETS_SORT_COLUMNS
 
@@ -69,7 +69,7 @@ def _theme_master() -> list[dict]:
 @functools.cache
 def _created_year_master() -> list[str]:
     """Created-year facet master list — latest first (filter-independent)."""
-    return [y["year"] for y in yearly_dataset_counts()][::-1]
+    return dataset_created_years()
 
 
 @dataclass(frozen=True)

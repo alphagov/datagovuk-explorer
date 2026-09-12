@@ -1,12 +1,6 @@
-"""Shared helpers for date/yearly-chart formatting and theme labels.
-
-The DB-backed yearly counts (yearly_org_counts / yearly_dataset_counts)
-live in the query layer (explorer/queries) with their statements; these are
-the pure formatting helpers.
-"""
+"""Shared helpers for date formatting and theme labels."""
 
 from datetime import UTC, datetime
-from typing import Any
 
 # data.gov.uk primary theme slugs → display labels
 THEME_LABELS = {
@@ -54,19 +48,3 @@ def theme_label(slug: str) -> str:
     if slug in THEME_LABELS:
         return THEME_LABELS[slug]
     return " ".join(w[:1].upper() + w[1:] for w in slug.split("-"))
-
-
-def _yearly_counts_from_map(counts: dict[str, int]) -> list[dict[str, Any]]:
-    """Fill year gaps so the chart has a continuous axis."""
-    if not counts:
-        return []
-    years = sorted(int(y) for y in counts)
-    first, last = years[0], years[-1]
-    return [{"year": str(y), "label": str(y), "count": counts.get(str(y), 0)} for y in range(first, last + 1)]
-
-
-def yearly_counts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Build a continuous per-year series (YYYY) from [{year, count}] rows."""
-    if not rows:
-        return []
-    return _yearly_counts_from_map({r["year"]: r["count"] for r in rows})

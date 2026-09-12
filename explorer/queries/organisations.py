@@ -10,7 +10,6 @@ import functools
 from typing import Any
 
 from explorer.buckets import BUCKET_EDGES, bucket_case, bucket_pairs, bucket_ranges, bucket_tests
-from explorer.helpers import yearly_counts
 
 from .core import Query, cached_unfiltered, facet_where
 
@@ -100,10 +99,9 @@ def org_aggregate_rows() -> list[dict[str, Any]]:
 
 
 @functools.cache
-def yearly_org_counts() -> list[dict[str, Any]]:
-    """Count organisations created per year (YYYY), continuous from first
-    to last year — memoised: build-time snapshot."""
-    return yearly_counts(YEARLY_ORGS.all())
+def org_created_years() -> list[str]:
+    """Years in which organisations were created (YYYY) — latest first, memoised."""
+    return sorted({r["year"] for r in YEARLY_ORGS.all()}, reverse=True)
 
 
 # --- /organisations sidebar facet pools (self-excluding SQL aggregates) ---

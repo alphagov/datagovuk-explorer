@@ -20,11 +20,11 @@ from explorer.queries.datasets import (
     FETCHED_SLUGS,
     THEME_COUNTS,
     YEARLY_DATASETS,
+    dataset_created_years,
     datasets_facet_counts,
     datasets_stmts,
     org_datasets_stmts,
     source_datasets_stmts,
-    yearly_dataset_counts,
 )
 from explorer.queries.harvesters import HARVEST_SOURCES, harvest_sources_stmts
 from explorer.queries.links import (
@@ -47,9 +47,9 @@ from explorer.queries.organisations import (
     ORGS,
     RESOURCE_COUNTS,
     VIEWS_BY_ORG,
+    org_created_years,
     organisations_facet_counts,
     organisations_stmts,
-    yearly_org_counts,
 )
 from explorer.queries.reports import (
     REPORTS,
@@ -918,14 +918,14 @@ def test_series_list_stmt():
 
 
 def test_yearly_helpers():
-    org = yearly_org_counts()
-    ds = yearly_dataset_counts()
+    org = org_created_years()
+    ds = dataset_created_years()
     assert isinstance(org, list)
     assert isinstance(ds, list)
     if org:
-        assert {"year", "count"} <= set(org[0])
+        assert isinstance(org[0], str)
     if ds:
-        assert {"year", "count"} <= set(ds[0])
+        assert isinstance(ds[0], str)
 
 
 def test_metadata_values_pagination():

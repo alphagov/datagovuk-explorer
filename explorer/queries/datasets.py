@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from explorer.buckets import bucket_case, bucket_pairs, bucket_ranges
-from explorer.helpers import yearly_counts
 
 from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
@@ -491,9 +490,10 @@ ORG_HARVESTED_COUNT = Query(
     "SELECT COUNT(*) AS n FROM datasets WHERE org_slug = %s AND harvested = 1",
 )
 
-# Aggregate resource count and views for one org — the org overview page.
+# Aggregate resource count, views, and last published date for one org.
 ORG_STATS = Query(
-    "SELECT SUM(resource_count) AS total_resources, SUM(views) AS total_views"
+    "SELECT SUM(resource_count) AS total_resources, SUM(views) AS total_views,"
+    " MAX(metadata_created) AS last_published"
     " FROM datasets WHERE org_slug = %s",
 )
 
@@ -552,6 +552,6 @@ def harvested_count() -> int:
 
 
 @functools.cache
-def yearly_dataset_counts() -> list[dict[str, Any]]:
-    """Count datasets created per year (YYYY), continuous from first to last year — memoised."""
-    return yearly_counts(YEARLY_DATASETS.all())
+def dataset_created_years() -> list[str]:
+    """Years in which datasets were created (YYYY) — latest first, memoised."""
+    return sorted({r["year"] for r in YEARLY_DATASETS.all()}, reverse=True)

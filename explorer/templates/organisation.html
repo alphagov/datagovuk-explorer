@@ -33,24 +33,28 @@
       </div>
     </div>
 
-    {% if org.state or org.approval_status or org.created %}
-      <section class="section">
-        <dl class="detail-list">
-          {% if org.state %}
-            <dt>Status</dt>
-            <dd><span class="badge badge-{{ org.state }}">{{ org.state }}</span></dd>
-          {% endif %}
-          {% if org.approval_status %}
-            <dt>Approved</dt>
-            <dd><span class="badge badge-{{ org.approval_status }}">{{ org.approval_status }}</span></dd>
-          {% endif %}
-          {% if org.created %}
-            <dt>Created</dt>
-            <dd>{{ org.created | date_short }}</dd>
-          {% endif %}
-        </dl>
-      </section>
-    {% endif %}
+    <section class="section">
+      <dl class="detail-list">
+        {% if org.state %}
+          <dt>Status</dt>
+          <dd><span class="badge badge-{{ org.state }}">{{ org.state }}</span></dd>
+        {% endif %}
+        {% if org.approval_status %}
+          <dt>Approved</dt>
+          <dd><span class="badge badge-{{ org.approval_status }}">{{ org.approval_status }}</span></dd>
+        {% endif %}
+        {% if org.created %}
+          <dt>Created</dt>
+          <dd>{{ org.created | date_short }}</dd>
+        {% endif %}
+        {% if org.last_published %}
+          <dt>Last published</dt>
+          <dd>{{ org.last_published | date_short }}</dd>
+        {% endif %}
+        <dt>CKAN ID</dt>
+        <dd><code>{{ org.slug }}</code></dd>
+      </dl>
+    </section>
 
     {% if yearly and max_yearly %}
       <section class="section chart-section">
