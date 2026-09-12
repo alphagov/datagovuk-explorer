@@ -88,32 +88,44 @@ dump-db dump_file="db/backups/explorer-`date +%F`.dump":
       --no-owner --no-privileges --format=custom --file="{{dump_file}}"
     @echo "Wrote {{dump_file}}"
 
-# Restore a local dump into the Railway Postgres, replacing everything.
-# The JS app and this app share the same table names, so the existing
-# schema is dropped wholesale first — pg_restore --clean alone can't
-# cascade through the FK dependencies (datasets ← links/dataset_json/
-# embedding_map), which is why the drop is done up front. That IS the
-# replacement. The dump recreates the vector extension afterwards.
+# Restore a dump into a target Postgres, replacing everything. Works for
+# pushing local → Railway or pulling prod → local (see pull-db).
+# The existing schema is dropped wholesale first — pg_restore --clean alone
+# can't cascade through FK dependencies (datasets ← links/dataset_json/
+# embedding_map), which is why the drop is done up front.
 #
-# Needs a reachable URL for the Railway Postgres (its internal
-# postgres.railway.internal host doesn't resolve off-Railway):
-#   • tunnel:     railway connect Postgres --tunnel-only -P 5433
-#                 (5432 is usually your local Postgres — pick a free port)
-#                 Credentials (user/password/db) are the same as DATABASE_URL —
-#                 get the password from `railway variables --service Postgres`
-#                 (PGPASSWORD). Only host+port change, so the URL is
-#                 postgresql://postgres:PASS@127.0.0.1:5433/railway
+# For Railway as the destination, the internal postgres.railway.internal host
+# doesn't resolve off-Railway — open a tunnel first (`just tunnel`) and use
+#   postgresql://postgres:PASS@127.0.0.1:5433/railway
+# (password from `railway variables --service Postgres`, key PGPASSWORD).
 # Pass it as the second arg — the tunnel prints the exact URL to use.
-restore-db dump_file railway_database_url='':
-    @if [ -z "{{railway_database_url}}" ]; then \
-        echo "Pass the Railway Postgres URL, e.g." >&2; \
+restore-db dump_file destination_database_url='':
+    @if [ -z "{{destination_database_url}}" ]; then \
+        echo "Pass the destination Postgres URL, e.g." >&2; \
         echo '  just restore-db explorer.dump postgresql://postgres:PASS@127.0.0.1:5433/railway' >&2; \
         exit 1; \
     fi
     @echo "Dropping existing schema in the target DB, then restoring {{dump_file}}"
-    psql "{{railway_database_url}}" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+    psql "{{destination_database_url}}" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
     pg_restore --no-owner --no-privileges \
-      --dbname="{{railway_database_url}}" "{{dump_file}}"
+      --dbname="{{destination_database_url}}" "{{dump_file}}"
+
+# Pull the Railway Postgres down and replace the local database.
+# Needs the tunnel running in another terminal (`just tunnel`).
+# Pass the Railway Postgres URL as the argument — the tunnel prints it.
+# e.g.:  just pull-db postgresql://postgres:PASS@127.0.0.1:5433/railway
+pull-db source_database_url='':
+    @if [ -z "{{source_database_url}}" ]; then \
+        echo "Pass the Railway Postgres URL, e.g." >&2; \
+        echo '  just pull-db postgresql://postgres:PASS@127.0.0.1:5433/railway' >&2; \
+        exit 1; \
+    fi
+    @mkdir -p db/backups
+    pg_dump "{{source_database_url}}" \
+      --no-owner --no-privileges --format=custom \
+      --file="db/backups/prod-`date +%F`.dump"
+    just restore-db "db/backups/prod-`date +%F`.dump" \
+      "{{env_var_or_default('DATABASE_URL', 'postgresql://localhost:5432/datagovuk_explorer')}}"
 
 # Open an encrypted tunnel to the Railway Postgres. Keep this running in a
 # terminal while you restore (Ctrl+C to close). 5433 — your local Postgres
