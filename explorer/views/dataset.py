@@ -17,7 +17,7 @@ from explorer.queries.datasets import (
     DATASET_TEMPORAL_PERIODS,
     RELATED_BY_FTS,
 )
-from explorer.queries.embeddings import EMBEDDING_TEXT, SEMANTIC_RELATED
+from explorer.queries.embeddings import EMBEDDING_LITERAL, SEMANTIC_RELATED
 from explorer.queries.harvesters import HARVEST_SOURCE
 from explorer.queries.organisations import ORG
 from explorer.queries.reviews import get_classification, get_review
@@ -250,10 +250,10 @@ def dataset(request, org_slug, dataset_id):
 
     # Related datasets via semantic embeddings (pgvector KNN)
     semantic_related: list = []
-    emb_row = EMBEDDING_TEXT.get(dataset["id"])
+    emb_row = EMBEDDING_LITERAL.get(dataset["id"])
     if emb_row:
         semantic_related = SEMANTIC_RELATED.all(
-            emb_row["vector_text"],
+            emb_row["embedding"],
             dataset["id"],
             dataset["id"],
         )

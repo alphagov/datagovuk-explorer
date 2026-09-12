@@ -3,8 +3,8 @@
 
 One-off: reads id, title, notes from the datasets table (populated by
 build_db.py), computes 768-dim embeddings through llama-server
-(bge-base-en-v1.5), and writes them to dataset_embeddings and embedding_map
-via pgvector.
+(bge-base-en-v1.5), and writes them to dataset_embeddings (the vector) and
+embedding_map (the dataset -> rowid map) via pgvector.
 
 Start the server first — the exact llama-server invocation is in
 scripts/embeddings.py (LLAMA_SERVER).
@@ -90,8 +90,7 @@ def embed_batch(
     """Embed one batch and write its rows.
 
     Null texts are skipped in the request and stored as zero vectors; every
-    other row gets embedding = the response vector and vector_text = the
-    JSON-serialized array.
+    other row gets embedding = the response vector.
     """
 
     if batch_start >= batch_end:
@@ -118,7 +117,7 @@ def embed_batch(
             "INSERT INTO dataset_embeddings(rowid, embedding) VALUES (?, ?::vector)",
         )
         insert_map = tx.prepare(
-            "INSERT INTO embedding_map(rowid, dataset_id, vector_text) VALUES (?, ?, ?)",
+            "INSERT INTO embedding_map(rowid, dataset_id) VALUES (?, ?)",
         )
         emb_idx = 0
         for i in range(batch_start, batch_end):
@@ -131,14 +130,7 @@ def embed_batch(
             # pgvector expects the '[...]' literal; str(float) is the
             # shortest round-trip repr.
             insert_emb.run(rowid, f"[{','.join(str(v) for v in vec_arr)}]")
-            # json.dumps compact separators, raw unicode. Float formatting
-            # may differ between runs (1e-7 vs 1e-07) — the stored values
-            # are compared with float tolerance, not bytes.
-            insert_map.run(
-                rowid,
-                rows[i]["id"],
-                json.dumps(vec_arr, ensure_ascii=False, separators=(",", ":")),
-            )
+            insert_map.run(rowid, rows[i]["id"])
 
     db.transaction(_write)
 

@@ -230,6 +230,13 @@ class MetadataValue(models.Model):
 
 
 class EmbeddingMap(models.Model):
+    """Maps a dataset id to its dense rowid in dataset_embeddings.
+
+    The vector itself lives only in dataset_embeddings (the pgvector probe
+    is derived from it); 0001's duplicate `vector_text` column was dropped
+    in 0014.
+    """
+
     rowid = models.IntegerField(primary_key=True)
     dataset = models.ForeignKey(
         Dataset,
@@ -237,7 +244,6 @@ class EmbeddingMap(models.Model):
         db_column="dataset_id",
         db_index=False,
     )
-    vector_text = models.TextField()
 
     class Meta:
         app_label = "explorer"

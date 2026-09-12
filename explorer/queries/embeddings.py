@@ -1,12 +1,19 @@
-"""Embedding statements — pgvector semantic search and the
-dataset→embedding-text lookup behind the dataset detail page's
-"semantically related" list."""
+"""Embedding statements — pgvector semantic search and the dataset's own
+embedding probe behind the dataset detail page's "semantically related"
+list."""
 
 from .core import Query
 
-# Dataset embedding text (the pgvector KNN query joins through
-# embedding_map/rowid to reach dataset ids)
-EMBEDDING_TEXT = Query("SELECT vector_text FROM embedding_map WHERE dataset_id = %s")
+# The dataset's own embedding as a pgvector literal, used as the probe for
+# SEMANTIC_RELATED. It is derived from dataset_embeddings (the binary copy
+# the HNSW index sits on); embedding_map only maps dataset id -> rowid, so
+# the vector is never stored twice.
+EMBEDDING_LITERAL = Query(
+    "SELECT e.embedding::text AS embedding "
+    "FROM embedding_map m "
+    "JOIN dataset_embeddings e ON e.rowid = m.rowid "
+    "WHERE m.dataset_id = %s",
+)
 
 # Semantic "more like this" via pgvector KNN. The series exclusion (the
 # NOT IN block) matches RELATED_BY_FTS: datasets in the same detected

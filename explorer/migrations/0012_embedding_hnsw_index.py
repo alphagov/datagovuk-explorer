@@ -24,7 +24,7 @@ graph in place (~5 min at the default maintenance_work_mem — raise that GUC
 for the session to speed it up).
 
 idx_embedding_map_dataset is a plain btree for the dataset -> embedding
-lookup (EMBEDDING_TEXT) and the ANN query's join through embedding_map.
+lookup (EMBEDDING_LITERAL) and the ANN query's join through embedding_map.
 """
 
 from django.db import migrations
