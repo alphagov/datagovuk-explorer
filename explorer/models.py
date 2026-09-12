@@ -139,6 +139,9 @@ class DatasetApi(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "dataset_api"
+        indexes = [
+            models.Index(fields=["api_category"], name="dataset_api_category_idx"),
+        ]
 
     def __str__(self):
         return f"{self.dataset_id} ({self.api_category})"
