@@ -16,7 +16,7 @@ import functools
 import re
 
 from explorer.queries.core import fetch_parallel
-from explorer.queries.datasets import DATASET_TOTAL, THEME_COUNTS
+from explorer.queries.datasets import DATASET_TOTAL, DATASETS_NO_LINKS_COUNT, THEME_COUNTS
 from explorer.queries.links import LINKS_STATS
 from explorer.queries.organisations import LAST_PUBLISHED_BY_ORG, ORGS
 from explorer.queries.reports import REPORTS, report_stmts
@@ -75,13 +75,14 @@ def cards() -> dict:
         # the last statement's count.
         report_count_fns.append(lambda stmt=stmt: stmt["count"].get(*stmt["params"])["n"])
 
-    org_rows, last_pub_rows, total_datasets_row, links_stats, theme_count_rows, *report_counts = fetch_parallel(
+    org_rows, last_pub_rows, total_datasets_row, links_stats, theme_count_rows, no_links_count_row, *report_counts = fetch_parallel(
         [
             ORGS.all,
             LAST_PUBLISHED_BY_ORG.all,
             DATASET_TOTAL.get,
             LINKS_STATS.get,
             THEME_COUNTS.all,
+            DATASETS_NO_LINKS_COUNT.get,
             *report_count_fns,
         ],
     )
@@ -119,6 +120,15 @@ def cards() -> dict:
         "href": "/organisations?datasets=0",
     }
 
+    # datasets-no-links card
+    no_links_count = no_links_count_row["n"]
+    cards["datasets-no-links"] = {
+        "label": "Datasets with no links",
+        "count": no_links_count,
+        "percent": (no_links_count / totals["datasets"] * 100) if totals["datasets"] else None,
+        "href": "/datasets?links=0",
+    }
+
     # datasets-no-theme card
     no_theme_count = next(
         (r["count"] for r in theme_count_rows if r["theme"] == "__none__"),
@@ -137,7 +147,7 @@ def cards() -> dict:
     for report in REPORTS:
         group_keys.setdefault(report["kind"], []).append(report["key"])
     group_keys.setdefault("orgs", []).extend([active["key"], "orgs-no-datasets"])
-    group_keys.setdefault("datasets", []).append("datasets-no-theme")
+    group_keys.setdefault("datasets", []).extend(["datasets-no-links", "datasets-no-theme"])
     group_has_items = {kind: any(cards[key]["count"] > 0 for key in keys) for kind, keys in group_keys.items()}
 
     return {

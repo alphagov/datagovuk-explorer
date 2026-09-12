@@ -180,28 +180,6 @@ _REPORT_FACET_CLAUSES = {
 
 REPORTS = [
     {
-        "key": "datasets-no-links",
-        "label": "Datasets with no links",
-        "description": ("Datasets that have no links at all — an empty download section."),
-        "kind": "datasets",
-        # Single-select organisation facet (?org=<slug>), reusing the sidebar
-        # + filter-pill pattern from the /links page.
-        "facets": [
-            {
-                "key": "org",
-                "label": "Publisher",
-                # Self-excluding option counts: {facet_and} is the other
-                # active facets' WHERE (always '' here — single facet).
-                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
-            FROM datasets WHERE resource_count = 0{facet_and}
-            GROUP BY org_slug, org_display_name
-            ORDER BY count DESC, LOWER(org_display_name)""",
-                "filter_sql": " AND org_slug = %s",
-            },
-        ],
-        **_dataset_report_sql("resource_count = 0{org}"),
-    },
-    {
         "key": "datasets-no-description",
         "label": "Datasets with no description",
         "description": ("Datasets with a missing or empty description — nothing to tell you what the data is about."),

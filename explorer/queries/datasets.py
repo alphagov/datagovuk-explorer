@@ -480,6 +480,9 @@ TEMPORAL_YEARS = Query(
     ORDER BY year DESC""",
 )
 
+# Datasets with no links — for the dashboard card
+DATASETS_NO_LINKS_COUNT = Query("SELECT COUNT(*) AS n FROM datasets WHERE resource_count = 0")
+
 # Dataset count for one org
 DATASET_COUNT = Query("SELECT COUNT(*) AS count FROM datasets WHERE org_slug = %s")
 
