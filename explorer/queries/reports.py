@@ -93,11 +93,6 @@ _API_SIGNAL_SQL = (
     r" OR l.description ~* '\msparql\M'"
 )
 
-# Dataset-level API signal — title or notes mention "api" as a whole word.
-# These datasets describe an API but their links often point to documentation
-# rather than the endpoint, so no link signal fires.
-_API_DATASET_SQL = r"(datasets.title ~* '\mapi\M' OR datasets.notes ~* '\mapi\M')"
-
 # Per-link classification of *why* a link matched the API signal — the
 # "API type" facet. Order matters: specific formats precede the generic
 # '%api%' bucket, so combined formats like "WMS/WFS" land in one bucket.
@@ -141,25 +136,11 @@ _API_TYPE_LABEL_CASE = (
     " ELSE 'Unknown' END"
 )
 
-# Mapping category — derived from api_type so the two stay in sync.
-_MAPPING_API_TYPES = {"arcgis-rest", "wms", "wfs", "ogc-api", "csw", "georss"}
-_API_CATEGORY_CASE = (
-    f"CASE ({_API_TYPE_CASE})"
-    " WHEN 'arcgis-rest' THEN 'map-layers'"
-    " WHEN 'wms' THEN 'map-layers'"
-    " WHEN 'wfs' THEN 'map-layers'"
-    " WHEN 'ogc-api' THEN 'map-layers'"
-    " WHEN 'csw' THEN 'map-layers'"
-    " WHEN 'georss' THEN 'map-layers'"
-    " ELSE 'data-apis' END"
-)
-
 # The URL filter shared by links-duplicate-urls' count + list statements.
 _DUP_URLS_FILTER = "url IS NOT NULL AND url != ''"
 
-# EXISTS filters re-applying the API signal for one api_type / api_category —
-# shared by the facet filter_sql and _report_*_clause. Reference the outer
-# `datasets` table by design.
+# EXISTS filters for the api_type / api_category facets. All reference the
+# outer `datasets` table by design (works in any subquery context).
 _API_TYPE_FILTER_EXISTS = f"""EXISTS (
    SELECT 1 FROM links l
    WHERE l.dataset_id = datasets.id
@@ -167,27 +148,14 @@ _API_TYPE_FILTER_EXISTS = f"""EXISTS (
      AND ({_API_TYPE_CASE}) = %s
  )"""
 
-_API_MAPPING_FILTER_EXISTS = f"""EXISTS (
-   SELECT 1 FROM links l
-   WHERE l.dataset_id = datasets.id
-     AND ({_API_SIGNAL_SQL})
-     AND ({_API_CATEGORY_CASE}) = 'map-layers'
- )"""
-
-_API_NON_MAPPING_ONLY_FILTER_EXISTS = f"""(
-  (EXISTS (
-    SELECT 1 FROM links l
-    WHERE l.dataset_id = datasets.id
-      AND ({_API_SIGNAL_SQL})
-      AND ({_API_CATEGORY_CASE}) = 'data-apis'
-  ) OR {_API_DATASET_SQL})
-  AND NOT EXISTS (
-    SELECT 1 FROM links l
-    WHERE l.dataset_id = datasets.id
-      AND ({_API_SIGNAL_SQL})
-      AND ({_API_CATEGORY_CASE}) = 'map-layers'
-  )
-)"""
+# dataset_api-backed category filters — simple PK lookup into the build-time
+# snapshot, used by both the filter clauses and the api_category facet counts.
+_API_MAPPING_FILTER_DA = (
+    "EXISTS (SELECT 1 FROM dataset_api WHERE dataset_id = datasets.id AND api_category = 'map-layers')"
+)
+_API_NON_MAPPING_FILTER_DA = (
+    "EXISTS (SELECT 1 FROM dataset_api WHERE dataset_id = datasets.id AND api_category = 'data-apis')"
+)
 
 # Shared per-facet clause builders for the reports' sidebar facet counts —
 # same (filters, exclude) shape as datasets.py, fed to core.facet_where.
@@ -214,14 +182,14 @@ def _report_api_type_clause(filters: dict, exclude: str | None) -> tuple[list, l
 
 
 def _report_api_category_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    """api_category facet WHERE fragment — mapping wins: any mapping link → mapping."""
+    """api_category facet WHERE fragment — backed by dataset_api snapshot."""
     if exclude == "api_category":
         return [], []
     cat = filters.get("api_category")
     if cat == "map-layers":
-        return [_API_MAPPING_FILTER_EXISTS], []
+        return [_API_MAPPING_FILTER_DA], []
     if cat == "data-apis":
-        return [_API_NON_MAPPING_ONLY_FILTER_EXISTS], []
+        return [_API_NON_MAPPING_FILTER_DA], []
     return [], []
 
 
@@ -517,37 +485,32 @@ REPORTS = [
             {
                 "key": "org",
                 "label": "Publisher",
-                "counts_sql": f"""SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
+                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
             FROM datasets
-            WHERE (EXISTS (
-              SELECT 1 FROM links l WHERE l.dataset_id = datasets.id AND ({_API_SIGNAL_SQL})
-            ) OR {_API_DATASET_SQL}){{facet_and}}
+            JOIN dataset_api ON dataset_api.dataset_id = datasets.id
+            WHERE 1=1{facet_and}
             GROUP BY org_slug, org_display_name
             ORDER BY count DESC, LOWER(org_display_name)""",
                 "filter_sql": " AND org_slug = %s",
             },
             {
-                # Two values: 'map-layers' and 'data-apis'. Map layers wins: a
-                # dataset with any map-layers link counts as map-layers; data-apis
-                # only when it has zero map-layers links.
+                # Two values: 'map-layers' and 'data-apis' — read from the
+                # dataset_api snapshot (no link-level subquery needed).
                 "key": "api_category",
                 "label": "Category",
-                "counts_sql": f"""SELECT sub.effective_category AS slug,
-                          CASE sub.effective_category WHEN 'map-layers' THEN 'Map layers' ELSE 'Data APIs' END AS name,
+                "counts_sql": """SELECT dataset_api.api_category AS slug,
+                          CASE dataset_api.api_category
+                            WHEN 'map-layers' THEN 'Map layers' ELSE 'Data APIs'
+                          END AS name,
                           COUNT(*) AS count
-                   FROM (
-                     SELECT datasets.id,
-                            CASE WHEN {_API_MAPPING_FILTER_EXISTS} THEN 'map-layers' ELSE 'data-apis' END AS effective_category
-                     FROM datasets
-                     WHERE (EXISTS (SELECT 1 FROM links l WHERE l.dataset_id = datasets.id AND ({_API_SIGNAL_SQL}))
-                       OR {_API_DATASET_SQL})
-                       {{facet_and}}
-                   ) sub
-                   GROUP BY sub.effective_category
-                   ORDER BY count DESC, sub.effective_category""",
+                   FROM datasets
+                   JOIN dataset_api ON dataset_api.dataset_id = datasets.id
+                   WHERE 1=1{facet_and}
+                   GROUP BY dataset_api.api_category
+                   ORDER BY count DESC, dataset_api.api_category""",
                 "filter_sql": {
-                    "map-layers": f" AND {_API_MAPPING_FILTER_EXISTS}",
-                    "data-apis": f" AND {_API_NON_MAPPING_ONLY_FILTER_EXISTS}",
+                    "map-layers": " AND dataset_api.api_category = 'map-layers'",
+                    "data-apis": " AND dataset_api.api_category = 'data-apis'",
                 },
             },
             {
@@ -570,28 +533,26 @@ REPORTS = [
                 "filter_sql": f" AND {_API_TYPE_FILTER_EXISTS}",
             },
         ],
-        "count_sql": f"""SELECT COUNT(*) AS n FROM datasets
-               WHERE (EXISTS (
-                 SELECT 1 FROM links l WHERE l.dataset_id = datasets.id AND ({_API_SIGNAL_SQL})
-               ) OR {_API_DATASET_SQL}){{org}}{{api_category}}{{api_type}}""",
-        # One row per dataset; api_links aggregates every matched link
-        # (name/format/url) so the template can show why each matched.
+        "count_sql": """SELECT COUNT(*) AS n FROM datasets
+               JOIN dataset_api ON dataset_api.dataset_id = datasets.id
+               WHERE 1=1{org}{api_category}{api_type}""",
+        # One row per dataset; api_links is computed on-demand (paginated list
+        # only — 25 rows) to avoid storing a large jsonb column in dataset_api.
         "list_sql": f"""SELECT {_DATASET_REPORT_COLS_T},
-                     COALESCE(ml.api_links, '[]'::jsonb) AS api_links
+                     COALESCE((
+                       SELECT jsonb_agg(
+                         jsonb_build_object('name', l.name, 'format', l.format_norm, 'url', l.url)
+                         ORDER BY l.position NULLS LAST, l.id
+                       )
+                       FROM links l
+                       WHERE l.dataset_id = datasets.id
+                         AND ({_API_SIGNAL_SQL})
+                     ), '[]') AS api_links
               FROM datasets
-              LEFT JOIN (
-                SELECT l.dataset_id,
-                       jsonb_agg(jsonb_build_object(
-                         'name', l.name,
-                         'format', l.format_norm,
-                         'url', l.url
-                       ) ORDER BY l.position NULLS LAST, l.id) AS api_links
-                FROM links l
-                WHERE ({_API_SIGNAL_SQL})
-                GROUP BY l.dataset_id
-              ) ml ON ml.dataset_id = datasets.id
-              WHERE (ml.api_links IS NOT NULL OR {_API_DATASET_SQL}){{org}}{{api_category}}{{api_type}}
-              ORDER BY datasets.views DESC NULLS LAST, LOWER(datasets.org_display_name), LOWER(datasets.title), datasets.id
+              JOIN dataset_api ON dataset_api.dataset_id = datasets.id
+              WHERE 1=1{{org}}{{api_category}}{{api_type}}
+              ORDER BY datasets.views DESC NULLS LAST,
+                       LOWER(datasets.org_display_name), LOWER(datasets.title), datasets.id
               LIMIT %s OFFSET %s""",
     },
 ]

@@ -118,6 +118,32 @@ class TemporalPeriod(models.Model):
         return f"{self.dataset_id} [{self.from_year}, {self.to_year}] ({self.source})"
 
 
+class DatasetApi(models.Model):
+    """One row per dataset that has an API, populated at build time.
+
+    api_category is 'map-layers' or 'data-apis'. api_links is the jsonb
+    aggregate of every matched link (name/format_norm/url). The table is
+    wiped and rebuilt on every build; the report and datasets-page facet
+    query it instead of running the full 22-condition EXISTS chain at
+    request time."""
+
+    dataset = models.OneToOneField(
+        Dataset,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        db_column="dataset_id",
+        db_index=False,
+    )
+    api_category = models.TextField()
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "dataset_api"
+
+    def __str__(self):
+        return f"{self.dataset_id} ({self.api_category})"
+
+
 class DatasetJson(models.Model):
     dataset = models.OneToOneField(
         Dataset,

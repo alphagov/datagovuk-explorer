@@ -9,7 +9,7 @@ set dotenv-path := ".env"
 # max-age=0 in dev, see config/settings.py), so edited CSS/JS aren't cached.
 # The BasicAuth gate therefore applies to static locally too.
 dev:
-    uv run --env-file .env python manage.py runserver 0.0.0.0:3000
+    uv run --env-file .env python manage.py runserver 0.0.0.0:{{env_var_or_default("PORT", "3000")}}
 
 # Run the server (production mode — no reload; WhiteNoise serves collectstatic
 # output from staticfiles/)
@@ -55,6 +55,11 @@ migrate:
 # missing tables — the schema is applied before the build populates.
 build-db *args: migrate
     uv run --env-file .env python -m scripts.build_db {{args}}
+
+# Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
+# rebuild needed. Use when tweaking the API detection algorithm.
+build-dataset-api:
+    uv run --env-file .env python -m scripts.build_db dataset-api
 
 # One-shot fresh local database: create it if missing, apply the schema,
 # then populate it (offline — pass --skip-embeddings). The path for a
