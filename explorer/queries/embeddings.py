@@ -11,6 +11,11 @@ EMBEDDING_TEXT = Query("SELECT vector_text FROM embedding_map WHERE dataset_id =
 # Semantic "more like this" via pgvector KNN. The series exclusion (the
 # NOT IN block) matches RELATED_BY_FTS: datasets in the same detected
 # series as the current one are not "related".
+#
+# Served by the HNSW index on dataset_embeddings.embedding (migration
+# 0012) — approximate, with hnsw.ef_search (settings.py) trading recall
+# for latency. Before the index this was an exact scan over every vector
+# (~400ms); the index drops it to single-digit milliseconds.
 SEMANTIC_RELATED = Query(
     """SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
               emb.embedding <-> %s::vector AS distance

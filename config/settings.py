@@ -30,6 +30,14 @@ def _db_config_from_url(url: str) -> dict:
         "PASSWORD": p.password or "",
         "HOST": p.hostname or "",
         "PORT": p.port or "",
+        # pgvector HNSW recall knob for the semantic "more like this" query
+        # (migration 0012). Above pgvector's default of 40 so the approximate
+        # nearest-neighbour results stay close to exact; harmless for
+        # non-vector queries. Measured on the 66k baseline: 40 ≈ 58% recall
+        # @20, 200 ≈ 85%, 400 ≈ 95%, at ~2/4/8ms per query (vs ~400ms for
+        # the old exact scan). Tune via HNSW_EF_SEARCH; 40 restores
+        # pgvector's default.
+        "OPTIONS": {"options": f"-c hnsw.ef_search={os.getenv('HNSW_EF_SEARCH', '400')}"},
     }
 
 
@@ -119,7 +127,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    }
+    },
 }
 
 # Caching — dev uses finders to skip collectstatic on every change.

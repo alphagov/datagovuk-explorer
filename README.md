@@ -79,6 +79,11 @@ Embeddings (semantic search over datasets) are optional: run
 `llm/` (from CompendiumLabs on Hugging Face, with a sha256 check), then
 rebuild the DB without `--skip-embeddings` (or run `just embed-only`) with
 llama-server serving the model on :8080 — see `scripts/embeddings.py`.
+Semantic "more like this" is served by an HNSW index on the embedding
+column (migration 0012); `migrate` builds it, which takes a few minutes on
+an already-populated DB (raise `maintenance_work_mem` for the session to
+speed it up). The index is approximate — `HNSW_EF_SEARCH` (default 400)
+trades recall for latency.
 
 Other commands — `just` lists them all: `download-llm`, `build-series`,
 `embed-only` (needs llama-server on :8080), `review-suggest` +
