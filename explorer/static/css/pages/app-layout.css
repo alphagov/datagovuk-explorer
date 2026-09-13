@@ -1,22 +1,12 @@
 /* ---------------------------------------------------------------------------
- * pages/app-layout.css — app-like layout for report pages. Loaded from
- * _app_layout.html, which also sets body.app-layout, so only app-layout
- * pages get
- * this (everything below is scoped under body.app-layout as a safety net).
- *
- * Model: viewport-height body, no page scroll. Header fixed. On each page:
- * the header row (heading + filter pills left, count + pager right) and the
- * facets column stay fixed; the table fills the remaining height and
- * scrolls both axes inside its section, column header sticky at the top.
- *
- * Gated to ≥900px: below that the page falls back to normal page scroll
- * (the mobile layout stacks facets above the table and a fixed viewport
- * would squash it).
+ * pages/app-layout.css — viewport-height app layout for report pages, loaded
+ * from _app_layout.html (which sets body.app-layout). The header and facets
+ * stay fixed; the table fills the rest and scrolls. Everything is scoped
+ * under body.app-layout and gated to ≥900px — below that the page falls back
+ * to normal document scroll.
  * ------------------------------------------------------------------------- */
 
 @media (min-width: 900px) {
-	/* ---- App frame ---- */
-
 	body.app-layout {
 		height: 100vh;
 		height: 100dvh;
@@ -29,8 +19,7 @@
 		flex: none;
 	}
 
-	/* Main fills the space under the header; the table section is the only
-	   thing that scrolls. Kill the page-level vertical margins. */
+	/* Main fills the space under the header; only the table scrolls. */
 	body.app-layout main.container {
 		flex: 1;
 		min-height: 0;
@@ -41,14 +30,13 @@
 		padding: 20px 0 0;
 	}
 
-	/* Page header row (h1, count, filter pills) — fixed, doesn't scroll */
+	/* Page header row — fixed, doesn't scroll */
 	body.app-layout main.container > .content-layout:first-child {
 		flex: none;
 	}
 
-	body.app-layout main.container > .content-layout:first-child .layout-header {
-		grid-column: 1 / -1;
-		padding: 0 30px;
+	body.app-layout main.container > .content-layout:first-child .page-header {
+		padding: 0 30px 20px;
 	}
 
 	/* Facets + table row — fills the remaining height */
@@ -59,13 +47,11 @@
 		grid-template-rows: minmax(0, 1fr);
 	}
 
-	/* Page header row — heading (and filter pills) left, count + pager
-	   right, pinned to the bottom of the header row. Fixed at the top,
-	   doesn't scroll. */
+	/* Header bar: subnav/heading left, count + pager right, centred. */
 	body.app-layout .layout-header {
 		display: flex;
 		flex-wrap: wrap;
-		align-items: flex-start;
+		align-items: center;
 		justify-content: space-between;
 		column-gap: 24px;
 		row-gap: 12px;
@@ -73,16 +59,12 @@
 
 	body.app-layout .layout-header__right {
 		margin-left: auto;
-		align-self: flex-end;
-		padding-bottom: 20px;
 		display: flex;
-		flex-direction: row;
-		align-items: baseline;
+		align-items: center;
 		gap: 24px;
 	}
 
-	/* base.css gives .count a 20px bottom margin; pagination.css gives the
-	   pager 20px 0 32px — neither applies in the header column. */
+	/* Reset base.css's .count / .pagination margins inside the header bar. */
 	body.app-layout .layout-header__right .count {
 		margin-bottom: 0;
 	}
@@ -91,18 +73,14 @@
 		margin: 0;
 	}
 
-	/* The left group must not size to its max-content (the description lays
-	   out on one line) or it fills the row and the count/pager wrap below.
-	   flex: 1 lets it take the remaining space after the right group, so
-	   the heading sits left and the count/pager stay right. */
+	/* Take the remaining width so the count/pager stay right. */
 	body.app-layout .layout-header__left {
 		flex: 1 1 0;
 		min-width: 0;
 	}
 
-	/* The back-link macro wraps in <p class="subtitle"> which is width:100%
-	   by default — in the header row it must size to its content so the
-	   count/pager stay on the same line. */
+	/* The back-link macro wraps in <p class="subtitle"> (width:100%) —
+	   shrink-wrap it so it can't push the count/pager off the line. */
 	body.app-layout .layout-header__left .subtitle {
 		width: auto;
 		max-width: none;
@@ -113,13 +91,18 @@
 		overflow-wrap: anywhere;
 	}
 
+	/* Active-filter pills on their own row beneath the bar. */
+	body.app-layout .page-header .filter-pills {
+		margin: 20px 0 0;
+	}
+
 	/* Facets scroll inside their own column */
 	body.app-layout .facets {
 		min-height: 0;
 		overflow-y: auto;
 	}
 
-	/* Table section: table fills the height, pagination stays below */
+	/* Table pane: fills the height; the table scrolls inside it. */
 	body.app-layout .content-main {
 		display: flex;
 		flex-direction: column;
@@ -128,8 +111,7 @@
 		border-left: 1px solid var(--color-border);
 	}
 
-	/* Inset cell content from the browser edges while keeping row backgrounds
-	   and border-bottom lines at full width (padding on cells, not wrapper). */
+	/* Inset cell content but keep row backgrounds/borders full-width. */
 	body.app-layout .data-table :is(th, td):first-child {
 		padding-left: 20px;
 	}
@@ -139,14 +121,12 @@
 	}
 
 	body.app-layout .table-wrap {
-		/* Hug the table content: flex-grow 0 means a short table's white
-		   card ends with the last row instead of stretching to the bottom
-		   of the pane. flex-shrink 1 + min-height 0 keeps the internal
-		   scroll for tables taller than the viewport remainder. */
+		/* Hug the table: a short table's card ends at its last row, taller
+		   tables scroll inside. */
 		flex: 0 1 auto;
 		min-height: 0;
-		max-height: none; /* override the 70vh cap in table.css — the section
-		                     height is the viewport remainder now */
+		max-height: none; /* override table.css's 70vh cap — the pane height is
+		                     the viewport remainder now */
 		overflow: auto;
 	}
 }

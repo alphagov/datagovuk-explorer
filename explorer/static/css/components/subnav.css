@@ -11,7 +11,9 @@
  * sub-nav looks exactly like the primary site nav. The current report is an
  * <h1> (the page's heading) carrying the same active nav-link styling; this
  * file gives the strip its flex row/spacing and resets the h1's defaults so
- * it measures and lines up exactly like its sibling links.
+ * it measures and lines up exactly like its sibling links. The strip's
+ * spacing from the rest of the header is owned by the page header bar in
+ * pages/app-layout.css.
  * ------------------------------------------------------------------------- */
 
 .subnav {
@@ -19,7 +21,6 @@
 	flex-wrap: wrap;
 	column-gap: 20px; /* match .site-nav gaps */
 	row-gap: 10px;
-	margin-bottom: 18px;
 }
 
 /* The heading version of a nav item — cancel base.css's h1 line-height and

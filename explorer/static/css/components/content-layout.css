@@ -2,8 +2,9 @@
  * components/content-layout.css — two-column grid layout used by report
  * pages (publishers, datasets, links, report pages, reviews).
  *
- * Row 1 (optional): .layout-header in column 2 for a heading aligned with
- *   the table.
+ * Row 1 (optional): .page-header spanning both columns — the header bar
+ *   (subnav/heading left, count + pager right) plus an optional row of
+ *   active-filter pills.
  * Row 2: facets sidebar (col 1) + main content (col 2).
  * ------------------------------------------------------------------------- */
 
@@ -24,18 +25,14 @@
 	}
 }
 
-/* Place a block in the second column of a content-layout row (e.g. a page
-   heading that should align with the table edge). */
-.layout-header {
-	grid-column: 2;
+/* Page header row — spans the grid so the bar and the pills beneath it can
+   use the full width while the facets/table keep their columns. */
+.page-header {
+	grid-column: 1 / -1;
 }
 
 /* Single-column variant — when there are no facets (e.g. report pages
    without an org filter). */
 .content-layout--full {
 	grid-template-columns: minmax(0, 1fr);
-}
-
-.content-layout--full .layout-header {
-	grid-column: 1;
 }

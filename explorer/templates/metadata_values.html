@@ -4,12 +4,6 @@
   {{ back_link('/metadata', 'Metadata fields') }}
 
   <h1>Metadata: {{ field_label }}</h1>
-  <p class="subtitle">
-    {{ non_empty_count | num }} datasets have a value set
-    {% if non_empty_count != dataset_count %}
-      ({{ dataset_count | num }} have the field, {{ (dataset_count - non_empty_count) | num }} empty)
-    {% endif %}
-  </p>
 {% endblock header_left %}
 
 {% block header_right %}

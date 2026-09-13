@@ -3,11 +3,19 @@
 {# App-like pane layout — pages with a header row, optional sidebar facets,
    and a main table. The panes are defined here; each page fills the blocks:
 
-     header-left   pane → header_left  (heading, description, filter pills)
-     header-right  pane → header_right (count + pager)
-     facets        pane → facets       (facet groups — default provided)
-     content-main  pane → table        (table only — pagination lives in the
-                                        header right)
+     header-left   pane → header_left   (subnav / page heading)
+     header-right  pane → header_right  (count + pager)
+     header-pills  pane → header_pills  (active-filter pills — the layout
+                                        renders them from `pills` by default)
+     facets        pane → facets        (facet groups — default provided)
+     content-main  pane → table         (table only — pagination lives in the
+                                         header right)
+
+   The header is a single bar: the subnav (or a detail page's heading) on the
+   left, the count + pager on the right, vertically centred against each
+   other. Active-filter pills render on their own full-width row just beneath
+   that bar straight from the `pills` view context; pages only override the
+   block to change that.
 
    Report pages without any facet groups normally get the single-column
    (content-layout--full) layout. Pages that still want the two-pane frame
@@ -35,15 +43,20 @@
 
 {% block page_header %}
   <div class="content-layout{% if not has_facets %} content-layout--full{% endif %}">
-    <div class="layout-header">
-      <div class="layout-header__left">
-        {% block header_left %}
-        {% endblock header_left %}
+    <div class="page-header">
+      <div class="layout-header">
+        <div class="layout-header__left">
+          {% block header_left %}
+          {% endblock header_left %}
+        </div>
+        <div class="layout-header__right">
+          {% block header_right %}
+          {% endblock header_right %}
+        </div>
       </div>
-      <div class="layout-header__right">
-        {% block header_right %}
-        {% endblock header_right %}
-      </div>
+      {% block header_pills %}
+        {% if pills is defined %}{{ filter_pills(pills) }}{% endif %}
+      {% endblock header_pills %}
     </div>
   </div>
 {% endblock page_header %}
