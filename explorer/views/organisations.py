@@ -1,24 +1,8 @@
-"""GET /organisations — all organisations (server-side sortable, facet
-filters).
+"""GET /organisations — all organisations, with facets and server-side
+sorting.
 
-Facets use the same pattern as /datasets:
-  ?created_year=YYYY     — year created (single-select, years from the
-                          chart data)
-  ?last_published_year=YYYY[,YYYY] — year last published (comma-separated
-                    multi-select; __none__ selects orgs that have never
-                    published)
-  ?datasets=...  — dataset-count bucket (0|1-10|11-50|51-100|101-500|501-1000|1000+)
-
-Sidebar facet counts are self-excluding SQL aggregates from
-queries/organisations.py (organisations_facet_counts) — each group counts
-over the pool filtered by the other two groups, exactly like /datasets.
-The page list/filter/sort/pagination is SQL (organisations_stmts — one
-count + one page per request); the memoised full fetch still feeds the
-facet master lists, the last-published-year validation whitelist and the
-sidebar pools.
-
-Sort columns are whitelisted in ORG_SORT (queries/organisations.py); unknown
-keys fall back to the default (name asc).
+Facets: ?created_year=YYYY, ?last_published_year=YYYY[,YYYY] (or __none__ for
+orgs that have never published), ?datasets=<bucket>.
 """
 
 from dataclasses import dataclass
@@ -44,10 +28,8 @@ from .core import _pill, paginate
 
 
 def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
-    """Merge the org rows with the one-per-org aggregate pass into display
-    rows. Owns the format_date / last_published_year / has_data
-    computations. Any org_slug in agg_rows has at least one dataset, so the
-    slug set doubles as the fetched-slugs set."""
+    """Merge the org rows with their per-org aggregates into display rows.
+    Orgs absent from agg_rows have no datasets."""
     fetched_slugs = {r["org_slug"] for r in agg_rows}
     resources_by_org = {r["org_slug"]: r["total_resources"] for r in agg_rows}
     views_by_org = {r["org_slug"]: r["total_views"] for r in agg_rows}
@@ -77,10 +59,8 @@ def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
 
 
 def _page_row(r: dict) -> dict:
-    """One SQL page row → display row — the same fields _merge_org_rows
-    produces for the table (minus created_year/last_published_year, which
-    the page filters don't display). has_data comes from the aggregate
-    join: an org is in it iff it has at least one dataset."""
+    """One SQL page row → display row, minus the year fields the filters
+    don't display."""
     return {
         "slug": r["slug"],
         "name": r["display_name"] or r["title"] or r["name"],
@@ -98,23 +78,13 @@ def _page_row(r: dict) -> dict:
 
 @dataclass(frozen=True)
 class OrgFilters:
-    """The three validated /organisations facet selections (None = not
-    active). last_published_years is the multi-select tuple."""
-
     created_year: str | None
     last_published_years: tuple[str, ...] | None
     datasets: str | None
 
 
 def _parse_filters(request, valid_created_years, valid_pub_years) -> OrgFilters:
-    """Validate the /organisations facet selections from request.GET.
-
-    created_year is single-select; last_published_year is a comma-separated
-    multi-select (every value must be a valid year, or the selection must
-    be exactly the never-published marker __none__ — never-published orgs
-    are mutually exclusive with any real year, so mixed selections are
-    rejected); datasets is a bucket key from VALID_DATASET_BUCKETS.
-    """
+    """Validate the facet selections from request.GET."""
     created_year = request.GET.get("created_year")
     current_created_year = created_year if created_year in valid_created_years else None
 
@@ -122,6 +92,7 @@ def _parse_filters(request, valid_created_years, valid_pub_years) -> OrgFilters:
     current_pub_years = None
     if last_published_year is not None:
         py = last_published_year.split(",")
+        # __none__ (never published) is mutually exclusive with real years
         if py == ["__none__"]:
             current_pub_years = ("__none__",)
         elif py and all(y in valid_pub_years for y in py):
@@ -138,19 +109,14 @@ def _parse_filters(request, valid_created_years, valid_pub_years) -> OrgFilters:
 
 
 def organisations(request):
-    """GET /organisations — all orgs, server-side sortable, with facets."""
-    # The memoised fetches (queries/organisations.py) feed the facet master
-    # lists, the pub-year validation whitelist and the sidebar pools; only
-    # the page list is fetched per request (SQL, one page of 100).
+    # Memoised fetches feed the facet pools and the year whitelist; only the
+    # page list is fetched per request.
     org_rows = all_org_rows()
     agg_rows = org_aggregate_rows()
     rows = _merge_org_rows(org_rows, agg_rows)
 
-    sort, dir_ = parse_sort(request, ORG_SORT, "name")
+    sort, dir_ = parse_sort(request, ORG_SORT, "views", "desc")
 
-    # Facet master lists — the validation whitelists and the facet builders
-    # consume these (computed once, not per consumer). Last-published years
-    # come from the merged rows.
     created_years = org_created_years()
     last_published_years = sorted(
         {o["last_published_year"] for o in rows if o["last_published_year"]},
@@ -159,8 +125,6 @@ def organisations(request):
 
     filters = _parse_filters(request, set(created_years), set(last_published_years))
 
-    # Count + page in SQL — filters and ORDER BY come from
-    # queries/organisations.py.
     stmts = organisations_stmts(
         {
             "created_year": filters.created_year,
@@ -178,8 +142,7 @@ def organisations(request):
 
     last_published_param = ",".join(filters.last_published_years) if filters.last_published_years else None
 
-    # Both year lists also collapse past the default cutoff behind their
-    # own More toggles (?created_years=all / ?last_published_years=all).
+    # Year lists collapse behind their "More" toggles (?created_years=all).
     created_year_expanded = request.GET.get("created_years") == "all"
     last_published_year_expanded = request.GET.get("last_published_years") == "all"
     expanded_extras = {}
@@ -188,9 +151,8 @@ def organisations(request):
     if last_published_year_expanded:
         expanded_extras["last_published_years"] = "all"
 
-    # Shared query-string base: sort, dir, then the active facets (created
-    # year, last published year, datasets) in a fixed order, then the
-    # expanded-lists extras so facet/sort/pager links keep the lists open.
+    # Base query string for facet/sort/pager links: sort, dir, active facets,
+    # then the expanded-list extras so open lists stay open.
     base_params = facets.preserve_params(
         sort,
         dir_,
@@ -203,15 +165,10 @@ def organisations(request):
     )
     facet_url = facets.facet_url_for(base_params)
 
-    # Fragment for sort/pagination links — the sort_link/pagination macros
-    # append it to ?sort=..&dir=.., so sort/dir come off here.
+    # sort_link/pagination append ?sort=..&dir=.. themselves, so drop them here.
     facet_qs = facets.facet_qs(base_params, include_sort=False)
     pager_base = facets.pager_base(base_params)
 
-    # Sidebar facet groups (pool counts + current selection -> group).
-    # Counts are self-excluding SQL aggregates (each group applies the other
-    # two filters, omitting its own) via the shared core.facet_where helper;
-    # the shared builders only assemble them into items.
     facet_counts = organisations_facet_counts(
         {
             "created_year": filters.created_year,
@@ -223,11 +180,7 @@ def organisations(request):
     year_pool_counts = {r["created_year"]: r["count"] for r in facet_counts["created_years"]}
     pub_year_pool_counts = {r["last_published_year"]: r["count"] for r in facet_counts["last_published_years"]}
 
-    # The last-published facet's trailing bucket — orgs that have never
-    # published (no datasets at all). Its href toggles __none__ in the
-    # selection: clicking it replaces any selected years (an org either has
-    # a last-published year or it doesn't), clicking it again clears the
-    # facet.
+    # "Never published" bucket: toggling __none__ replaces any selected years.
     pubyear_trailing = []
     if facet_counts["no_last_published_year"]:
         pubyear_trailing.append(
