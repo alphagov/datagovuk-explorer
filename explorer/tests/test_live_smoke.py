@@ -1,0 +1,62 @@
+"""Opt-in smoke against the full live dev database (plan Phase 7).
+
+Run with ``just test-live``. These checks prove the real snapshot is loaded
+and a few pages render — nothing that depends on exact content or counts, so
+they don't break when the data is rebuilt.
+
+Live and fixture tests cannot share a pytest session (the fixture DB rewrites
+the default connection — plan §0), which is why this layer is a separate
+marker rather than part of ``just test``.
+"""
+
+import pytest
+from django.db import connection
+
+from explorer.queries.datasets import DATASET_TOTAL
+from explorer.queries.reports import REPORTS
+
+pytestmark = pytest.mark.live
+
+
+@pytest.fixture(autouse=True)
+def _unblock_live_db(django_db_blocker):
+    """The live layer reads the real DB directly (no test database)."""
+    with django_db_blocker.unblock():
+        yield
+
+
+def _live_dataset_count():
+    """Fail loudly if the live DB is missing or empty — `just test-live` is
+    an explicit request for the snapshot, not a silent skip to green. Also
+    guards against running after the fixture DB rewrote the connection
+    (e.g. `just test-all`), which would otherwise look green against the
+    seed."""
+    name = connection.settings_dict["NAME"]
+    assert not str(name).startswith("test_"), (
+        f"live smoke is reading the test database ({name}); run `just test-live` alone"
+    )
+    with connection.cursor() as cur:
+        cur.execute("SELECT count(*) FROM datasets")
+        count = cur.fetchone()[0]
+    assert count > 0, "live database is empty — run the pipeline (just build-db)"
+    return count
+
+
+def test_snapshot_is_loaded():
+    count = _live_dataset_count()
+    assert DATASET_TOTAL.get()["n"] == count
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/", "/datasets", "/links", "/links/errors", "/organisations", "/harvesters", "/reviews", "/suggestions"],
+)
+def test_key_pages_respond(client, path):
+    _live_dataset_count()
+    assert client.get(path).status_code == 200
+
+
+@pytest.mark.parametrize("key", [report["key"] for report in REPORTS])
+def test_reports_respond(client, key):
+    _live_dataset_count()
+    assert client.get(f"/report/{key}").status_code == 200

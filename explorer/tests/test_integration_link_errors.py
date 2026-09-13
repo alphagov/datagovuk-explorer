@@ -19,7 +19,7 @@ from explorer.queries.link_errors import (
     link_errors_stmts,
 )
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
 
 def _count(filters):

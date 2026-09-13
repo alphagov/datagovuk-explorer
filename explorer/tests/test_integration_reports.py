@@ -10,7 +10,7 @@ import pytest
 from explorer.queries.core import Query
 from explorer.queries.reports import REPORTS, report_facet_counts, report_stmts
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
 
 def test_every_report_count_matches_list():

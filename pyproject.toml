@@ -35,7 +35,7 @@ dev = [
 [tool.uv]
 # Force sqlparse past 0.5.5: django pulls it transitively, but 0.5.5 has 8
 # known vulnerabilities (all fixed in 0.6.0) — see `uv audit`.
-override-dependencies = ["sqlparse>=0.6.0"]
+override-dependencies = [ "sqlparse>=0.6.0" ]
 
 [tool.ruff]
 line-length = 120
@@ -180,12 +180,10 @@ overrides = [
 django_settings_module = "config.settings"
 
 [tool.pytest]
-# pytest — DJANGO_SETTINGS_MODULE wires pytest-django up for the app tests
-# (explorer/tests/test_views.py, explorer/tests/test_queries.py); the
-# pipeline tests in tests/ never import Django. App tests read the *live*
-# dev DB, not a test database — see explorer/tests/conftest.py (the data is
-# loaded by the standalone pipeline, not by migrations, so a pytest-created
-# DB can never hold it). The pipeline tests have their own conftest in tests/.
+# pytest — the root conftest.py owns the seeded test database (django_db_setup
+# + make_fixtures); explorer/tests/test_integration_*.py and
+# test_unit_*.py run against it, and the pipeline tests in tests/ never import
+# Django. DJANGO_SETTINGS_MODULE wires pytest-django up for the app tests.
 ini_options.DJANGO_SETTINGS_MODULE = "config.settings"
 ini_options.testpaths = [ "tests", "explorer/tests" ]
 ini_options.markers = [

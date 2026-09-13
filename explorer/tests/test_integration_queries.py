@@ -49,7 +49,7 @@ from explorer.queries.reviews import get_classification, get_review, latest_revi
 from explorer.queries.series import SERIES_COUNT, series_list_stmt
 from explorer.views.core import PAGE_SIZE
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
 
 def _without(filters, key):
@@ -358,6 +358,20 @@ def test_theme_facet_has_empty_string_bucket():
     themes = {r["theme"]: r["count"] for r in datasets_facet_counts({})["themes"]}
     assert "" in themes
     assert "__none__" in themes
+
+
+def test_datasets_facet_masters_are_ordered():
+    """The /datasets facet master lists render in their documented order:
+    theme count desc / label asc (with the No-theme member), temporal years
+    latest first. (test_views' HTML facet-order assertions, ported to the
+    helpers that build the render order.)"""
+    from explorer.views.datasets import _in_window_temporal_years, _theme_master  # noqa: PLC0415
+
+    themes = _theme_master()
+    assert themes == sorted(themes, key=lambda t: (-t["count"], t["label"].lower()))
+    assert any(t["slug"] == "none" for t in themes)
+    years = _in_window_temporal_years()
+    assert years == sorted(years, reverse=True)
 
 
 # ---------------------------------------------------------------------------

@@ -19,12 +19,13 @@ phased migration. Nothing here is a deadline; it's a direction.
 |---|---|
 | `c8cc1d9` | **Phase 1** — markers (`integration` / `live` / `slow`), `just test` / `test-all` / `test-live`, `test_rate_limit` marked `slow`. The fast filter lives in the **justfile** (not pytest `addopts`), so bare `pytest` runs everything; `just test` runs `-m "not slow and not live"`. |
 | `e0469aa` | **Audit (Phase 0) + shared unit tests (Phase 2)** — `docs/test-audit.md`, plus the "shared machinery tested once" unit tests: `test_unit_view_helpers.py`, `test_unit_macros.py`, and the facet query-string helpers in `test_facets.py`. 33 tests, no DB, all green. |
-| `e9d4a65` | **Phase 3** — root `conftest.py` with the seeded fixture world (`make_fixtures()` + a session `django_db_setup`), proven by `explorer/tests/test_integration_queries.py`. The three legacy app-test modules are gated behind the `live` marker (interim). Default `just test` was **181 passed, ~3 s** at that commit. |
-| (in progress) | **Phase 4** — `test_queries.py` ported/dropped and deleted; new fixture-backed `test_integration_queries.py`, `test_integration_reports.py`, `test_integration_link_errors.py`. `test_link_errors.py` pruned to the interim live view tests only. Default `just test`: **210 passed, 38 deselected, ~3 s**. |
+| `e9d4a65` | **Phase 3** — root `conftest.py` with the seeded fixture world (`make_fixtures()` + a session `django_db_setup`), proven by fixture-backed integration tests. Default `just test` was **181 passed, ~3 s** at that commit. |
+| `62fc0b7` | **Phase 4** — `test_queries.py` ported/dropped and deleted; new `test_integration_queries.py`, `test_integration_reports.py`, `test_integration_link_errors.py`. `test_link_errors.py` pruned to interim live views. |
+| (uncommitted) | **Phases 5–7** — view tests replaced by `test_integration_routes.py` (all-routes smoke) + `test_integration_view_behavior.py` (group C) + `test_unit_middleware.py`; `test_views.py` / `test_link_errors.py` / `explorer/tests/conftest.py` deleted; the `live` layer is now just `test_live_smoke.py`. Default `just test`: **271 passed, 1 deselected, ~4 s**; `just test-live`: 19 passed. |
 
-Working tree last commit is `e9d4a65` (Phase 4 is uncommitted at the time
-of writing). Baseline before the rewrite: **235 tests, ~60 s, 11 live-data
-failures.**
+Everything through Phase 7 is complete in the working tree (Phases 5–7 are
+uncommitted at the time of writing). Baseline before the rewrite: **235
+tests, ~60 s, 11 live-data failures.**
 
 ### Decisions since the first draft
 
@@ -52,9 +53,9 @@ failures.**
   default connection to `test_datagovuk_explorer` for the whole session, so
   the still-live `db_ready` tests would read the empty test DB. Live and
   fixture tests therefore cannot share one pytest invocation. Resolution: the
-  not-yet-ported live tests are gated behind the `live` marker and run only via
-  `just test-live`; default runs never create the test DB alongside them.
-  (Verified empirically.)
+  live layer (`test_live_smoke.py`) is gated behind the `live` marker and run
+  only via `just test-live`; default runs never create the test DB alongside
+  it. (Verified empirically.)
 - **`response.context` is unavailable.** Django's Jinja2 backend does not
   fire `template_rendered`, so `client.get(...).context is None`. Do not plan
   on asserting view context; assert query-layer data + structural markers.
@@ -67,12 +68,32 @@ failures.**
 
 ### Next step
 
-**Phase 5 — replace the view tests.** Add `test_integration_routes.py` (one
-parametrized all-routes respond smoke, incl. non-default `?sort=&dir=` /
-`?page=2`) and `test_integration_view_behavior.py` (the group C page-unique
-tests from the audit). Delete the legacy `test_views.py` and the remaining
-live view tests in `test_link_errors.py`, plus the now-subsumed per-page
-chrome tests.
+The plan is essentially executed. Remaining tidy-ups if desired: run the
+pre-commit hooks over the changed files (ruff, pyproject-fmt, djlint) and
+commit Phases 5–7; optionally wire CI (a Postgres service with pgvector)
+around `just test`.
+
+### Phase 5–7 notes
+
+- **Route smoke** (`test_integration_routes.py`): every URL in
+  `config/urls.py` responds against the fixture, plus non-default
+  `?sort=&dir=` / `?page=2` variants and a per-report parametrization. One
+  genuine finding: the `/harvesters` frequency facet crashed on a NULL
+  frequency in the seed — the seed was made realistic (no NULL frequency),
+  since the live snapshot has none either.
+- **View behaviour** (`test_integration_view_behavior.py`): report facet
+  fallback, datasets bogus-filter fallback, the harvesters facet partition
+  (view pools vs SQL count), the harvesters/datasets SOURCE headline, the
+  dataset detail review, and the resolved-row styling.
+- **Unit middleware** (`test_unit_middleware.py`): health, basic auth
+  on/off/required, and the custom 404 template (asserts template markup,
+  not the manifest-storage static URL).
+- **Cleanup**: `test_views.py`, the pruned `test_link_errors.py` and the
+  live-DB `explorer/tests/conftest.py` are gone; the root conftest loads
+  `.env` itself so `pytest explorer/tests` works standalone.
+- **Live smoke** (`test_live_smoke.py`): snapshot loaded, key pages and
+  every report respond. It guards against reading the test DB (so
+  `just test-all` fails loudly instead of looking green against the seed).
 
 ### Phase 3 notes (what the fixture world covers)
 
@@ -434,20 +455,20 @@ interim live view tests. One audit KEEP was dropped: `datasets-has-api` is
 no longer in `REPORTS`, so `test_has_api_facets_self_exclude` has no target
 (noted in `docs/test-audit.md`).
 
-**Phase 5 — replace the view tests.** Add `test_integration_routes.py` (one
-parametrized all-routes respond smoke, incl. non-default `?sort=&dir=` /
-`?page=2`) and `test_integration_view_behavior.py` (the five page-unique
-tests from the audit group C). Delete the legacy `test_views.py` and the
-now-subsumed per-page chrome tests.
+**Phase 5 — replace the view tests (done, uncommitted).**
+`test_integration_routes.py` (one parametrized all-routes smoke, incl.
+non-default `?sort=&dir=` / `?page=2`) and
+`test_integration_view_behavior.py` (the group C page-unique tests).
+`test_views.py` and the remaining live view tests deleted; the health/
+auth/404 tests moved to `test_unit_middleware.py`.
 
-**Phase 6 — delete the live layer + cleanup.** Remove the live-DB
-`django_db_blocker` hack in `explorer/tests/conftest.py`, the interim `live`
-markers on the ported modules, dead fixtures, and any test that only ever
-passed against one snapshot.
+**Phase 6 — delete the live layer + cleanup (done, uncommitted).** Removed
+`explorer/tests/conftest.py` (the live-DB blocker hack) and the interim
+`live` markers; the root conftest is the single source of DB setup.
 
-**Phase 7 — live smoke.** `test_live_smoke.py` (opt-in `live` marker): the
-snapshot is reachable, dashboard/reports return 200, counts non-zero.
-Nothing that depends on exact content.
+**Phase 7 — live smoke (done, uncommitted).** `test_live_smoke.py`
+(opt-in `live` marker): the snapshot is reachable, key pages and every
+report return 200, counts non-zero. Nothing content-dependent.
 
 ---
 
@@ -485,17 +506,7 @@ Nothing that depends on exact content.
 
 ## 12. Immediate next action
 
-The first four phases are done (markers + fast `just test`, the audit, the
-shared-machinery unit tests, the seeded fixture world, and the query-layer
-port). The next session starts at **Phase 5 — replace the view tests**:
-
-1. Add `test_integration_routes.py`: one parametrized all-routes respond
-   smoke over `config/urls.py` (fixture ids for dynamic routes, `?q=` for
-   search, `/report/<key>` over `REPORTS`), plus a non-default `?sort=&dir=`
-   and `?page=2` variant per sortable route (respond-only).
-2. Add `test_integration_view_behavior.py`: the group C page-unique tests
-   from the audit (report facet validation, multi-facet report, datasets
-   filter fallback, harvester facet pools/headline, dataset detail review).
-3. Delete `test_views.py` and the remaining live view tests in
-   `test_link_errors.py`; move the health/auth/404 unit tests to
-   `test_unit_middleware.py`.
+The plan is executed through Phase 7 (Phases 5–7 uncommitted). Remaining
+options: commit the final phases, run the pre-commit hooks over the changed
+files, and add CI (Postgres service with pgvector) around `just test`. The
+per-test keep/drop spec remains `docs/test-audit.md` if any gap surfaces.

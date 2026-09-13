@@ -4,6 +4,11 @@ Companion to `docs/test-review-plan.md`. This is a **proposal, not code**.
 It decides, per test, what survives the rewrite, so the fixture world (plan
 Phase 2) is sized to the target suite rather than the legacy one.
 
+> **Status (executed):** the prune ran across plan Phases 4–7. The legacy
+> files are gone; the target files in the layout at the bottom now exist.
+> The one deviation: `test_has_api_facets_self_exclude` was dropped because
+> `datasets-has-api` no longer exists in `REPORTS` (see its row below).
+
 Scope: the 80 app tests — `explorer/tests/test_queries.py` (35),
 `test_link_errors.py` (10), `test_views.py` (35). The pure unit suites
 (`test_facets.py`, `test_facet_where.py`) are out of scope: already fast,

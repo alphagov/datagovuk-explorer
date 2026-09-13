@@ -36,8 +36,18 @@ to-delete values, NULL http_status, and two reviews for one dataset plus an
 """
 
 import json
+import os
 
 import pytest
+from dotenv import load_dotenv
+
+# Load DATABASE_URL etc. from .env before pytest-django imports the Django
+# settings — DJANGO_SETTINGS_MODULE comes from pyproject.toml. This is the
+# root conftest, so it runs first regardless of which test dir is collected —
+# including `pytest explorer/tests` on its own, where tests/conftest.py (which
+# does the same) is not imported. load_dotenv never overrides real env vars.
+load_dotenv()
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 # Known fixture ids for the route smoke / view tests. Kept in one place so a
 # test never hardcodes a string that the seed could rename.
@@ -365,7 +375,7 @@ _METADATA_VALUES = [
 _HARVEST_SOURCES = [
     ("hs1", "Alpha Harvester", "alpha", True, "weekly", "2025-01-01T00:00:00"),
     ("hs2", "Beta Harvester", "beta", True, "daily", "2025-02-01T00:00:00"),
-    ("hs3", "Gamma Harvester", "gamma", False, None, None),
+    ("hs3", "Gamma Harvester", "gamma", False, "manual", None),
 ]
 
 # Two ok records for d01 (latest wins) plus one ok:false; one each for d07
@@ -421,11 +431,10 @@ def make_fixtures():
     Dataset.objects.bulk_create(
         [Dataset(org_display_name=display[row["org_slug"]], **_model_fields(row)) for row in _DATASETS],
     )
+    # DatasetJson.json is a JSONField — pass the object, not a JSON string
+    # (double-encoding makes the raw-SQL readers unwrap a str, not a dict).
     DatasetJson.objects.bulk_create(
-        [
-            DatasetJson(dataset_id=row["id"], json=json.dumps(_dataset_json(row, display[row["org_slug"]])))
-            for row in _DATASETS
-        ],
+        [DatasetJson(dataset_id=row["id"], json=_dataset_json(row, display[row["org_slug"]])) for row in _DATASETS],
     )
     HarvestSource.objects.bulk_create(
         [
