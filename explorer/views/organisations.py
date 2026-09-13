@@ -15,6 +15,7 @@ from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
     DATASET_BUCKETS,
     ORG_SORT,
+    ORG_SORT_DEFAULT,
     VALID_DATASET_BUCKETS,
     all_org_rows,
     org_aggregate_rows,
@@ -112,7 +113,7 @@ def organisations(request):
     agg_rows = org_aggregate_rows()
     rows = _merge_org_rows(org_rows, agg_rows)
 
-    sort, dir_ = parse_sort(request, ORG_SORT, "views", "desc")
+    sort, dir_ = parse_sort(request, ORG_SORT, *ORG_SORT_DEFAULT)
 
     created_years = org_created_years()
     last_published_years = sorted(
@@ -159,6 +160,7 @@ def organisations(request):
             ("datasets", filters.datasets),
         ],
         expanded_extras or None,
+        defaults=ORG_SORT_DEFAULT,
     )
     facet_url = facets.facet_url_for(base_params)
 

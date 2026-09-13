@@ -7,6 +7,8 @@ facet-value validation/fallback, the harvesters facet partition + headline,
 and the dataset detail review.
 """
 
+import re
+
 import pytest
 from django.test import SimpleTestCase
 
@@ -100,6 +102,34 @@ def test_harvesters_headline_matches_datasets_source_facet():
     """/harvesters' headline "datasets harvested" is the same definition as
     the /datasets SOURCE facet (harvested = 1)."""
     assert harvested_total() == datasets_facet_counts({})["source"]["harvested"]
+
+
+def _facet_hrefs(client, url):
+    html = client.get(url).content.decode()
+    return re.findall(r'href="([^"]+)"\s+class="facet-link', html)
+
+
+# Every page with a facet sidebar, on its default (unsorted) URL.
+FACET_ROUTES = [
+    "/datasets",
+    "/organisations",
+    "/links",
+    "/links/errors",
+    "/harvesters",
+    "/reviews",
+    f"/report/{REPORTS[0]['key']}",
+]
+
+
+@pytest.mark.parametrize("url", FACET_ROUTES)
+def test_facet_links_omit_default_sort(client, url):
+    """On every facet page the default sort/dir are not echoed into the facet
+    links — they carry only facets. This is also the guard that a page which
+    forgets to pass its sort default to preserve_params fails loudly instead
+    of quietly regressing."""
+    hrefs = _facet_hrefs(client, url)
+    assert hrefs, f"{url} rendered no facet links"
+    assert all("sort=" not in h and "dir=" not in h for h in hrefs), url
 
 
 def test_dataset_detail_renders_review(client):

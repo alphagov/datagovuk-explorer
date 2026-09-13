@@ -284,6 +284,9 @@ ORG_SORT = {
     "last_published": "COALESCE(a.last_published, '')",
 }
 
+# The order /organisations starts in — shared by parse_sort and preserve_params.
+ORG_SORT_DEFAULT = ("views", "desc")
+
 # The list select — ORGS' columns plus the aggregate columns.
 _ORG_LIST_SELECT = (
     "SELECT o.slug, o.name, o.display_name, o.package_count, o.type, o.state,"

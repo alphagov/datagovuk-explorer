@@ -30,6 +30,7 @@ from explorer.queries.datasets import DATASETS_SORT, source_datasets_stmts
 from explorer.queries.harvesters import (
     HARVEST_SOURCE,
     HARVESTER_SORT,
+    HARVESTER_SORT_DEFAULT,
     harvest_source_rows,
     harvest_sources_stmts,
     harvested_total,
@@ -67,6 +68,10 @@ FREQUENCY_LABELS = {
 }
 
 ACTIVE_LABELS = {"true": "Active", "false": "Inactive"}
+
+# Harvester-detail dataset table opens on recent updates. Its own default —
+# the /datasets list uses DATASETS_SORT_DEFAULT instead (views/datasets.py).
+SOURCE_DATASETS_SORT_DEFAULT = ("metadata_modified", "desc")
 
 
 @dataclass(frozen=True)
@@ -157,7 +162,7 @@ def harvesters(request):
     type_labels = dict(type_master)
     frequency_labels = dict(frequency_master)
 
-    sort, dir_ = parse_sort(request, HARVESTER_SORT, "dataset_count", "desc")
+    sort, dir_ = parse_sort(request, HARVESTER_SORT, *HARVESTER_SORT_DEFAULT)
 
     filters = _parse_filters(
         request,
@@ -201,6 +206,7 @@ def harvesters(request):
             ("frequency", filters.frequency),
             ("datasets", filters.datasets),
         ],
+        defaults=HARVESTER_SORT_DEFAULT,
     )
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
@@ -318,7 +324,7 @@ def harvester(request, source_id):
         if org_row is not None:
             org_name = org_row["display_name"] or org_row["title"] or org_row["name"]
 
-    sort, dir_ = parse_sort(request, DATASETS_SORT, "metadata_modified", "desc")
+    sort, dir_ = parse_sort(request, DATASETS_SORT, *SOURCE_DATASETS_SORT_DEFAULT)
 
     # Count + page in SQL — one page of 100, same builder shape as
     # /organisation/{slug}.
@@ -327,8 +333,8 @@ def harvester(request, source_id):
     pagination = paginate(request, total)
     datasets = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
 
-    # Pager base = sort/dir only (this page has no facets)
-    pager_base = facets.pager_base({"sort": sort, "dir": dir_})
+    # Pager base = sort/dir only, omitting the default (this page has no facets).
+    pager_base = facets.pager_base(facets.sort_params(sort, dir_, SOURCE_DATASETS_SORT_DEFAULT))
 
     active = bool(row["active"])
     # The API writes the literal string "None" (not null) for missing

@@ -16,6 +16,7 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.queries.reviews import (
     REVIEWS_SORT,
+    REVIEWS_SORT_DEFAULT,
     SCORE_KEYS,
     SCORE_VALUES,
     reviews_facet_counts,
@@ -76,13 +77,13 @@ def reviews(request):
         if v == "none" or v in SCORE_VALUES:
             filters[key] = v
 
-    sort, dir_ = parse_sort(request, REVIEWS_SORT, "overall")
+    sort, dir_ = parse_sort(request, REVIEWS_SORT, *REVIEWS_SORT_DEFAULT)
 
     # Shared query-string machinery from explorer/facets.py: the base keeps
     # sort/dir then the active facets in SCORE_KEYS order; facet_qs drops
     # sort/dir for the sort/pagination links; facet_url sets or clears one
     # facet value (empty value clears it, back to the pills).
-    base_params = facets.preserve_params(sort, dir_, list(filters.items()))
+    base_params = facets.preserve_params(sort, dir_, list(filters.items()), defaults=REVIEWS_SORT_DEFAULT)
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
     pager_base = facets.pager_base(base_params)

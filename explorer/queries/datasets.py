@@ -36,6 +36,11 @@ DATASETS_SORT = {
     "harvested": "COALESCE(d.harvested, 0)",
 }
 
+# The order /datasets starts in before the user picks a column — one source
+# for both parse_sort (the fallback) and preserve_params (whether to encode
+# it in facet links).
+DATASETS_SORT_DEFAULT = ("views", "desc")
+
 # Temporal coverage: temporal_periods rows are [from_year, to_year]
 # (either year NULL for open-ended coverage) with a source column
 # ('declared' | 'title' | 'resource'). A dataset covers year Y when some

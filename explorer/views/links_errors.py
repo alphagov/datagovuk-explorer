@@ -27,6 +27,7 @@ from explorer.queries.link_errors import (
     CATEGORY_LABELS,
     HARVEST_STATES,
     LINK_ERRORS_SORT,
+    LINK_ERRORS_SORT_DEFAULT,
     TO_DELETE_VALUES,
     link_errors_facet_counts,
     link_errors_stats,
@@ -107,7 +108,7 @@ def link_errors(request):
         "publisher": current_publisher,
     }
 
-    sort, dir_ = parse_sort(request, LINK_ERRORS_SORT, "url")
+    sort, dir_ = parse_sort(request, LINK_ERRORS_SORT, *LINK_ERRORS_SORT_DEFAULT)
 
     # Count + page in SQL — only the page's rows are fetched (the LEFT
     # JOIN supplies org slug / harvest state / harvest source per row).
@@ -141,6 +142,7 @@ def link_errors(request):
             ("publisher", current_publisher),
         ],
         expanded_extras or None,
+        defaults=LINK_ERRORS_SORT_DEFAULT,
     )
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)

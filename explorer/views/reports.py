@@ -104,8 +104,9 @@ def _report_facets(report, query_params, expanded) -> tuple[dict, dict, list, di
                 )
 
     # Query-string base — built before the groups so the More toggles can
-    # use it. Report pages have no sort UI: sort/dir are fixed placeholders
-    # and the pager base is facets + the expanded-lists extras only.
+    # use it. Report pages have no sort UI: "name"/"asc" are placeholders
+    # that match `defaults`, so preserve_params omits them and the base is
+    # facets + the expanded-lists extras only.
     extras = {}
     for key, plural in REPORT_FACET_PLURALS.items():
         if expanded.get(key):
@@ -115,6 +116,7 @@ def _report_facets(report, query_params, expanded) -> tuple[dict, dict, list, di
         "asc",
         list(active_filters.items()),
         extras or None,
+        defaults=("name", "asc"),
     )
 
     # Pass 2 — self-excluding counts with the complete active-filter set.

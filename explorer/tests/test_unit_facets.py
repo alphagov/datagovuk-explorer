@@ -370,6 +370,31 @@ def test_preserve_params_order_and_skips_empty():
     }
 
 
+def test_preserve_params_omits_default_sort():
+    """A default sort is left out of the base so links stay clean; a
+    non-default sort is still preserved. Covers the sort-only facade
+    (facets.sort_params) the facet-less pages' pagers use."""
+    assert facets.preserve_params("views", "desc", [("theme", "transport")], defaults=("views", "desc")) == {
+        "theme": "transport",
+    }
+    assert facets.preserve_params("title", "asc", [("theme", "transport")], defaults=("views", "desc")) == {
+        "sort": "title",
+        "dir": "asc",
+        "theme": "transport",
+    }
+    # Same sort but the opposite direction is not the default either.
+    assert facets.preserve_params("views", "asc", [], defaults=("views", "desc")) == {
+        "sort": "views",
+        "dir": "asc",
+    }
+    # sort_params is the no-facet case of the same rule.
+    assert facets.sort_params("dataset_count", "desc", ("dataset_count", "desc")) == {}
+    assert facets.sort_params("root_title", "asc", ("dataset_count", "desc")) == {
+        "sort": "root_title",
+        "dir": "asc",
+    }
+
+
 def test_facet_url_for_sets_and_clears_one_value():
     facet_url = facets.facet_url_for({"sort": "name", "dir": "asc", "theme": "transport"})
     assert facet_url("theme", "") == "?sort=name&dir=asc"

@@ -17,6 +17,9 @@ SERIES_SORT = {
     "org_count": "org_count",
 }
 
+# The order /series starts in — shared by parse_sort and pager_base.
+SERIES_SORT_DEFAULT = ("dataset_count", "desc")
+
 
 def series_list_stmt(sort: str, dir_: str) -> Query:
     # id breaks ties (the series table has large tie groups).

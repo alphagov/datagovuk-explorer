@@ -85,6 +85,9 @@ HARVESTER_SORT = {
     "last_run": "COALESCE(NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None'), '')",
 }
 
+# The order /harvesters starts in — shared by parse_sort and preserve_params.
+HARVESTER_SORT_DEFAULT = ("dataset_count", "desc")
+
 _HARVEST_SOURCE_SELECT = (
     "SELECT h.id, h.title, h.url, h.type, h.active, h.frequency, h.created,"
     "       NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None') AS last_run,"

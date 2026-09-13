@@ -15,6 +15,7 @@ from explorer.queries.series import (
     SERIES_COUNT,
     SERIES_DATASETS,
     SERIES_SORT,
+    SERIES_SORT_DEFAULT,
     series_built,
     series_list_stmt,
 )
@@ -42,8 +43,8 @@ def series_list(request):
     total = SERIES_COUNT.get()["n"]
     pagination = paginate(request, total)
 
-    sort, dir_ = parse_sort(request, SERIES_SORT, "dataset_count", "desc")
-    pager_base = facets.pager_base({"sort": sort, "dir": dir_})
+    sort, dir_ = parse_sort(request, SERIES_SORT, *SERIES_SORT_DEFAULT)
+    pager_base = facets.pager_base(facets.sort_params(sort, dir_, SERIES_SORT_DEFAULT))
 
     series = series_list_stmt(sort, dir_).all(pagination["page_size"], pagination["offset"])
 

@@ -24,6 +24,7 @@ from explorer.helpers import theme_label
 from explorer.queries.datasets import (
     DATASET_TOTAL,
     DATASETS_SORT,
+    DATASETS_SORT_DEFAULT,
     LINK_BUCKET_NAMES,
     LINK_BUCKETS,
     TEMPORAL_MAX_YEAR,
@@ -224,7 +225,7 @@ def datasets(request):  # noqa: PLR0915
         },
     )
 
-    sort, dir_ = parse_sort(request, DATASETS_SORT, "views", "desc")
+    sort, dir_ = parse_sort(request, DATASETS_SORT, *DATASETS_SORT_DEFAULT)
 
     # Query-string base shared by sort links / facet links / pills and the
     # temporal-year / publisher More toggles. preserve_params gives the
@@ -261,6 +262,7 @@ def datasets(request):  # noqa: PLR0915
             ("metadata_value", filters.metadata_value),
         ],
         expanded_extras or None,
+        defaults=DATASETS_SORT_DEFAULT,
     )
 
     # --- Sidebar facet groups (pool counts + current selection -> group) ---

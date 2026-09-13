@@ -80,6 +80,9 @@ LINK_ERRORS_SORT = {
     "to_delete": "e.to_delete",
 }
 
+# The order /links/errors starts in — shared by parse_sort and preserve_params.
+LINK_ERRORS_SORT_DEFAULT = ("url", "asc")
+
 
 # --- Per-facet clause builders ---------------------------------------------
 # Same (filters, exclude) shape as datasets.py; one dict feeds both the

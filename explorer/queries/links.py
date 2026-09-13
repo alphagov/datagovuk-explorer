@@ -22,6 +22,9 @@ LINK_SORT = {
     "org_display_name": "LOWER(COALESCE(l.org_display_name, ''))",
 }
 
+# The order /links starts in — shared by parse_sort and preserve_params.
+LINK_SORT_DEFAULT = ("domain", "asc")
+
 # Per-facet clause builders — same (filters, exclude) shape as datasets.py.
 # One builder dict feeds both the list/count WHERE and the facet pools
 # (each omits its own group).

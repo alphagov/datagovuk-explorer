@@ -6,9 +6,10 @@ Two layers live here:
 1. Query-string bookkeeping — the ordered ?query base every link on a
    page keeps, and the URL builders derived from it:
 
-   - preserve_params(): the base — sort and dir first, then each active
-     facet (key, value) pair in a fixed order, then extras (the
-     expanded-lists toggles, ?formats=all / ?years=all)
+   - preserve_params(): the base — sort and dir first (omitted when they
+     match the page defaults), then each active facet (key, value) pair in
+     a fixed order, then extras (the expanded-lists toggles, ?formats=all /
+     ?years=all)
    - facet_url_for(): the facet_url(key, value) closure built from that
      base — keep the base, set one facet value or clear it
    - facet_qs(): the "&…" fragment appended to ?sort=..&dir=.. by the
@@ -58,13 +59,30 @@ def _toggle_param(plural: str) -> str:
     return plural.replace(" ", "_")
 
 
-def preserve_params(sort, dir_, facets, extras=None):
+def preserve_params(sort, dir_, facets, extras=None, defaults=None):
     """Ordered query-string base: ?sort= & ?dir= first, then each active
-    (key, value) facet pair in order, then extras (e.g. {'formats': 'all'})."""
-    params = {"sort": sort, "dir": dir_, **{key: value for key, value in facets if value}}
+    (key, value) facet pair in order, then extras (e.g. {'formats': 'all'}).
+
+    `defaults` is the page's (default_sort, default_dir) pair. When the
+    current sort matches it the sort/dir keys are omitted, so links from a
+    table the user hasn't sorted don't carry a redundant ?sort=..&dir=..
+    (the view falls back to the same defaults on the next request)."""
+    params = {}
+    if defaults is None or (sort, dir_) != (defaults[0], defaults[1]):
+        params["sort"] = sort
+        params["dir"] = dir_
+    params.update({key: value for key, value in facets if value})
     if extras:
         params.update(extras)
     return params
+
+
+def sort_params(sort, dir_, defaults=None):
+    """The sort-only query base for pages without facets (their pager links) —
+    {'sort': .., 'dir': ..}, or {} when they match the page default. Same
+    default-skipping rule as preserve_params, so a default sort never leaks
+    into pagination URLs either."""
+    return preserve_params(sort, dir_, [], defaults=defaults)
 
 
 def facet_url_for(base_params):

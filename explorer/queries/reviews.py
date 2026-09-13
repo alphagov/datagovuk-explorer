@@ -90,6 +90,9 @@ REVIEWS_SORT = {
     "findability": "COALESCE(r.findability, -1)",
 }
 
+# The order /reviews starts in — shared by parse_sort and preserve_params.
+REVIEWS_SORT_DEFAULT = ("overall", "asc")
+
 
 def _score_clause(filters: dict, exclude: str | None, col: str) -> tuple[list, list]:
     """One score facet's WHERE clause + params: value → `col = %s`,
@@ -166,6 +169,9 @@ SUGGESTIONS_SORT = {
     "theme": "LOWER(COALESCE(d.theme_primary, ''))",
     "confidence": "CASE r.theme_confidence WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END",
 }
+
+# The order /suggestions starts in — shared by parse_sort and pager_base.
+SUGGESTIONS_SORT_DEFAULT = ("confidence", "asc")
 
 
 def suggestions_stmts(sort: str, dir_: str) -> dict:

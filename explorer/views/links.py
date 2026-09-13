@@ -16,6 +16,7 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.queries.links import (
     LINK_SORT,
+    LINK_SORT_DEFAULT,
     links_facet_counts,
     links_stats,
     links_stmts,
@@ -77,7 +78,7 @@ def links(request):
     publisher = request.GET.get("publisher")
     current_publisher = publisher if publisher in valid_publishers else None
 
-    sort, dir_ = parse_sort(request, LINK_SORT, "domain")
+    sort, dir_ = parse_sort(request, LINK_SORT, *LINK_SORT_DEFAULT)
 
     filters = {
         "domain": current_domain,
@@ -116,6 +117,7 @@ def links(request):
             ("publisher", current_publisher),
         ],
         expanded_extras or None,
+        defaults=LINK_SORT_DEFAULT,
     )
     facet_url = facets.facet_url_for(base_params)
 
