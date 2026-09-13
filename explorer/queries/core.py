@@ -42,6 +42,11 @@ class Query:
     def __init__(self, sql: str):
         self._sql = sql
 
+    @property
+    def sql(self) -> str:
+        """The compiled SQL text."""
+        return self._sql
+
     def get(self, *params: Any) -> dict | None:
         """First row or None."""
         rows = _fetch_all(self._sql, params)

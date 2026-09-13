@@ -563,9 +563,7 @@ def test_org_facet_pools_match_python_reference():
         counts = organisations_facet_counts(filters)
         year_ref, pub_ref, no_pub_ref, bucket_ref = _org_ref_pools(filters)
         assert {r["created_year"]: r["count"] for r in counts["created_years"]} == year_ref, filters
-        assert {
-            r["last_published_year"]: r["count"] for r in counts["last_published_years"]
-        } == pub_ref, filters
+        assert {r["last_published_year"]: r["count"] for r in counts["last_published_years"]} == pub_ref, filters
         assert counts["no_last_published_year"] == no_pub_ref, filters
         assert {r["bucket"]: r["count"] for r in counts["datasets"]} == bucket_ref, filters
 
@@ -583,9 +581,7 @@ def test_org_facet_counts_with_live_year_and_pubyear():
     counts = organisations_facet_counts(filters)
     year_ref, pub_ref, no_pub_ref, bucket_ref = _org_ref_pools(filters)
     assert {r["created_year"]: r["count"] for r in counts["created_years"]} == year_ref
-    assert {
-        r["last_published_year"]: r["count"] for r in counts["last_published_years"]
-    } == pub_ref
+    assert {r["last_published_year"]: r["count"] for r in counts["last_published_years"]} == pub_ref
     assert counts["no_last_published_year"] == no_pub_ref
     assert {r["bucket"]: r["count"] for r in counts["datasets"]} == bucket_ref
 
@@ -824,22 +820,6 @@ def test_every_report_deterministic_order():
         a = [tuple(r.items()) for r in out["list"].all(*out["params"], 500, 0)]
         b = [tuple(r.items()) for r in out["list"].all(*out["params"], 500, 0)]
         assert a == b, f"report {report['key']} order shuffled between runs"
-
-
-def test_report_org_facet():
-    """An org facet narrows the count. (The view validates bogus values
-    against the facet options and ignores them — the query layer itself
-    filters to whatever org_slug it's given.)"""
-    report = next(r for r in REPORTS if r["key"] == "datasets-no-links")
-    org_options = _report_counts(report, {}, "org")
-    if not org_options:
-        pytest.skip("no org facet options in the live data")
-    slug = org_options[0]["slug"]
-    total = report_stmts(report)["count"].get()["n"]
-    filtered = report_stmts(report, {"org": slug})
-    fcount = filtered["count"].get(*filtered["params"])["n"]
-    assert fcount <= total
-    assert fcount > 0
 
 
 def _report_counts(report, filters, key):

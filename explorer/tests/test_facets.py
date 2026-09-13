@@ -1,10 +1,13 @@
-"""Unit tests for the shared facet-group builders in explorer/facets.py.
+"""Unit tests for the shared facet logic — the facet-group builders in
+explorer/facets.py and the report statement builder's facet substitution
+in explorer/queries/reports.py.
 
-Pure functions over hand-built counts dicts — no DB, no Django, no client
-fixture. These lock in the shared facet-group builders' contract.
+Pure functions over hand-built dicts — no DB, no Django, no client fixture.
+These lock in the shared contracts.
 """
 
 from explorer import facets
+from explorer.queries.reports import report_stmts
 
 
 def _toggle_url(key, value=""):
@@ -329,3 +332,25 @@ def test_multiselect_trailing_only_renders_group():
     assert group is not None
     assert group["items"] == []
     assert group["trailing"] == trailing
+
+
+# ---------------------------------------------------------------------------
+# report_stmts — facet filter substitution
+# ---------------------------------------------------------------------------
+def test_report_stmts_binds_selected_facet():
+    """A selected facet substitutes its filter_sql into both statements and
+    binds the value; with no selection the placeholder becomes empty."""
+    report = {
+        "count_sql": "SELECT COUNT(*) FROM t WHERE 1=1{org}",
+        "list_sql": "SELECT id FROM t WHERE 1=1{org} ORDER BY id LIMIT %s OFFSET %s",
+        "facets": [{"key": "org", "filter_sql": " AND org_slug = %s"}],
+    }
+
+    unfiltered = report_stmts(report)
+    assert unfiltered["count"].sql == "SELECT COUNT(*) FROM t WHERE 1=1"
+    assert unfiltered["params"] == []
+
+    filtered = report_stmts(report, {"org": "abc"})
+    assert filtered["count"].sql == "SELECT COUNT(*) FROM t WHERE 1=1 AND org_slug = %s"
+    assert filtered["list"].sql == "SELECT id FROM t WHERE 1=1 AND org_slug = %s ORDER BY id LIMIT %s OFFSET %s"
+    assert filtered["params"] == ["abc"]
