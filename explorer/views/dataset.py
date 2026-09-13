@@ -269,7 +269,7 @@ def dataset(request, org_slug, dataset_id):
         "dataset.html",
         {
             "title": f"{dataset.get('title') or dataset.get('name')} — {org['display_name']}",
-            "section": "datasets",
+            "nav_key": "dataset",
             "narrow": True,
             "org": org,
             "dataset": dataset,

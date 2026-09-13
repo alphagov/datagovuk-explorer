@@ -53,7 +53,7 @@ def series_list(request):
         "series.html",
         {
             "title": "Series — data.gov.uk Explorer",
-            "section": "datasets",
+            "nav_key": "series",
             "series": series,
             "total": total,
             **pagination,
@@ -91,7 +91,7 @@ def series_detail(request, series_id):
         "series_detail.html",
         {
             "title": f"{s['root_title']} — Series — data.gov.uk Explorer",
-            "section": "datasets",
+            "nav_key": "series-detail",
             "series": s,
             "datasets": datasets,
         },

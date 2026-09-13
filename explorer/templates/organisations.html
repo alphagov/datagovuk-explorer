@@ -1,26 +1,5 @@
 {% extends "_app_layout.html" %}
 
-{% block styles %}
-  {{ super() }}
-  <link rel="stylesheet" href="{{ static('css/components/subnav.css') }}" />
-{% endblock styles %}
-
-{% block header_left %}
-  {% set subnav_tabs = [
-    {
-      "key": "orgs",
-      "label": "Publishers",
-      "url": "/organisations"
-    },
-    {
-      "key": "harvesters",
-      "label": "Harvesters",
-      "url": "/harvesters"
-    }
-  ] %}
-  {{ subnav(subnav_tabs, "orgs", "Publishers") }}
-{% endblock header_left %}
-
 {% block header_right %}
   {{ pagination(start_index, end_index, shown_orgs, page, total_pages, pager_base, label="publishers", label_singular="publisher") }}
 {% endblock header_right %}

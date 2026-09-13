@@ -25,34 +25,43 @@
 
 {% block content %}
 
-<div class="dashboard">
+  <div class="dashboard">
 
     <div class="dashboard-group">
-        <h2 class="dashboard-group-title">Publishers <span class="dashboard-group-count">{{ total_orgs  | num }}</span></h2>
-        {{ dashboard_card("orgs-no-datasets") }}
-        {{ dashboard_card("orgs-active") }}
+      <h2 class="dashboard-group-title">
+        <a class="dashboard-group-link" href="/organisations">Publishers</a>
+        <span class="dashboard-group-count">{{ total_orgs | num }}</span>
+      </h2>
+      {{ dashboard_card("orgs-no-datasets") }}
+      {{ dashboard_card("orgs-active") }}
     </div>
 
     <div class="dashboard-group">
-        <h2 class="dashboard-group-title">Datasets <span class="dashboard-group-count">{{ total_datasets  | num }}</span></h2>
-        {{ dashboard_card("datasets-no-links") }}
-        {{ dashboard_card("datasets-duplicate-titles") }}
-        {{ dashboard_card("datasets-withdrawn") }}
-        {{ dashboard_card("datasets-no-description") }}
-        {{ dashboard_card("datasets-short-title") }}
-        {{ dashboard_card("datasets-short-description") }}
-        {{ dashboard_card("datasets-no-theme") }}
+      <h2 class="dashboard-group-title">
+        <a class="dashboard-group-link" href="/datasets">Datasets</a>
+        <span class="dashboard-group-count">{{ total_datasets | num }}</span>
+      </h2>
+      {{ dashboard_card("datasets-no-links") }}
+      {{ dashboard_card("datasets-duplicate-titles") }}
+      {{ dashboard_card("datasets-withdrawn") }}
+      {{ dashboard_card("datasets-no-description") }}
+      {{ dashboard_card("datasets-short-title") }}
+      {{ dashboard_card("datasets-short-description") }}
+      {{ dashboard_card("datasets-no-theme") }}
     </div>
 
     <div class="dashboard-group">
-        <h2 class="dashboard-group-title">Links <span class="dashboard-group-count">{{ total_links  | num }}</span></h2>
-        {{ dashboard_card("links-no-url") }}
-        {{ dashboard_card("links-no-name") }}
-        {{ dashboard_card("links-bad-url") }}
-        {{ dashboard_card("links-no-format") }}
-        {{ dashboard_card("links-duplicate-urls") }}
+      <h2 class="dashboard-group-title">
+        <a class="dashboard-group-link" href="/links">Links</a>
+        <span class="dashboard-group-count">{{ total_links | num }}</span>
+      </h2>
+      {{ dashboard_card("links-no-url") }}
+      {{ dashboard_card("links-no-name") }}
+      {{ dashboard_card("links-bad-url") }}
+      {{ dashboard_card("links-no-format") }}
+      {{ dashboard_card("links-duplicate-urls") }}
     </div>
 
-</div>
+  </div>
 
 {% endblock content %}

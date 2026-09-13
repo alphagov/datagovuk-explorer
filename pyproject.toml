@@ -214,17 +214,9 @@ report.show_missing = true
 report.skip_covered = true
 
 # ==== djLint ====
+# Lint-only: djhtml handles indentation. Formatter options were dropped with
+# the djlint-reformat hook.
 [tool.djlint]
-blank_line_after_tag = "load,extends"
-close_void_tags = true
-format_css = false
-format_js = false
-preserve_blank_lines = true
 ignore = "H006,H030,H031,T002,J004,J018,H021"
 include = "H017,H035"
-indent = 2
 profile = "jinja"
-css.indent_size = 2
-js.indent_size = 2
-max_line_length = 120
-max_attribute_length = 120

@@ -2,25 +2,8 @@
 
 {% block styles %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ static('css/components/subnav.css') }}" />
   <link rel="stylesheet" href="{{ static('css/pages/link-errors.css') }}" />
 {% endblock styles %}
-
-{% block header_left %}
-  {% set subnav_tabs = [
-    {
-      "key": "links",
-      "label": "Links",
-      "url": "/links"
-    },
-    {
-      "key": "errors",
-      "label": "Errors",
-      "url": "/links/errors"
-    }
-  ] %}
-  {{ subnav(subnav_tabs, "errors", "Links") }}
-{% endblock header_left %}
 
 {% block header_right %}
   {{ pagination(start_index, end_index, filtered_errors, page, total_pages, pager_base, label="errors", label_singular="error") }}

@@ -1,5 +1,7 @@
 {% extends "_layout.html" %}
 
+{% from "macros/_subnav.html" import subnav %}
+
 {# App-like pane layout — pages with a header row, optional sidebar facets,
    and a main table. The panes are defined here; each page fills the blocks:
 
@@ -35,6 +37,8 @@
   <link rel="stylesheet" href="{{ static('css/components/content-layout.css') }}" />
   <link rel="stylesheet" href="{{ static('css/components/facets.css') }}" />
   <link rel="stylesheet" href="{{ static('css/pages/app-layout.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/subnav.css') }}" />
+
 {% endblock styles %}
 
 {% block page_header %}
@@ -43,6 +47,8 @@
       <div class="layout-header">
         <div class="layout-header__left">
           {% block header_left %}
+            {% set nav = subnav_for(nav_key | default('')) %}
+            {% if nav %}{{ subnav(nav.tabs, nav_key, nav.label) }}{% endif %}
           {% endblock header_left %}
         </div>
         <div class="layout-header__right">

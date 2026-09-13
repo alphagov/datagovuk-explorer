@@ -55,7 +55,7 @@ def suggestions(request):
         "suggestions.html",
         {
             "title": f"Suggestions ({total})",
-            "section": "datasets",
+            "nav_key": "suggestions",
             "suggestions": suggestion_rows,
             "total": total,
             "shown": total,

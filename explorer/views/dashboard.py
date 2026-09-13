@@ -17,7 +17,7 @@ def dashboard(request):
         "dashboard.html",
         {
             "title": "Dashboard — data.gov.uk Explorer",
-            "section": "dashboard",
+            "nav_key": "dashboard",
             "cards": data["cards"],
             "group_has_items": data["group_has_items"],
             "dashboard_total": data["dashboard_total"],

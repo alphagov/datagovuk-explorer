@@ -51,7 +51,7 @@ def _duplicate_url_report(request, report, url):
         "report.html",
         {
             "title": "Duplicate URL — data.gov.uk Explorer",
-            "section": "dashboard",
+            "nav_key": "dashboard",
             "current": {
                 "key": report["key"],
                 "label": report["label"],
@@ -213,7 +213,7 @@ def report(request, key):
         "report.html",
         {
             "title": f"{report['label']} — data.gov.uk Explorer",
-            "section": "dashboard",
+            "nav_key": "dashboard",
             "current": {
                 "key": report["key"],
                 "label": report["label"],

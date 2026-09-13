@@ -32,6 +32,16 @@
 	padding-bottom: 8px;
 }
 
+.dashboard-group-link {
+	color: inherit;
+	text-decoration: none;
+}
+
+.dashboard-group-link:hover {
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+
 .dashboard-group-count {
     font-size: var(--text-body);
 	font-weight: normal;

@@ -15,20 +15,33 @@ from explorer.queries.search import (
 
 from .core import paginate
 
+# Mirrors the search widget's minLength; shorter input gets no suggestions.
+SUGGEST_MIN_LENGTH = 2
+
 
 def search(request):
     q = request.GET.get("q", "").strip()
-    results = search_all(q) if q else {
-        "publishers": [], "publisher_count": 0,
-        "datasets": [], "dataset_count": 0,
-    }
-    return render(request, "search.html", {
-        "title": f"Search: {q}" if q else "Search",
-        "section": "search",
-        "narrow": True,
-        "q": q,
-        **results,
-    })
+    results = (
+        search_all(q)
+        if q
+        else {
+            "publishers": [],
+            "publisher_count": 0,
+            "datasets": [],
+            "dataset_count": 0,
+        }
+    )
+    return render(
+        request,
+        "search.html",
+        {
+            "title": f"Search: {q}" if q else "Search",
+            "nav_key": "search",
+            "narrow": True,
+            "q": q,
+            **results,
+        },
+    )
 
 
 def search_publishers(request):
@@ -36,21 +49,25 @@ def search_publishers(request):
     total = count_publishers(q) if q else 0
     paging = paginate(request, total, SEARCH_PAGE_SIZE)
     rows = search_publishers_page(q, paging["offset"]) if q else []
-    return render(request, "search_publishers.html", {
-        "title": f"Publishers: {q}" if q else "Publishers",
-        "section": "search",
-        "narrow": True,
-        "q": q,
-        "publishers": rows,
-        "total": total,
-        "pager_base": f"?q={q}",
-        **paging,
-    })
+    return render(
+        request,
+        "search_publishers.html",
+        {
+            "title": f"Publishers: {q}" if q else "Publishers",
+            "nav_key": "search",
+            "narrow": True,
+            "q": q,
+            "publishers": rows,
+            "total": total,
+            "pager_base": f"?q={q}",
+            **paging,
+        },
+    )
 
 
 def publisher_suggest(request):
     q = request.GET.get("q", "").strip()
-    if len(q) < 2:
+    if len(q) < SUGGEST_MIN_LENGTH:
         return JsonResponse([], safe=False)
     rows = suggest_publishers(q)
     return JsonResponse(
@@ -64,13 +81,17 @@ def search_datasets(request):
     total = count_datasets(q) if q else 0
     paging = paginate(request, total, SEARCH_PAGE_SIZE)
     rows = search_datasets_page(q, paging["offset"]) if q else []
-    return render(request, "search_datasets.html", {
-        "title": f"Datasets: {q}" if q else "Datasets",
-        "section": "search",
-        "narrow": True,
-        "q": q,
-        "datasets": rows,
-        "total": total,
-        "pager_base": f"?q={q}",
-        **paging,
-    })
+    return render(
+        request,
+        "search_datasets.html",
+        {
+            "title": f"Datasets: {q}" if q else "Datasets",
+            "nav_key": "search",
+            "narrow": True,
+            "q": q,
+            "datasets": rows,
+            "total": total,
+            "pager_base": f"?q={q}",
+            **paging,
+        },
+    )

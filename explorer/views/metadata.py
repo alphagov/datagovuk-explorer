@@ -43,7 +43,7 @@ def metadata_overview(request):
         "metadata.html",
         {
             "title": "Metadata — data.gov.uk Explorer",
-            "section": "metadata",
+            "nav_key": "metadata",
             "fields": fields,
         },
     )
@@ -79,7 +79,7 @@ def metadata_detail(request, section, name):
         "metadata_values.html",
         {
             "title": f"{display_label} — Metadata — data.gov.uk Explorer",
-            "section": "metadata",
+            "nav_key": "metadata",
             "field_key": full_key,
             "field_label": display_label,
             "dataset_count": dataset_count,

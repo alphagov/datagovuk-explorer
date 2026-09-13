@@ -281,7 +281,7 @@ def harvesters(request):
         "harvesters.html",
         {
             "title": "Harvesters — data.gov.uk Explorer",
-            "section": "orgs",
+            "nav_key": "harvesters",
             "sources": page_rows,
             "shown_sources": shown_sources,
             **pagination,
@@ -377,7 +377,7 @@ def harvester(request, source_id):
         "harvester.html",
         {
             "title": f"{source['title'] or source['id']} — Harvesters",
-            "section": "orgs",
+            "nav_key": "harvester",
             "source": source,
             "sort": sort,
             "dir": dir_,

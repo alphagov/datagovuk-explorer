@@ -13,6 +13,7 @@ from django.template.backends.jinja2 import Jinja2 as DjangoJinja2
 from django.templatetags.static import static
 
 from .helpers import format_date
+from .nav import PRIMARY_NAV, section_for, subnav_for
 
 
 def _dump(value, indent: int = 2) -> str:
@@ -112,3 +113,7 @@ class Jinja2(DjangoJinja2):
         # references stay idiomatic and follow STATIC_URL. Django 6.1's
         # Jinja2 backend injects no globals, so this registration is required.
         self.env.globals["static"] = static
+        # Nav tree + the resolvers the layouts use (see explorer/nav.py).
+        self.env.globals["primary_nav"] = PRIMARY_NAV
+        self.env.globals["section_for"] = section_for
+        self.env.globals["subnav_for"] = subnav_for

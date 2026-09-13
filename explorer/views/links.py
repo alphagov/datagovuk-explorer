@@ -228,7 +228,7 @@ def links(request):
         "links.html",
         {
             "title": "Links — data.gov.uk Explorer",
-            "section": "links",
+            "nav_key": "links",
             "links": link_rows,
             "facet_groups": facet_groups,
             "pills": pills,

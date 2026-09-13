@@ -299,7 +299,7 @@ def link_errors(request):
         "links_errors.html",
         {
             "title": f"Link errors ({shown_count:,})",
-            "section": "links",
+            "nav_key": "errors",
             "errors": page_rows,
             "filtered_errors": shown_count,
             "total_errors": stats.get("errors") or 0,

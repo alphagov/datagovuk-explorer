@@ -121,7 +121,7 @@ def reviews(request):
         "reviews.html",
         {
             "title": f"Dataset reviews ({shown_count})",
-            "section": "datasets",
+            "nav_key": "reviews",
             "reviews": page_reviews,
             "total": shown_count,
             "shown": shown_count,

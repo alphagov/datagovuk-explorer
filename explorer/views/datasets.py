@@ -444,7 +444,7 @@ def datasets(request):  # noqa: PLR0915
         "datasets.html",
         {
             "title": "All datasets — data.gov.uk Explorer",
-            "section": "datasets",
+            "nav_key": "datasets",
             "datasets": page_datasets,
             **pagination,
             "total_datasets": DATASET_TOTAL.get()["n"],

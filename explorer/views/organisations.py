@@ -260,7 +260,7 @@ def organisations(request):
         "organisations.html",
         {
             "title": "data.gov.uk — Explorer",
-            "section": "orgs",
+            "nav_key": "orgs",
             "orgs": page_rows,
             "shown_orgs": shown_orgs,
             "sort": sort,
