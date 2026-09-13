@@ -48,7 +48,7 @@ ORG = Query(
 )
 
 # Per-org aggregates over datasets — one pass over the table. An org
-# present here has at least one dataset (the has_data flag).
+# present here has at least one dataset.
 ORG_AGGREGATES = Query(
     """SELECT org_slug,
               SUM(resource_count) AS total_resources,
@@ -284,15 +284,13 @@ ORG_SORT = {
     "last_published": "COALESCE(a.last_published, '')",
 }
 
-# The list select — ORGS' columns plus the aggregate columns and has_data
-# (true when the org has at least one dataset, i.e. a row in _ORG_AGG).
+# The list select — ORGS' columns plus the aggregate columns.
 _ORG_LIST_SELECT = (
     "SELECT o.slug, o.name, o.display_name, o.package_count, o.type, o.state,"
     "       o.approval_status, o.created, o.title,"
     "       COALESCE(a.total_resources, 0) AS total_resources,"
     "       COALESCE(a.total_views, 0) AS total_views,"
-    "       a.last_published,"
-    "       (a.org_slug IS NOT NULL) AS has_data"
+    "       a.last_published"
     " FROM organisations o"
 )
 

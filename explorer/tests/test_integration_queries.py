@@ -190,7 +190,6 @@ def test_organisations_stmts_consistency():
         "total_resources",
         "total_views",
         "last_published",
-        "has_data",
     ):
         assert col in row, f"organisation list row missing {col}"
     a = [tuple(r.items()) for r in stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)]

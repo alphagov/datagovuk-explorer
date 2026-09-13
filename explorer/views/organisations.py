@@ -30,7 +30,6 @@ from .core import _pill, paginate
 def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
     """Merge the org rows with their per-org aggregates into display rows.
     Orgs absent from agg_rows have no datasets."""
-    fetched_slugs = {r["org_slug"] for r in agg_rows}
     resources_by_org = {r["org_slug"]: r["total_resources"] for r in agg_rows}
     views_by_org = {r["org_slug"]: r["total_views"] for r in agg_rows}
     last_published_by_org = {r["org_slug"]: r["last_published"] for r in agg_rows}
@@ -52,7 +51,6 @@ def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
                 "created_year": o["created"][:4] if o["created"] else None,
                 "last_published": format_date(last_pub),
                 "last_published_year": last_pub[:4] if last_pub else None,
-                "has_data": o["slug"] in fetched_slugs,
             },
         )
     return rows
@@ -72,7 +70,6 @@ def _page_row(r: dict) -> dict:
         "approval_status": r["approval_status"],
         "created": format_date(r["created"]),
         "last_published": format_date(r["last_published"]),
-        "has_data": r["has_data"],
     }
 
 

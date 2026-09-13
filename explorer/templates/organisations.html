@@ -52,11 +52,7 @@
         {% for org in orgs %}
           <tr>
             <th scope="row" class="col-text">
-              {% if org.has_data %}
-                <a href="/organisation/{{ org.slug }}">{{ org.name }}</a>
-              {% else %}
-                {{ org.name }}
-              {% endif %}
+              <a href="/organisation/{{ org.slug }}">{{ org.name }}</a>
             </th>
             <td class="col-num">{{ org.dataset_count | num }}</td>
             <td class="col-num">{{ org.resource_count | num }}</td>
