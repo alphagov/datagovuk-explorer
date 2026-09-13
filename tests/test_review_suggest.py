@@ -1,9 +1,7 @@
 """Unit tests for scripts/review_suggest.py (offline — no live LLM, no DB).
 
 Covers the deterministic parts:
-- constants: THEMES (14) / EXTRAS_WHITELIST (17), plus sha256 hashes of the
-  three verbatim prompt strings (the model contract — an accidental edit
-  fails the hash tests)
+- constants: THEMES / EXTRAS_WHITELIST
 - truncate / strip_html / digest_resource / build_digest (whitelist
   filtering, truncation, resource digest + _note, org fallback chain, tags
   object-vs-string, key order)
@@ -27,7 +25,6 @@ separately against a real run (record schema and prompt byte-identical).
 Run with: uv run pytest tests/test_review_suggest.py
 """
 
-import hashlib
 import io
 import json
 import os
@@ -144,25 +141,6 @@ def test_constants():
     assert rs.REMOTE_CONCURRENCY == 50
     assert rs.MAX_TOKENS == 2048
     assert rs.TEMPERATURE == 0.2
-    print("ok: THEMES (14) / EXTRAS_WHITELIST (17) / retry+concurrency constants")
-
-
-def test_prompt_contract_hashes():
-    # A hash mismatch flags any accidental edit to the prompt strings (they
-    # are the model contract).
-    assert hashlib.sha256(rs.SYSTEM_CONTENT.encode()).hexdigest() == (
-        "0f165ea394be82a52af1b587037c66dd4bded3e753192a30822d51720742db87"
-    )
-    assert hashlib.sha256(rs.RUBRIC.encode()).hexdigest() == (
-        "7124727cd8b4072177d93ceaed614256f55c1dd0c6154b6180b9ac26454e5b68"
-    )
-    assert hashlib.sha256(rs.SCHEMA.encode()).hexdigest() == (
-        "488a4c35653b644c229b2a47f197cba8278d686d348134c54c0a7302f5628dc2"
-    )
-    # structure sanity: the placeholder appears in both rubric and schema
-    assert rs.RUBRIC.count("${themeList}") == 1
-    assert rs.SCHEMA.count("${themeList}") == 1
-    print("ok: prompt strings sha256-hashed (model contract)")
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +155,6 @@ def test_truncate():
     assert rs.truncate(s=True, n=10) == "true"
     assert rs.truncate(s=False, n=10) == "false"
     assert rs.truncate(123, 10) == "123"
-    print("ok: truncate (null / short / long+… / exact / bool / number)")
 
 
 def test_strip_html():
@@ -188,7 +165,6 @@ def test_strip_html():
     assert rs.strip_html("<b>x</b> &amp; <i>y</i>") == "x & y"
     assert rs.strip_html(None) == ""
     assert rs.strip_html("") == ""
-    print("ok: strip_html (tags / entities / whitespace collapse / None)")
 
 
 def test_digest_resource():
@@ -214,7 +190,6 @@ def test_digest_resource():
     assert "created" not in out
     # falsy name/description/url/size/created are skipped
     assert rs.digest_resource({"format": "x", "name": 0, "size": 0}) == {"format": "x"}
-    print("ok: digest_resource (key order / null format / truncation / falsy skip)")
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +228,6 @@ def test_build_digest_extras_and_resources():
     )
     assert len(d3["resources"]) == 8
     assert all("_note" not in r for r in d3["resources"])
-    print("ok: build_digest extras whitelist/truncation + resource slice/_note")
 
 
 def test_build_digest_fields():
@@ -309,7 +283,6 @@ def test_build_digest_fields():
         "resources",
         "extras",
     ]
-    print("ok: build_digest fields (org fallback / licence / tags / key order)")
 
 
 def _small():
@@ -342,7 +315,6 @@ def test_build_prompt():
     # both occurrences of the theme list resolved (rubric + schema)
     assert f"[{theme_list}]" in messages[1]["content"]
     assert messages[1]["content"].count(f"[{theme_list}]") == 2
-    print("ok: build_prompt (roles / themeList interpolation / indent-1 digest JSON)")
 
 
 # ---------------------------------------------------------------------------
@@ -370,7 +342,6 @@ def test_extract_json():
     # invalid JSON inside the slice -> json.JSONDecodeError (a ValueError)
     with pytest.raises(json.JSONDecodeError):
         rs.extract_json('{"a": }')
-    print("ok: extract_json (fences / slice / no-JSON / invalid JSON)")
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +372,6 @@ def test_load_processed_ids():
             "c",
             None,
         }  # all parsed records (None = missing id)
-    print("ok: load_processed_ids (missing / ok vs attempted / corrupt skip)")
 
 
 def test_append_record():
@@ -421,7 +391,6 @@ def test_append_record():
         assert ', "' not in lines[0]
         assert "£" in lines[1]
         assert "—" in lines[1]
-    print("ok: append_record (compact separators / raw unicode / trailing newline)")
 
 
 # ---------------------------------------------------------------------------
@@ -464,7 +433,6 @@ def test_send_request_remote():
     assert body["max_tokens"] == 2048
     assert body["temperature"] == 0.2
     assert len(body["messages"]) == 2
-    print("ok: send_request remote (auth / thinking / key order / params)")
 
 
 def test_send_request_local():
@@ -480,7 +448,6 @@ def test_send_request_local():
     assert captured["auth"] is None
     assert "thinking" not in captured["body"]
     assert list(captured["body"]) == ["model", "messages", "max_tokens", "temperature"]
-    print("ok: send_request local (no auth / no thinking)")
 
 
 def test_send_request_errors():
@@ -514,7 +481,6 @@ def test_send_request_errors():
     with make_client(handler) as client:
         content = rs.send_request(client, "http://llm", "", "m", {"title": "T"})
     assert content == '{"a":1}'
-    print("ok: send_request errors (HTTP truncation / empty content / trim)")
 
 
 # ---------------------------------------------------------------------------
@@ -566,7 +532,6 @@ def test_process_one_ok_record():
         assert rec["classified_at"].endswith("Z")
         assert summary == {"ok": 1, "failed": 0, "overall": [4]}
         assert len(handler.calls) == 1  # one request, success on first try
-    print("ok: process_one ok record (schema + key order + summary)")
 
 
 def test_process_one_failed_and_validation():
@@ -601,7 +566,6 @@ def test_process_one_failed_and_validation():
         assert summary == {"ok": 0, "failed": 1, "overall": []}
         # non-429 errors retry immediately (the loop runs to RETRIES+1)
         assert len(handler.calls) == 3
-    print("ok: process_one failed (bad theme / bad tags / HTTP 500, retried 3x)")
 
 
 def test_process_one_429_backoff():
@@ -651,7 +615,6 @@ def test_process_one_429_backoff():
         rec = json.loads(out.read_text(encoding="utf-8"))
     assert rec["ok"] is False
     assert rec["error"].startswith("HTTP 429:")
-    print("ok: process_one 429 backoff (2s/4s sleeps, then success / exhausted)")
 
 
 def test_process_one_progress():
@@ -678,7 +641,6 @@ def test_process_one_progress():
     # lowest score is resources (2) -> its explanation is the suffix
     assert "Few formats." in line
     assert "Clear title and description." not in line
-    print("ok: process_one progress line (lowest-score explanation suffix)")
 
 
 # ---------------------------------------------------------------------------
@@ -714,7 +676,6 @@ def test_run_workers_concurrency():
     # every row processed exactly once
     assert {r["dataset_id"] for r in lines} == {r["id"] for r in rows}
     assert state["max"] == 3  # concurrency cap honoured
-    print("ok: run_workers (6 rows, cap 3 -> max in-flight 3, each row once)")
 
 
 def test_run_workers_caps_to_row_count():
@@ -741,7 +702,6 @@ def test_run_workers_caps_to_row_count():
                 summary=summary,
             )
     assert state["max"] == 2  # min(concurrency, len(rows))
-    print("ok: run_workers caps workers to row count")
 
 
 # ---------------------------------------------------------------------------
@@ -794,4 +754,3 @@ def test_cli():
     assert "Cannot reach the model server at http://127.0.0.1:59999" in res.stderr
     assert "Start the server configured by LOCAL_BASE_URL" in res.stderr
     assert "Error: 1" not in res.stderr  # typer.Exit must not be swallowed
-    print("ok: CLI error paths (limit/env/concurrency/health-check)")

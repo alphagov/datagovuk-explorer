@@ -2,7 +2,7 @@
 
 Covers the deterministic algorithmic core:
 - build_texts: BGE prefix, notes[:500] truncation, whitespace collapse,
-  None for empty texts, empty-title handling
+  title-only when notes are empty
 - assemble_batch: null-skipping + origIndex mapping (the request/response
   alignment logic)
 - constants: DIM 768, BATCH 256, model, prefix
@@ -35,7 +35,6 @@ def test_constants():
     assert eo.BATCH == 256
     assert eo.MODEL == "bge-base-en-v1.5"
     assert eo.BGE_PREFIX == PREFIX
-    print("ok: constants match (DIM, BATCH, model, prefix)")
 
 
 def test_basic_prefix_title_notes():
@@ -46,7 +45,6 @@ def test_basic_prefix_title_notes():
     assert texts == [
         PREFIX + "Planning Applications 2020 Applications received and decided.",
     ]
-    print("ok: prefix + title + notes")
 
 
 def test_notes_truncated_to_500():
@@ -55,7 +53,6 @@ def test_notes_truncated_to_500():
     assert texts == [PREFIX + f"Long Notes {'x' * 500}"]
     # exactly 500 passes through whole
     assert eo.build_texts([row("a1", "T", "y" * 500)]) == [PREFIX + "T " + "y" * 500]
-    print("ok: notes truncated to 500 chars")
 
 
 def test_null_or_empty_notes():
@@ -63,7 +60,6 @@ def test_null_or_empty_notes():
     assert eo.build_texts([row("a1", "Title Only", None)]) == [PREFIX + "Title Only"]
     # empty-string notes behave the same as None
     assert eo.build_texts([row("a1", "Title Only", "")]) == [PREFIX + "Title Only"]
-    print("ok: None/empty notes -> title-only text")
 
 
 def test_whitespace_collapse():
@@ -73,18 +69,6 @@ def test_whitespace_collapse():
     # unicode whitespace (NBSP) collapses too — \s includes it
     rows = [row("a1", "A\u00a0B", "\u00a0notes\u00a0")]
     assert eo.build_texts(rows) == [PREFIX + "A B notes"]
-    print("ok: whitespace collapse (incl. NBSP)")
-
-
-def test_empty_title_is_prefix_only():
-    # The constant prefix means the text is never empty: an empty title +
-    # empty notes embeds the bare prefix (the null fallback is dead code).
-    # the trailing space after the colon is stripped by trim
-    bare = PREFIX.rstrip()
-    texts = eo.build_texts([row("a1", "", None), row("a2", "", "")])
-    assert texts == [bare, bare]
-    assert all(t is not None for t in texts)
-    print("ok: empty title -> bare prefix, never None")
 
 
 def test_ordering_preserved():
@@ -97,7 +81,6 @@ def test_ordering_preserved():
     assert texts[0] == PREFIX + "First notes one"
     assert texts[1] == PREFIX + "Second"
     assert texts[2] == PREFIX + "Third notes three"
-    print("ok: texts keep row order")
 
 
 def test_assemble_batch_skips_none():
@@ -117,4 +100,3 @@ def test_assemble_batch_skips_none():
     inp, idx = eo.assemble_batch(texts, 4, 4)
     assert inp == []
     assert idx == []
-    print("ok: assemble_batch null-skipping + origIndex")

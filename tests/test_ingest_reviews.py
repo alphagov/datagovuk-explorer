@@ -44,7 +44,6 @@ def test_load_records():
         records = ir.load_records(p)
         # corrupt + blank lines skipped, order kept
         assert [r["dataset_id"] for r in records] == ["a", "b", "c"]
-    print("ok: load_records (missing / corrupt skip / order)")
 
 
 def test_latest_per_dataset():
@@ -63,7 +62,6 @@ def test_latest_per_dataset():
     # later duplicate of the same id replaces the earlier record entirely
     dup = [rec("id-x", 1), rec("id-x", 2)]
     assert ir.latest_per_dataset(dup) == [rec("id-x", 2)]
-    print("ok: latest_per_dataset (later lines win)")
 
 
 def test_typed_column_helpers():
@@ -84,4 +82,3 @@ def test_typed_column_helpers():
     assert ir._int(3) == 3
     assert ir._int(None) is None
     assert ir._int("3") is None
-    print("ok: _subscore / _int (malformed -> None)")

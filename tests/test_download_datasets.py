@@ -59,7 +59,6 @@ def make_dataset(i: int) -> dict:
 
 def test_iso_now():
     assert ISO_RE.match(dd.iso_now()), dd.iso_now()
-    print("ok: iso_now is ISO 8601 format (ms + Z)")
 
 
 def test_slugify():
@@ -78,7 +77,6 @@ def test_slugify():
     assert dd.slugify("A" * 100 + " B") == "a" * 80
     # ASCII-only: fullwidth digits are NOT [a-z0-9]
     assert dd.slugify("２０２０ data") == "data"
-    print("ok: slugify lowercase / dashes / trim / 80-cap / ASCII-only")
 
 
 def test_filename():
@@ -92,7 +90,6 @@ def test_filename():
     fb = f"{dd.slugify(b['title'])}-{b['id'][:8]}.json"
     assert fa != fb
     assert len(fa) == len(fb)
-    print("ok: filename = slugify(title)-id[:8].json, id disambiguates")
 
 
 def test_no_datasets_round_trip():
@@ -112,7 +109,6 @@ def test_no_datasets_round_trip():
         assert dd.load_no_datasets(str(p)) == m
         text = p.read_text(encoding="utf-8")
         assert '"org-a": "2026-08-01T11:32:58.493Z"' in text  # indent 2
-    print("ok: no-datasets load/save (missing / invalid / round-trip / indent)")
 
 
 def test_has_saved_datasets():
@@ -128,7 +124,6 @@ def test_has_saved_datasets():
         assert dd.has_saved_datasets("empty-org") is False
         # dir with .json files -> True (non-.json files ignored)
         assert dd.has_saved_datasets("full-org") is True
-    print("ok: has_saved_datasets (missing / empty / .json present)")
 
 
 def test_select_batch_single_org():
@@ -150,7 +145,6 @@ def test_select_batch_single_org():
     with pytest.raises(dd.OrgNotFoundError, match='Publisher not found: "zzz"') as exc:
         dd.select_batch(orgs, no, 50, 0, org_slug="zzz")
     assert "Check organisations.json" in exc.value.hint
-    print("ok: select_batch single org (found / clears marker / not-found + hint)")
 
 
 def test_select_batch_force():
@@ -174,9 +168,6 @@ def test_select_batch_force():
         # slice past the end -> shorter batch (no error)
         batch = dd.select_batch(orgs, {}, 5, 8, force=True)
         assert [o["name"] for o in batch] == ["org-8", "org-9"]
-    print(
-        "ok: select_batch force (slice / markers cleared+persisted / cursor / past-end)",
-    )
 
 
 def test_select_batch_next():
@@ -196,7 +187,6 @@ def test_select_batch_next():
         # org-count cap
         batch = dd.select_batch(orgs, no, 2, 0)
         assert [o["name"] for o in batch] == ["org-0", "org-2"]
-    print("ok: select_batch next-batch (skip noDatasets / saved / offset / cap)")
 
 
 def test_fetch_datasets():
@@ -264,7 +254,6 @@ def test_fetch_datasets():
             ) as client,
         ):
             dd.fetch_datasets(limiter, client, "ons", 10.0, dd.SORT)
-        print("ok: fetch_datasets pagination / params / HTTP+success errors")
 
     check()
 
@@ -405,7 +394,6 @@ def test_process_batch():
         assert "[2/2]" in out.getvalue()
         assert result["totalDatasets"] == 2
         assert Path("downloads/good-org/dataset-number-1-00000001.json").exists()
-    print("ok: process_batch save/skip/force/record-shape/display_name/error-continue")
 
 
 def test_cli():
@@ -464,4 +452,3 @@ def test_cli():
             assert res.exit_code != 0, res.output
             res = runner.invoke(dd.app, ["--offset", "-1"])
             assert res.exit_code != 0, res.output
-    print("ok: CLI continuous+org / missing orgs file / org not found / per-org / ints")

@@ -1,33 +1,13 @@
-"""Root pytest config — the seeded fixture database for the app suite.
+"""Seeded fixture database for the app integration tests.
 
-The integration tests (explorer/tests/test_integration_*.py) run against a
-tiny, explicit dataset seeded with plain ORM inserts, so every test owns the
-same small world and the seed never has to track the live DB.
+pytest-django builds the test DB from migrations; ``django_db_setup`` then
+seeds it once via ``make_fixtures()``. ``make_fixtures()`` is a no-op when the
+tables already hold rows, and every ``@pytest.mark.django_db`` test rolls
+back, so the seed stays read-only and ``--reuse-db`` is safe.
 
-Seeding contract:
-
-- pytest-django creates the test database from migrations.
-- ``django_db_setup`` seeds **once**, after creation, inside
-  ``django_db_blocker.unblock()`` and outside any per-test transaction.
-- Each ``@pytest.mark.django_db`` test gets a transaction that rolls back,
-  so the seeded rows stay pristine. Keep the fixture world read-only.
-- With ``--reuse-db`` the seed survives between runs; ``make_fixtures()`` is
-  a no-op when the tables already hold rows, so it never double-seeds.
-
-The seed data uses small row factories (``_dataset`` / ``_link`` /
-``_link_error``) so only the fields that matter for a case are spelled out;
-the rest default. Denormalised columns (link org/title, link_error publisher,
-positions, resource ids) are derived at insert time from the dataset rows.
-The tables are wrapped in ``# fmt: off`` — they are data, and the formatter's
-one-argument-per-line expansion destroys their shape.
-
-The seed covers: named/missing/empty orgs, duplicate titles per org, short
-titles/descriptions, no description, withdrawn wording, ``theme_primary``
-NULL and ``''``, created years across the window, a no-links and an API
-dataset, a URL shared across datasets, NULL/empty and scheme-less URLs,
-missing format/name, every link-error category, all three harvest states
-(including a package absent from ``datasets``), both to-delete values, NULL
-http_status, and two reviews for one dataset plus an ``ok:false``.
+Row factories spell out only the fields a case needs; derived columns (link
+org/title/position/resource_id, link_error publisher) are filled at insert.
+The ``# fmt: off`` block is data — the formatter would destroy its shape.
 """
 
 import json
@@ -36,16 +16,12 @@ import os
 import pytest
 from dotenv import load_dotenv
 
-# Load DATABASE_URL etc. from .env before pytest-django imports the Django
-# settings — DJANGO_SETTINGS_MODULE comes from pyproject.toml. This is the
-# root conftest, so it runs first regardless of which test dir is collected —
-# including `pytest explorer/tests` on its own, where tests/conftest.py (which
-# does the same) is not imported. load_dotenv never overrides real env vars.
+# Load .env before Django settings import; this also covers `pytest
+# explorer/tests`, which never imports tests/conftest.py. Real env vars win.
 load_dotenv()
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
-# Known fixture ids for the route smoke / view tests. Kept in one place so a
-# test never hardcodes a string that the seed could rename.
+# Seed ids; tests reference these instead of hardcoding strings.
 FIXTURE = {
     "org": "alpha",
     "org_display_name": "Alpha Department",
@@ -126,11 +102,7 @@ def _link_error(package_id, resource_url, http_status, category, *, to_delete, o
 
 
 def _dataset_json(row, org_display_name):
-    """A minimal but complete CKAN-shaped JSON record for one dataset.
-
-    The dataset detail view reads this verbatim (`DATASET_JSON`), and the
-    metadata filter reads the same keys the pipeline writes.
-    """
+    """A minimal CKAN-shaped JSON record, read by the detail view and metadata filter."""
     extras = list(row.get("extras", []))
     if row.get("harvested"):
         extras += [
@@ -201,13 +173,10 @@ def _review(dataset_id, org_slug, org_display_name, overall, *, ok=True, theme="
     }
 
 
-# ---------------------------------------------------------------------------
-# Seed data (compact on purpose — see the module docstring on `# fmt: off`)
-# ---------------------------------------------------------------------------
+# Seed data (see the module docstring on `# fmt: off`)
 # fmt: off
 
-# alpha has a display name, beta has none (COALESCE fallbacks), gamma has no
-# datasets at all.
+# alpha has a display name, beta none (COALESCE fallbacks), gamma no datasets.
 _ORGS = {
     "alpha": dict(name="alpha-department", display_name="Alpha Department", package_count=8,
                   type="central", state="active", approval_status="approved",
@@ -220,7 +189,7 @@ _ORGS = {
                   created="2020-07-07T00:00:00", title="Gamma Agency"),
 }
 
-# created is date-only — format_date and substr(...,1,4) both accept it.
+# date-only; format_date and substr(...,1,4) accept it.
 _DATASETS = [
     # alpha
     _dataset("d01", "alpha", "Air quality data", "2024-03-01", theme_primary="Environment",
@@ -271,29 +240,29 @@ _TEMPORAL = [
 ]
 
 _LINKS = [
-    # d01 — a URL shared across datasets, a second shared URL, a no-URL row
+    # d01: shared URL, second shared URL, no URL
     _link("d01", "https://example.com/shared.csv", "example.com", name="Air quality 2024",
         year_created="2024", created="2024-03-01"),
     _link("d01", "https://shared.example.org/data.csv", "shared.example.org", name="Air quality 2023",
         year_created="2023"),
     _link("d01", None, None, name=None, description=None),
-    # d02 — second dataset for the shared URL + a scheme-less/unparseable URL
+    # d02: shared URL, scheme-less/unparseable URL
     _link("d02", "https://shared.example.org/data.csv", "shared.example.org", name="Air quality archive",
         year_created="2020"),
     _link("d02", "not a url", None, name="Broken reference", description="Link is dead", format="HTML",
         year_created="2020"),
-    # d03 — third dataset for the shared URL + an internal link
+    # d03: shared URL, internal link
     _link("d03", "https://shared.example.org/data.csv", "shared.example.org", name="Survey",
         year_created="2015"),
     _link("d03", "https://data.gov.uk/dataset/coastal", "data.gov.uk", name="Survey notes", description="",
         format="PDF", year_created="2015"),
-    # d04 — missing format, a subdomain, and an empty URL
+    # d04: missing format, subdomain, empty URL
     _link("d04", "http://other.org/flood", "other.org", name="Flood map", description="Withdrawn resource",
         format=None, year_created="2023"),
     _link("d04", "http://sub.data.gov.uk/report.pdf", "sub.data.gov.uk", name="Flood report", description=None,
         format="pdf", year_created="2023"),
     _link("d04", "", None, name=None, description="", year_created=None, created=None),
-    # d05 / d06 (incl. a no-URL row)
+    # d05 / d06, incl. a no-URL row
     _link("d05", "https://example.com/erosion.csv", "example.com", name="Erosion data",
         description="Point data", year_created="2011"),
     _link("d06", "https://maps.example.net/1880", "maps.example.net", name="Historic map scan",
@@ -302,15 +271,15 @@ _LINKS = [
     # d12
     _link("d12", "https://example.com/bus.csv", "example.com", name="Bus stops", description="Stop locations",
         year_created="2018"),
-    # d07 — second dataset for the top shared URL
+    # d07: shared URL
     _link("d07", "https://example.com/shared.csv", "example.com", name="Census 2024",
         description="Schools census", year_created="2024"),
     _link("d07", "https://beta.example.net/method.pdf", "beta.example.net", name="Census methodology",
         description="", format="PDF", year_created="2024"),
-    # d08 — missing name + description
+    # d08: missing name and description
     _link("d08", "https://example.com/old-school.csv", "example.com", name=None, description=None,
         year_created="2021"),
-    # d09 / d10 (incl. a missing format)
+    # d09 / d10, incl. a missing format
     _link("d09", "https://api.example.com/gtfs.zip", "api.example.com", name="Timetable API",
         description="GTFS feed", format="GTFS", year_created="2020"),
     _link("d10", "https://data.gov.uk/flood-warnings", "data.gov.uk", name="Warnings feed",
@@ -330,7 +299,7 @@ _LINKS = [
         format=None, year_created="2022"),
 ]
 
-# Manual datasets first (alpha), then harvested (beta), then unknown states.
+# Manual datasets first, then harvested, then unknown states.
 _LINK_ERRORS = [
     _link_error("d01", "https://example.com/shared.csv", 200, "OK", to_delete=False),
     _link_error("d01", "https://example.com/shared.csv", 404, "NOT_FOUND", to_delete=True),
@@ -373,8 +342,7 @@ _HARVEST_SOURCES = [
     ("hs3", "Gamma Harvester", "gamma", False, "manual", None),
 ]
 
-# Two ok records for d01 (latest wins) plus one ok:false; one each for d07
-# (scored) and d05 (missing overall, the "none" facet).
+# Two ok reviews for d01 (latest wins), one ok:false, plus d07 and d05.
 _REVIEWS = [
     _review("d01", "alpha", "Alpha Department", 3),
     _review("d01", "alpha", "Alpha Department", FIXTURE["review_dataset_latest_overall"]),
@@ -426,8 +394,7 @@ def make_fixtures():
     Dataset.objects.bulk_create(
         [Dataset(org_display_name=display[row["org_slug"]], **_model_fields(row)) for row in _DATASETS],
     )
-    # DatasetJson.json is a JSONField — pass the object, not a JSON string
-    # (double-encoding makes the raw-SQL readers unwrap a str, not a dict).
+    # Pass a dict, not a JSON string: raw-SQL readers expect an object.
     DatasetJson.objects.bulk_create(
         [DatasetJson(dataset_id=row["id"], json=_dataset_json(row, display[row["org_slug"]])) for row in _DATASETS],
     )
@@ -461,8 +428,7 @@ def make_fixtures():
         ],
     )
 
-    # Links: derive org/title/position/resource_id from the dataset rows so
-    # each seed row only spells out what it tests.
+    # Derive link org/title/position/resource_id from the dataset rows.
     positions = {}
     links = []
     for i, row in enumerate(_LINKS):
@@ -528,7 +494,7 @@ def make_fixtures():
         ],
     )
 
-    # Typed review columns mirror the JSON (`scripts/ingest_reviews.py`).
+    # Typed columns mirror the JSON written by scripts/ingest_reviews.py.
     Review.objects.bulk_create(
         [
             Review(
@@ -550,8 +516,7 @@ def make_fixtures():
         ],
     )
 
-    # datasets.fts — a build-time tsvector the ORM can't own. Populate it the
-    # same way the build does (title + notes) for /search.
+    # datasets.fts is a build-time tsvector; populate it as the build does.
     with connection.cursor() as cur:
         cur.execute(
             "UPDATE datasets SET fts = to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(notes, ''))",
@@ -562,12 +527,7 @@ def make_fixtures():
 
 @pytest.fixture(scope="session")
 def django_db_setup(django_db_setup, django_db_blocker):
-    """Seed the fixture world once, after the test DB is created.
-
-    Depends on pytest-django's own ``django_db_setup`` (so the DB exists
-    first) and seeds inside ``django_db_blocker.unblock()`` so the inserts
-    are allowed even though no test has opted into DB access yet.
-    """
+    """Seed once, after pytest-django creates the test DB."""
     with django_db_blocker.unblock():
         make_fixtures()
 
@@ -594,13 +554,7 @@ def _skip_reports(config):
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Make ``--fail-on-skip`` a failing exit code.
-
-    The suite has deliberate conditional skips (postgres CREATEDB, scratch
-    DB reachability, seed shape). Locally those are a convenience; in CI a
-    skip must never hide a test, so the CI run passes this flag and the
-    session ends non-zero with the skip reasons printed below.
-    """
+    """Turn ``--fail-on-skip`` into a failing exit code (CI's no-skip guard)."""
     if session.config.getoption("--fail-on-skip") and _skip_reports(session.config):
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 

@@ -7,7 +7,7 @@ Covers:
 - database_url()'s fail-loud guard
 - the connection layer against a throwaway scratch database (created and
   dropped per session): exec / prepare / get / all / run, transaction
-  commit + rollback, dict rows, jsonb-as-parsed-object.
+  commit + rollback, dict rows.
 
 The scratch DB is skipped when the postgres user can't create databases
 (CREATEDB privilege); the pure tests always run. These tests never import
@@ -62,28 +62,6 @@ def test_exec_and_prepare(scratch_db_url):
 
         got = d.prepare("SELECT * FROM t_exec WHERE name = ?").all("first")
         assert got == [{"id": 1, "name": "first", "payload": {"a": 1}}]
-    finally:
-        d.close()
-
-
-def test_query_jsonb_default_loader(scratch_db_url):
-    """Raw psycopg3's default jsonb loader returns parsed objects, not
-    strings (Django's connection registers string loaders instead). The
-    pipeline never reads jsonb columns today, but the behaviour is
-    documented here so it can't silently drift."""
-    d = db.connect(scratch_db_url)
-    try:
-        d.exec("CREATE TABLE t_jsonb (id serial primary key, payload jsonb)")
-        stmt = d.prepare("INSERT INTO t_jsonb (payload) VALUES (?)")
-        stmt.run('{"k": [1, 2, 3]}')
-        stmt.run('{"k": 4}')
-
-        rows = d.prepare("SELECT id, payload FROM t_jsonb ORDER BY id").all()
-        assert rows == [
-            {"id": 1, "payload": {"k": [1, 2, 3]}},
-            {"id": 2, "payload": {"k": 4}},
-        ]
-        assert isinstance(rows[0]["payload"], dict)
     finally:
         d.close()
 

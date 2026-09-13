@@ -72,7 +72,6 @@ def test_parse_row_casts():
     values = ile.parse_row(row)
     assert values["resource_created"] == ""
     assert values["package_id"] == "p1"
-    print("ok: parse_row (http-status/to-delete casts, as-is text)")
 
 
 def test_load_rows_all_rows_and_quoted_fields():
@@ -95,7 +94,6 @@ def test_load_rows_all_rows_and_quoted_fields():
         assert rows[1]["http_status"] == 200
         assert rows[1]["to_delete"] is False
         assert rows[2]["http_status"] is None
-    print("ok: load_rows (quoted comma, OK kept, code-less cast)")
 
 
 def test_csv_header_alignment():
@@ -110,7 +108,6 @@ def test_csv_header_alignment():
         with p.open(newline="", encoding="utf-8") as f:
             fieldnames = set(csv.DictReader(f).fieldnames)
     assert fieldnames == set(ile.CSV_HEADERS.values())
-    print("ok: COLUMNS / CSV_HEADERS alignment")
 
 
 def test_load_rows_missing_file():
@@ -122,4 +119,3 @@ def test_load_rows_missing_file():
             pass
         else:
             raise AssertionError("load_rows on a missing file must raise FileNotFoundError")
-    print("ok: load_rows (missing file raises)")

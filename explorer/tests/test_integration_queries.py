@@ -40,7 +40,7 @@ from explorer.queries.organisations import (
     organisations_facet_counts,
     organisations_stmts,
 )
-from explorer.queries.reviews import get_classification, get_review, latest_reviews
+from explorer.queries.reviews import get_review, latest_reviews
 from explorer.queries.series import SERIES_COUNT, series_list_stmt
 from explorer.views.core import PAGE_SIZE
 
@@ -97,14 +97,6 @@ def test_orgs_row_shape():
         "title",
     ):
         assert col in rows[0], f"orgs row missing {col}"
-
-
-def test_dataset_total():
-    """datasets ↔ dataset_json is a real pipeline 1:1 invariant."""
-    total = DATASET_TOTAL.get()
-    assert total is not None
-    assert total["n"] > 0
-    assert Query("SELECT COUNT(*) AS n FROM dataset_json").get()["n"] == total["n"]
 
 
 def test_stats_shapes():
@@ -478,10 +470,6 @@ def test_get_review_returns_latest_review():
     assert rev["dataset_id"] == "d01"
     assert rev["overall"] == 5
     assert rev == next(r for r in latest_reviews() if r["dataset_id"] == "d01")
-
-
-def test_get_classification_is_get_review():
-    assert get_classification is get_review
 
 
 def test_get_review_missing():

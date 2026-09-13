@@ -64,7 +64,6 @@ def test_find_org():
         qd.find_org("o", SAMPLE_ORGS)
     assert exc.value.name_or_id == "o"
     assert [m["name"] for m in exc.value.matches] == ["ons", "ons-2"]
-    print("ok: find_org exact / partial / ambiguous / none")
 
 
 def test_load_orgs():
@@ -83,7 +82,6 @@ def test_load_orgs():
         p3 = Path(d) / "bad.json"
         p3.write_text("{oops", encoding="utf-8")
         assert qd.load_orgs(p3) is None
-    print("ok: load_orgs missing / non-list / invalid JSON")
 
 
 def test_parse_sort():
@@ -105,7 +103,6 @@ def test_parse_sort():
     # empty direction (trailing colon)
     with pytest.raises(qd.InvalidSortError):
         qd.parse_sort("name:")
-    print("ok: parse_sort default / append desc / field+dir rejection")
 
 
 def test_format_org_line():
@@ -117,7 +114,6 @@ def test_format_org_line():
     assert qd.format_org_line({"name": "defra", "display_name": "Defra"}) == "defra  \t(? datasets)  \tDefra"
     # missing display_name -> name; trailing spaces preserved (real data)
     assert qd.format_org_line({"name": "x", "package_count": 5}) == "x  \t(5 datasets)  \tx"
-    print("ok: format_org_line")
 
 
 def test_format_dataset():
@@ -153,7 +149,6 @@ def test_format_dataset():
     # metadata_modified missing -> '?'; empty string -> ""
     assert qd.format_dataset({"name": "n"})[2] == "    Updated: ?"
     assert qd.format_dataset({"name": "n", "metadata_modified": ""})[2] == "    Updated: "
-    print("ok: format_dataset")
 
 
 def test_get_datasets():
@@ -190,7 +185,6 @@ def test_get_datasets():
     # success:false -> RuntimeError
     with pytest.raises(RuntimeError, match="success: false"):
         run(lambda r: httpx.Response(200, json={"success": False}))
-    print("ok: get_datasets params + error paths")
 
 
 def test_cli():
@@ -246,4 +240,3 @@ def test_cli():
     # --rows must be >= 1; click usage error, non-zero exit
     res = runner.invoke(qd.app, ["ons", "--rows", "0"])
     assert res.exit_code != 0, res.output
-    print("ok: CLI --list / no-input / bogus sort / ambiguous / --rows")

@@ -77,7 +77,6 @@ def test_strip_date_patterns():
     assert bs.strip_date("Something (2020)") == {"root": "Something", "date": "(2020)"}
     # date string is trimmed: trailing spaces after the year are stripped
     assert bs.strip_date("Report 2020  ") == {"root": "Report", "date": "2020"}
-    print("ok: strip_date all five patterns + non-matches")
 
 
 def test_strip_date_rejects():
@@ -100,7 +99,6 @@ def test_strip_date_rejects():
     assert bs.strip_date("Januarry 2020 Report") is None
     # Q0 / Q5 not valid quarters — and no bare year at the end to catch
     assert bs.strip_date("Report Q5 2020 onwards") is None
-    print("ok: strip_date rejections")
 
 
 def test_strip_date_ascii():
@@ -110,7 +108,6 @@ def test_strip_date_ascii():
     assert bs.strip_date("Report ２０２０/２１") is None
     # real ASCII digits still match
     assert bs.strip_date("Report 2020") == {"root": "Report", "date": "2020"}
-    print("ok: strip_date re.ASCII (fullwidth digits ignored)")
 
 
 def test_exact_duplicates():
@@ -131,7 +128,6 @@ def test_exact_duplicates():
     assert s["type"] == "template"  # two orgs
     assert [d["id"] for d in s["datasets"]] == ["a1", "a2", "a3"]
     assert "date" not in s["datasets"][0]  # Phase 1 rows carry no date
-    print("ok: exact duplicates -> template across orgs")
 
 
 def test_single_org_timeseries():
@@ -154,7 +150,6 @@ def test_single_org_timeseries():
         "Planning Applications 2021",
         "Planning Applications 2022",
     ]
-    print("ok: date-suffix cluster -> timeseries with dates")
 
 
 def test_exact_duplicates_single_org_timeseries():
@@ -166,7 +161,6 @@ def test_exact_duplicates_single_org_timeseries():
     series, exact, _ = bs.build_all_series(rows)
     assert exact == 1
     assert series[0]["type"] == "timeseries"
-    print("ok: exact duplicates, one org -> timeseries")
 
 
 def test_root_length_cutoff():
@@ -194,7 +188,6 @@ def test_root_length_cutoff():
     ]
     _, _, date = bs.build_all_series(rows)
     assert date == 1
-    print("ok: Phase 2 root-length >= 5 AND min-words >= 2 cutoffs")
 
 
 def test_range_patterns():
@@ -217,7 +210,6 @@ def test_range_patterns():
     series, _, date = bs.build_all_series(rows)
     assert date == 1
     assert series[0]["root_title"] == "River Water Quality Monitoring"
-    print("ok: date ranges strip whole, no dangling 'to'")
 
 
 def test_connector_trimming():
@@ -234,7 +226,6 @@ def test_connector_trimming():
         "root": "LCHS Spend Over 25K",
         "date": "2020",
     }
-    print("ok: roots trimmed of trailing connectors/punctuation")
 
 
 def test_punct_normalize_phase1():
@@ -263,7 +254,6 @@ def test_punct_normalize_phase1():
     ]
     series, _, _ = bs.build_all_series(rows)
     assert series[0]["root_title"] == "Air Quality Management Areas"
-    print("ok: Phase 1 groups case/punct variants of a title, picks natural root")
 
 
 def test_filename_rejection_phase2():
@@ -283,7 +273,6 @@ def test_filename_rejection_phase2():
     ]
     _, _, date = bs.build_all_series(rows)
     assert date == 1
-    print("ok: snake_case roots rejected, bare-dot titles kept")
 
 
 def test_timeseries_growth():
@@ -313,7 +302,6 @@ def test_timeseries_growth():
     grown = {d["id"]: d["date"] for d in ts[0]["datasets"] if d["id"] in ("b1", "b2")}
     assert grown["b1"] == "2000"
     assert grown["b2"] == "2014"
-    print("ok: decent timeseries seeds grow year-token residuals")
 
 
 def test_timeseries_growth_overlap():
@@ -333,7 +321,6 @@ def test_timeseries_growth_overlap():
     assert exact == 1  # d1/d2 template
     ts = [s for s in series if s["type"] == "timeseries"]
     assert {d["id"] for d in ts[0]["datasets"]} == {"a1", "a2", "a3", "a4", "d1", "d2"}
-    print("ok: exact-duplicate members may still sit in the date cluster")
 
 
 def test_timeseries_growth_seed_threshold():
@@ -348,7 +335,6 @@ def test_timeseries_growth_seed_threshold():
     ts = [s for s in series if s["type"] == "timeseries"]
     assert len(ts) == 1
     assert {d["id"] for d in ts[0]["datasets"]} == {"a1", "a2", "a3"}
-    print("ok: growth needs a >=4 dataset seed")
 
 
 def test_year_tail():
@@ -356,7 +342,6 @@ def test_year_tail():
     assert bs._year_tail("UK (2011-2013)") == "(2011-2013)"
     assert bs._year_tail("Flower counts 2017-2020 version 2") == "2017-2020 version 2"
     assert bs._year_tail("No year here") is None
-    print("ok: year_tail extracts date-ish suffix")
 
 
 def test_grown_date():
@@ -371,7 +356,6 @@ def test_grown_date():
     )
     assert bs._grown_date("UK (2011-2013)", "sulphur data for the uk") == "(2011-2013)"
     assert bs._grown_date("No year", "some root") is None
-    print("ok: grown_date strips the seed root from the tail")
 
 
 def test_phase_overlap():
@@ -398,7 +382,6 @@ def test_phase_overlap():
     assert series[1]["root_title"] == "Planning Applications"
     assert series[1]["type"] == "timeseries"
     assert [d["id"] for d in series[1]["datasets"]] == ["w1", "w2", "w3"]
-    print("ok: Phase 1/Phase 2 overlap -> separate series entries")
 
 
 def test_order_and_counts():
@@ -421,4 +404,3 @@ def test_order_and_counts():
         "Gamma Report",
     ]
     assert [s["type"] for s in series] == ["timeseries", "timeseries", "timeseries"]
-    print("ok: series ordering (Phase 1 then Phase 2) and counts")
