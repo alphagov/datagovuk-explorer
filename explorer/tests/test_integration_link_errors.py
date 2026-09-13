@@ -76,15 +76,16 @@ def test_link_errors_list_shape_and_sort_whitelist():
 
 
 @pytest.mark.parametrize("sort", LINK_ERRORS_SORT_COLUMNS)
-@pytest.mark.parametrize("dir_", ["asc", "desc"])
-def test_link_errors_count_matches_list_and_deterministic(sort, dir_):
+def test_link_errors_count_matches_list_and_deterministic(sort):
     """Each sortable column, both directions: count/list agree and the
     ORDER BY ends with `, e.id`, so ties order the same on every run."""
-    out = link_errors_stmts({}, sort, dir_)
-    n = out["count"].get(*out["params"])["n"]
-    rows = out["list"].all(*out["params"], 1_000_000, 0)
-    assert n == len(rows)
-    assert [r["id"] for r in rows] == [r["id"] for r in out["list"].all(*out["params"], 1_000_000, 0)]
+    for dir_ in ("asc", "desc"):
+        out = link_errors_stmts({}, sort, dir_)
+        n = out["count"].get(*out["params"])["n"]
+        rows = out["list"].all(*out["params"], 1_000_000, 0)
+        assert n == len(rows), (sort, dir_)
+        again = out["list"].all(*out["params"], 1_000_000, 0)
+        assert [r["id"] for r in rows] == [r["id"] for r in again], (sort, dir_)
 
 
 def test_harvest_state_join_includes_unknown():

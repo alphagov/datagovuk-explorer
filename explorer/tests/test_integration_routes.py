@@ -42,26 +42,17 @@ BASE_ROUTES = [
 ]
 
 # Respond-only: exercise a non-default sort/dir and a page-2 branch per
-# sortable route. No order/content assertions here.
-SORT_AND_PAGE_ROUTES = [
+# sortable route (one case per route; no order/content assertions).
+SORTABLE_ROUTES = [
     ("/organisations", {"sort": "dataset_count", "dir": "desc"}),
-    ("/organisations", {"page": "2"}),
     ("/harvesters", {"sort": "dataset_count", "dir": "desc"}),
-    ("/harvesters", {"page": "2"}),
     ("/harvester/hs1", {"sort": "metadata_modified", "dir": "desc"}),
-    ("/harvester/hs1", {"page": "2"}),
     ("/links", {"sort": "name", "dir": "desc"}),
-    ("/links", {"page": "2"}),
     ("/datasets", {"sort": "resources", "dir": "desc"}),
-    ("/datasets", {"page": "2"}),
     ("/organisation/alpha", {"sort": "metadata_modified", "dir": "desc"}),
-    ("/organisation/alpha", {"page": "2"}),
     ("/reviews", {"sort": "overall", "dir": "desc"}),
-    ("/reviews", {"page": "2"}),
     ("/suggestions", {"sort": "confidence", "dir": "desc"}),
-    ("/suggestions", {"page": "2"}),
     ("/series", {"sort": "dataset_count", "dir": "desc"}),
-    ("/series", {"page": "2"}),
 ]
 
 
@@ -71,10 +62,10 @@ def test_route_responds(client, path, params):
     assert response.status_code == 200, f"{path} {params} -> {response.status_code}"
 
 
-@pytest.mark.parametrize(("path", "params"), SORT_AND_PAGE_ROUTES)
-def test_route_responds_non_default_query(client, path, params):
-    response = client.get(path, params)
-    assert response.status_code == 200, f"{path} {params} -> {response.status_code}"
+@pytest.mark.parametrize(("path", "sort_params"), SORTABLE_ROUTES)
+def test_route_responds_non_default_sort_and_page(client, path, sort_params):
+    assert client.get(path, sort_params).status_code == 200, f"{path} {sort_params}"
+    assert client.get(path, {"page": "2"}).status_code == 200, f"{path} ?page=2"
 
 
 @pytest.mark.parametrize("key", [report["key"] for report in REPORTS])

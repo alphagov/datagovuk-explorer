@@ -47,16 +47,22 @@ def test_snapshot_is_loaded():
     assert DATASET_TOTAL.get()["n"] == count
 
 
-@pytest.mark.parametrize(
-    "path",
-    ["/", "/datasets", "/links", "/links/errors", "/organisations", "/harvesters", "/reviews", "/suggestions"],
-)
-def test_key_pages_respond(client, path):
+def test_key_pages_respond(client):
     _live_dataset_count()
-    assert client.get(path).status_code == 200
+    for path in (
+        "/",
+        "/datasets",
+        "/links",
+        "/links/errors",
+        "/organisations",
+        "/harvesters",
+        "/reviews",
+        "/suggestions",
+    ):
+        assert client.get(path).status_code == 200, path
 
 
-@pytest.mark.parametrize("key", [report["key"] for report in REPORTS])
-def test_reports_respond(client, key):
+def test_every_report_responds(client):
     _live_dataset_count()
-    assert client.get(f"/report/{key}").status_code == 200
+    for report in REPORTS:
+        assert client.get(f"/report/{report['key']}").status_code == 200, report["key"]
