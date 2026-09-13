@@ -5,8 +5,9 @@ Covers the deterministic parts:
 - latest_per_dataset: later lines win (one record per dataset_id)
 - _subscore / _int: malformed-scores handling for the typed columns
 
-The live ingest (TRUNCATE + insert into reviews, idempotency, FK against
-datasets) is verified by running the script against the real DB.
+The write path (TRUNCATE + insert into reviews, idempotency, FK against
+datasets) is covered by tests/test_ingest_reviews_db.py against a scratch
+migrated database.
 Run with: uv run pytest tests/test_ingest_reviews.py
 """
 

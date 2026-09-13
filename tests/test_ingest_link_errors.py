@@ -8,9 +8,8 @@ Covers the deterministic parts:
   fixture CSV end to end
 - COLUMNS / CSV_HEADERS stay aligned (insert can never silently reorder)
 
-The live ingest (TRUNCATE + insert into link_errors, idempotency, row
-counts against the 89k-row file) is verified by running the script against
-the real DB: `just ingest-link-errors`.
+The write path (TRUNCATE + insert into link_errors, idempotency) is covered
+by tests/test_ingest_link_errors_db.py against a scratch migrated database.
 Run with: uv run pytest tests/test_ingest_link_errors.py
 """
 

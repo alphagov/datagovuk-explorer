@@ -209,7 +209,7 @@ run.omit = [
   "scripts/experiment_series.py", # one-off series experiment, not part of the pipeline
 ]
 run.source = [ "config", "explorer", "scripts" ]
-report.fail_under = 70
+report.fail_under = 75
 report.show_missing = true
 report.skip_covered = true
 

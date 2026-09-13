@@ -14,10 +14,6 @@ The scratch DB is skipped when the postgres user can't create databases
 Django and never touch the dev database.
 """
 
-import os
-import uuid
-
-import psycopg
 import pytest
 
 from scripts import db
@@ -49,47 +45,7 @@ def test_database_url_guard(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Scratch-DB session fixture
-# ---------------------------------------------------------------------------
-@pytest.fixture(scope="session")
-def scratch_db_url():
-    """A throwaway postgres database, or pytest.skip if we can't create one.
-
-    Created from the postgres maintenance DB (the usual local layout);
-    dropped with (FORCE) at session end so leftover connections (a crashed
-    earlier run) don't block the drop.
-    """
-    maintenance = os.getenv(
-        "TEST_POSTGRES_MAINTENANCE_URL",
-        "postgresql://localhost:5432/postgres",
-    )
-    name = f"explorer_scratch_{uuid.uuid4().hex[:12]}"
-    try:
-        admin = psycopg.connect(maintenance, autocommit=True)
-    except psycopg.OperationalError as e:
-        pytest.skip(f"cannot reach postgres maintenance DB ({maintenance}): {e}")
-    try:
-        with admin.cursor() as cur:
-            cur.execute(f"CREATE DATABASE {name}")
-    except psycopg.Error as e:
-        admin.close()
-        pytest.skip(f"cannot create scratch database (CREATEDB privilege?): {e}")
-    admin.close()
-
-    url = f"postgresql://localhost:5432/{name}"
-    yield url
-
-    try:
-        admin = psycopg.connect(maintenance, autocommit=True)
-        with admin.cursor() as cur:
-            cur.execute(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
-        admin.close()
-    except psycopg.Error:
-        pass  # best-effort cleanup — the name is unique per run
-
-
-# ---------------------------------------------------------------------------
-# Connection layer against the scratch DB
+# Connection layer against the scratch DB (fixture in tests/conftest.py)
 # ---------------------------------------------------------------------------
 def test_exec_and_prepare(scratch_db_url):
     d = db.connect(scratch_db_url)

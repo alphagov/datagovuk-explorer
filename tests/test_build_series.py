@@ -7,8 +7,8 @@ Covers the deterministic algorithmic core:
 - build_all_series: template vs timeseries typing, date-suffix clusters,
   root-length cutoff, Phase 1/Phase 2 overlap, counts, insertion order
 
-The DB write path is verified separately by a scratch-DB table diff
-against a full build of the same data.
+The DB write path (_write_series) is covered by tests/test_build_series_db.py,
+which runs it against a scratch migrated database.
 Run with: uv run pytest tests/test_build_series.py
 """
 
