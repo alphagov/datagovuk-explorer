@@ -17,18 +17,14 @@
    that bar straight from the `pills` view context; pages only override the
    block to change that.
 
-   Report pages without any facet groups normally get the single-column
-   (content-layout--full) layout. Pages that still want the two-pane frame
-   with a *blank* sidebar — so they line up with their section's other
-   pages (series and suggestions in the Datasets group) — pass
-   show_facet_pane in the view context.
+   Report pages without any facet groups get the single-column
+   (content-layout--full) layout.
 
    App-like pages get the app layout (body.app-layout, see
    pages/app-layout.css): a viewport-height frame with the header row and
    facets fixed, and the table scrolling in the section below. #}
 
-{% set has_facet_groups = facet_groups is defined and facet_groups %}
-{% set has_facets = has_facet_groups or show_facet_pane %}
+{% set has_facets = facet_groups is defined and facet_groups %}
 
 {% block body_attrs %}
   class="app-layout"
@@ -64,7 +60,7 @@
 {% block content %}
   <div class="content-layout{% if not has_facets %} content-layout--full{% endif %}">
     {% if has_facets %}
-      <aside class="facets{% if not has_facet_groups %} facets--empty{% endif %}" aria-label="Filters">
+      <aside class="facets" aria-label="Filters">
         {% block facets %}
           {% for key in facet_groups %}{{ facet_group(key) }}{% endfor %}
         {% endblock facets %}

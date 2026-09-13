@@ -55,9 +55,6 @@ def series_list(request):
             "section": "datasets",
             "series": series,
             "total": total,
-            # Two-pane frame with a blank facets sidebar so Series lines up
-            # with the other Datasets-group pages (see _app_layout.html).
-            "show_facet_pane": True,
             **pagination,
             "pager_base": pager_base,
             "sort": sort,

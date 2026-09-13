@@ -9,15 +9,6 @@
 	padding: 30px 30px 60px 30px;
 }
 
-/* Reserved-but-blank facet pane — pages that keep the two-pane frame for
-   alignment with their section's other pages but have no facet groups yet
-   (series, suggestions): drop the card so the column is just empty space. */
-.facets--empty {
-	background: none;
-	box-shadow: none;
-	padding: 0;
-}
-
 .facet-group + .facet-group {
 	margin-top: 20px;
 	padding-top: 20px;

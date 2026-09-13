@@ -111,6 +111,11 @@
 		border-left: 1px solid var(--color-border);
 	}
 
+	/* No sidebar → no facet/table divider. */
+	body.app-layout .content-layout--full .content-main {
+		border-left: none;
+	}
+
 	/* Inset cell content but keep row backgrounds/borders full-width. */
 	body.app-layout .data-table :is(th, td):first-child {
 		padding-left: 20px;

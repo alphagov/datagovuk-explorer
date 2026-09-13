@@ -59,9 +59,6 @@ def suggestions(request):
             "suggestions": suggestion_rows,
             "total": total,
             "shown": total,
-            # Two-pane frame with a blank facets sidebar so Suggestions lines
-            # up with the other Datasets-group pages (see _app_layout.html).
-            "show_facet_pane": True,
             "pager_base": pager_base,
             **pagination,
             "sort": sort,
