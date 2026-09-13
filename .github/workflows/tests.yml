@@ -1,0 +1,59 @@
+# Fast test suite. Runs the same command as local (`just test`) plus
+# `--fail-on-skip`, so a conditional skip can never hide a test in CI.
+#
+# Postgres is required twice over: pytest-django creates and seeds a test
+# database, and tests/test_scripts_db.py creates a scratch database (needs
+# CREATEDB). The image must ship pgvector — migration 0002 runs
+# CREATE EXTENSION vector.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Django connects via DATABASE_URL; the psycopg maintenance connection
+      # in test_scripts_db.py takes the explicit URL, but its scratch-DB URL
+      # is host-only, so PGUSER/PGPASSWORD carry the credentials there.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      TEST_POSTGRES_MAINTENANCE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      SECRET_KEY: ci-only-not-a-secret
+      DEBUG: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - uses: extractions/setup-just@v3
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run tests
+        run: just test --fail-on-skip

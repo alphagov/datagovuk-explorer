@@ -184,6 +184,10 @@ django_settings_module = "config.settings"
 # Django. DJANGO_SETTINGS_MODULE wires pytest-django up for the app tests.
 ini_options.DJANGO_SETTINGS_MODULE = "config.settings"
 ini_options.testpaths = [ "tests", "explorer/tests" ]
+# --strict-markers: a typo'd marker (e.g. @pytest.mark.integraton) is an error
+# rather than a silently-unmarked test. Skip-to-green is handled separately by
+# --fail-on-skip, which CI passes (see .github/workflows/tests.yml).
+ini_options.addopts = [ "--strict-markers" ]
 ini_options.markers = [
   "integration: needs the seeded test database",
   "live: needs the full live database (opt-in)",

@@ -32,9 +32,10 @@ format:
 
 # Fast default: unit + integration, excluding slow/live. Bare `pytest` runs
 # everything in one session; the filter lives here (not in pytest addopts) so
-# it stays visible.
-test:
-    uv run pytest -m "not slow and not live"
+# it stays visible. Extra args are forwarded, so CI runs
+# `just test --fail-on-skip` (a skip must not hide a test there).
+test *args:
+    uv run pytest -m "not slow and not live" {{args}}
 
 # Everything: the fast suite (incl. slow) then the opt-in live smoke, in two
 # invocations. The fixture DB rewrites the default connection, so live and

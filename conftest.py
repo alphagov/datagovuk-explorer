@@ -576,3 +576,46 @@ def django_db_setup(django_db_setup, django_db_blocker):
 def fixtures():
     """The known fixture ids (see FIXTURE)."""
     return FIXTURE
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--fail-on-skip",
+        action="store_true",
+        default=False,
+        help="Fail the run if any test is skipped (CI guard against skip-to-green).",
+    )
+
+
+def _skip_reports(config):
+    """The reports pytest marked as skipped, from the terminal reporter."""
+    reporter = config.pluginmanager.getplugin("terminalreporter")
+    return reporter.stats.get("skipped", []) if reporter else []
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Make ``--fail-on-skip`` a failing exit code.
+
+    The suite has deliberate conditional skips (postgres CREATEDB, scratch
+    DB reachability, seed shape). Locally those are a convenience; in CI a
+    skip must never hide a test, so the CI run passes this flag and the
+    session ends non-zero with the skip reasons printed below.
+    """
+    if session.config.getoption("--fail-on-skip") and _skip_reports(session.config):
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Spell out the skips that ``--fail-on-skip`` is failing the run on."""
+    if not config.getoption("--fail-on-skip"):
+        return
+    skipped = _skip_reports(config)
+    if not skipped:
+        return
+    terminalreporter.write_sep(
+        "=",
+        f"fail-on-skip: {len(skipped)} unexpected skip(s)",
+        red=True,
+    )
+    for report in skipped:
+        terminalreporter.write_line(f"  {report.nodeid}\n    {report.longrepr}")
