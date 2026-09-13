@@ -1,4 +1,4 @@
-"""Unit tests for health, basic auth, and custom 404 rendering (plan Phase 5).
+"""Unit tests for health, basic auth, and custom 404 rendering.
 
 These need no database (health returns a bare response; the 404 template has
 no data) so they never skip. The page-render route smoke lives in

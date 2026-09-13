@@ -1,6 +1,6 @@
 """Unit tests for scripts/download_datasets.py (offline — no live API).
 
-Covers the deterministic parts per the plan:
+Covers the deterministic parts:
 - slugify + filename construction (slugify(title)-id[:8].json)
 - iso_now format (ISO 8601 UTC: 3-digit ms + Z)
 - load_no_datasets / save_no_datasets round-trip and failure modes

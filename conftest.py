@@ -1,38 +1,33 @@
 """Root pytest config — the seeded fixture database for the app suite.
 
 The integration tests (explorer/tests/test_integration_*.py) run against a
-tiny, explicit dataset seeded with plain ORM inserts. This is the Phase 3
-work in docs/test-review-plan.md: the old app suite read the *live* dev DB
-and broke whenever the data changed; here every test owns the same small
-world.
+tiny, explicit dataset seeded with plain ORM inserts, so every test owns the
+same small world and the seed never has to track the live DB.
 
-Seeding contract (plan §6):
+Seeding contract:
 
-- pytest-django creates the test database from migrations (fast on an empty
-  DB — the HNSW index is built on zero rows).
-- ``django_db_setup`` is overridden to seed **once**, after creation, inside
+- pytest-django creates the test database from migrations.
+- ``django_db_setup`` seeds **once**, after creation, inside
   ``django_db_blocker.unblock()`` and outside any per-test transaction.
-- Each ``@pytest.mark.django_db`` test then gets a transaction that rolls
-  back, so the seeded rows stay pristine. Keep the fixture world read-only.
+- Each ``@pytest.mark.django_db`` test gets a transaction that rolls back,
+  so the seeded rows stay pristine. Keep the fixture world read-only.
 - With ``--reuse-db`` the seed survives between runs; ``make_fixtures()`` is
   a no-op when the tables already hold rows, so it never double-seeds.
 
-The seed data uses small row factories (``_dataset`` / ``_link`` / ``_link_error``) so only
-the fields that matter for a case are spelled out; the rest default.
-Denormalised columns (link org/title, link_error publisher, positions,
-resource ids) are derived at insert time from the dataset rows rather than
-repeated per row. The tables are wrapped in ``# fmt: off`` — they are data,
-and the formatter's one-argument-per-line expansion destroys their shape.
+The seed data uses small row factories (``_dataset`` / ``_link`` /
+``_link_error``) so only the fields that matter for a case are spelled out;
+the rest default. Denormalised columns (link org/title, link_error publisher,
+positions, resource ids) are derived at insert time from the dataset rows.
+The tables are wrapped in ``# fmt: off`` — they are data, and the formatter's
+one-argument-per-line expansion destroys their shape.
 
-Coverage the seed is built to exercise (docs/test-audit.md "Fixture
-requirements implied by the KEEPs"): named/missing/empty orgs, duplicate
-titles per org, short titles/descriptions, no description, withdrawn
-wording, ``theme_primary`` NULL and ``''``, created years across the window,
-a no-links and an API dataset, a URL shared across datasets, NULL/empty and
-scheme-less URLs, missing format/name, every link-error category, all three
-harvest states (including a package absent from ``datasets``), both
-to-delete values, NULL http_status, and two reviews for one dataset plus an
-``ok:false``.
+The seed covers: named/missing/empty orgs, duplicate titles per org, short
+titles/descriptions, no description, withdrawn wording, ``theme_primary``
+NULL and ``''``, created years across the window, a no-links and an API
+dataset, a URL shared across datasets, NULL/empty and scheme-less URLs,
+missing format/name, every link-error category, all three harvest states
+(including a package absent from ``datasets``), both to-delete values, NULL
+http_status, and two reviews for one dataset plus an ``ok:false``.
 """
 
 import json

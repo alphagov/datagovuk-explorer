@@ -1,4 +1,4 @@
-"""One parametrized smoke over every route in config/urls.py (plan Phase 5).
+"""One parametrized smoke over every route in config/urls.py.
 
 Each route renders against the seeded fixture DB; the assertion is only that
 the page responds (200). Content/data contracts live at the query layer
@@ -7,7 +7,7 @@ the page responds (200). Content/data contracts live at the query layer
 coverage.
 
 Non-default `?sort=&dir=` and `?page=2` variants are included (respond-only)
-so those branches can't crash green (plan §0, decision 6).
+so those branches can't crash green.
 """
 
 import pytest

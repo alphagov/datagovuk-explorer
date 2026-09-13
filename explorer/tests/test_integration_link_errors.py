@@ -1,9 +1,8 @@
 """Integration tests for the /links/errors query layer on the seeded fixture.
 
-Phase 4 port (docs/test-review-plan.md) of ``test_link_errors.py``: statement
-shapes, count/list consistency, deterministic ordering, the datasets LEFT
-JOIN (including the Unknown state), and the self-excluding facet pools. The
-view/render tests stay in the Phase 5 behaviour suite.
+Covers statement shapes, count/list consistency, deterministic ordering, the
+datasets LEFT JOIN (including the Unknown state), and the self-excluding
+facet pools. The view/render tests live in the behaviour suite.
 """
 
 import re

@@ -1,12 +1,12 @@
-"""Opt-in smoke against the full live dev database (plan Phase 7).
+"""Opt-in smoke against the full live dev database.
 
 Run with ``just test-live``. These checks prove the real snapshot is loaded
 and a few pages render — nothing that depends on exact content or counts, so
 they don't break when the data is rebuilt.
 
-Live and fixture tests cannot share a pytest session (the fixture DB rewrites
-the default connection — plan §0), which is why this layer is a separate
-marker rather than part of ``just test``.
+The fixture DB rewrites the default connection, so live and fixture tests
+cannot share a pytest session; that is why this layer is a separate marker
+rather than part of ``just test``.
 """
 
 import pytest

@@ -2,11 +2,8 @@
 
 These are plain pytest: they never import Django and set a dummy
 DATABASE_URL at import time to satisfy module-level guards they never
-connect to. The .env load below runs first (conftest imports before any
-test module), so Django settings — which pytest-django loads during the
-run — never inherit the dummy URL from a pipeline module.
-
-The Django app tests live in explorer/tests/ with their own conftest.
+connect to. The .env load below runs before any test module imports, so
+Django settings never inherit the dummy URL from a pipeline module.
 """
 
 import os

@@ -1,6 +1,6 @@
 """Unit tests for scripts/build_series.py (offline — no database).
 
-Covers the deterministic algorithmic core per the plan:
+Covers the deterministic algorithmic core:
 - strip_date: all 5 DATE_PATTERNS, first-match-wins ordering, empty-root
   rejection, re.ASCII faithfulness (fullwidth digits don't match
   the ASCII digit class)

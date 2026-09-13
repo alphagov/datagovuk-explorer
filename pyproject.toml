@@ -133,17 +133,15 @@ lint.per-file-ignores."conftest.py" = [
   "PLR0913",
 ]
 # The shared facet builder's parameters are its API surface — one option
-# per page behaviour (docs/refactor-plan.md step 1 pins this exact
-# signature) — not a complexity smell.
+# per page behaviour — not a complexity smell.
 lint.per-file-ignores."explorer/facets.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."explorer/tests/*.py" = [ "PLR2004" ]
 lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
 # Status codes and pagination sizes in test assertions are intent, not magic.
 # Tests also legitimately unit-test private script helpers (_parse_int, _subscore,
 # _translate, …) — the private members ARE the units under test.
-# Complexity rules (C901 + PLR0911-17) are now on, with only per-file
-# exceptions below — see docs/refactor-functions.md ("Not in scope" and the
-# final-pass disposition) for the reason each file stays partly ignored.
+# Complexity rules (C901 + PLR0911-17) are on; the per-file exceptions
+# below mark functions whose signature or branching is their interface.
 lint.per-file-ignores."scripts/download_datasets.py" = [ "PLR0913" ]
 lint.per-file-ignores."scripts/embed_only.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."scripts/review_suggest.py" = [ "PLR0913" ]
@@ -152,7 +150,7 @@ lint.per-file-ignores."tests/*.py" = [ "PLR2004", "SLF001" ]
 # regexes use re.ASCII so \d does NOT match U+FF10..U+FF19.
 lint.per-file-ignores."tests/test_build_*.py" = [ "RUF001", "RUF003" ]
 # The long process_batch test stays as-is — test length is not a
-# product-quality signal (see docs/refactor-functions.md).
+# product-quality signal.
 lint.per-file-ignores."tests/test_download_datasets.py" = [ "PLR0915", "RUF001", "RUF003" ]
 lint.isort.combine-as-imports = true
 lint.isort.force-single-line = false

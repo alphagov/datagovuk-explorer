@@ -1,6 +1,6 @@
 """Unit tests for scripts/embed_only.py (offline — no llama-server, no DB).
 
-Covers the deterministic algorithmic core per the plan:
+Covers the deterministic algorithmic core:
 - build_texts: BGE prefix, notes[:500] truncation, whitespace collapse,
   None for empty texts, empty-title handling
 - assemble_batch: null-skipping + origIndex mapping (the request/response

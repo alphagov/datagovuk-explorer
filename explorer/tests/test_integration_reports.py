@@ -1,8 +1,7 @@
 """Integration tests for the data-quality reports against the seeded fixture.
 
-Phase 4 port (docs/test-review-plan.md) of the report tests in the legacy
-``test_queries.py``: every report's count/list compiles and agrees, ordering
-is deterministic, and the facet counts wire up to the right (sql, params).
+Every report's count/list compiles and agrees, ordering is deterministic, and
+the facet counts wire up to the right (sql, params).
 """
 
 import pytest
@@ -46,8 +45,8 @@ def test_report_facet_counts_shape():
 
 def test_fixture_populates_every_report_facet():
     """The fixture is sized so every faceted report has options — otherwise
-    the report pages would render empty sidebars (the audit's fixture
-    requirement). A failure here means the seed, not the query layer."""
+    the report pages would render empty sidebars. A failure here means the
+    seed, not the query layer."""
     for report in REPORTS:
         for facet in report.get("facets", []):
             sql, params = report_facet_counts(report, {})[facet["key"]]

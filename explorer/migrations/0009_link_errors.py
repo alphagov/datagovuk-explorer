@@ -1,7 +1,7 @@
 """link_errors table + indexes — the /links/errors report.
 
-Mirrors data/errors-current.csv one row per check result (docs/link-errors
--report.md §4): TRUNCATE + reload by scripts/ingest_link_errors.py, same
+Mirrors data/errors-current.csv one row per check result: TRUNCATE + reload
+by scripts/ingest_link_errors.py, same
 ownership as the reviews table (ingest script, not the build). Fidelity
 over trimming: every CSV column is kept, including the CSV-derived
 `datagovuk_url` — the report links to it when a package is absent from the

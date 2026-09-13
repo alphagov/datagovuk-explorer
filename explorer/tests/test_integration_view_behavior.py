@@ -1,4 +1,4 @@
-"""Page-unique behaviour against the seeded fixture (plan Phase 5, group C).
+"""Page-unique behaviour against the seeded fixture.
 
 Everything shared (pager, sub-nav, facet search box, badges, pills) is
 unit-tested once via the macros/helpers; the route smoke proves every page

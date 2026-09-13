@@ -1,6 +1,6 @@
 """Unit tests for scripts/query_datasets.py (offline — no network).
 
-Covers the deterministic parts per the plan:
+Covers the deterministic parts:
 - find_org: exact name/id, case-insensitive partial, ambiguous, no match
 - load_orgs: missing file / invalid JSON / non-list JSON -> None
 - parse_sort: default, missing direction, bogus field/direction errors

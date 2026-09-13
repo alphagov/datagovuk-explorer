@@ -1,6 +1,6 @@
 """Unit tests for scripts/build_db.py (offline — no database).
 
-Covers the deterministic pure functions per the plan — the algorithmic risk
+Covers the deterministic pure functions — the algorithmic risk
 lives here: parse_csv_line, temporal_val/year/periods, extract_host,
 normalise_format, normalize_title, field_value_str, leading-digit int
 semantics, and the views-CSV resolution ([date]-redacted ids, wildcard

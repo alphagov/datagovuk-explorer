@@ -1,12 +1,11 @@
 """Integration tests for the query layer against the seeded fixture DB.
 
-Phase 4 port (docs/test-review-plan.md) of the KEEP/REWRITE items in the
-legacy ``test_queries.py``: statement shapes, count/list consistency,
-deterministic ordering, self-excluding facet pools, and review dedup — all
-against the tiny seed in the root ``conftest.py``, never the live snapshot.
+Covers statement shapes, count/list consistency, deterministic ordering,
+self-excluding facet pools, and review dedup — all against the tiny seed in
+the root ``conftest.py``, never the live snapshot.
 
-Conventions (plan §7): assert invariants (count == list, pools partition the
-cleared count, deterministic order), not live content or production counts.
+Convention: assert invariants (count == list, pools partition the cleared
+count, deterministic order), not live content or production counts.
 """
 
 import pytest

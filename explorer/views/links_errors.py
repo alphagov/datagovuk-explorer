@@ -12,7 +12,7 @@ URL (host) first.
 
 The harvest state rides the datasets LEFT JOIN (queries/link_errors.py):
 harvested/manual from the snapshot, unknown when the package is absent
-from it (docs/link-errors-report.md §3 — derived, never stored). The
+from it (derived, never stored). The
 domain facet's host is derived too — split out of resource_url in SQL by
 the same _URL_HOST expression the URL sort uses.
 

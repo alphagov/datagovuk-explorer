@@ -37,9 +37,9 @@ test:
     uv run pytest -m "not slow and not live"
 
 # Everything: the fast suite (incl. slow) then the opt-in live smoke, in two
-# invocations. Live and fixture tests cannot share a session (the fixture DB
-# rewrites the default connection — docs/test-review-plan.md §0), so a single
-# `pytest -m ""` would run the live smoke against the test DB.
+# invocations. The fixture DB rewrites the default connection, so live and
+# fixture tests cannot share a session; a single `pytest -m ""` would run the
+# live smoke against the test DB.
 test-all:
     uv run pytest -m "not live"
     uv run pytest -m live

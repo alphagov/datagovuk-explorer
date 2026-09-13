@@ -4,7 +4,7 @@ all read from the `link_errors` table (ingested by
 scripts/ingest_link_errors.py).
 
 Harvest state, org slug and harvest source title are not stored on
-link_errors rows (docs/link-errors-report.md §3): every statement LEFT
+link_errors rows: every statement LEFT
 JOINs `datasets` on package_id, so the join shape is defined once here.
 Rows whose package is absent from the datasets snapshot join as NULL →
 harvest_state 'unknown'. The domain facet's value is derived too — the

@@ -1,6 +1,6 @@
 """Unit tests for scripts/review_suggest.py (offline — no live LLM, no DB).
 
-Covers the deterministic parts per the plan:
+Covers the deterministic parts:
 - constants: THEMES (14) / EXTRAS_WHITELIST (17), plus sha256 hashes of the
   three verbatim prompt strings (the model contract — an accidental edit
   fails the hash tests)
