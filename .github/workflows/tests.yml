@@ -1,5 +1,6 @@
 # Fast test suite. Runs the same command as local (`just test`) plus
-# `--fail-on-skip`, so a conditional skip can never hide a test in CI.
+# `--fail-on-skip`, so a conditional skip can never hide a test in CI, and
+# the coverage floor from pyproject.toml gates the run.
 #
 # Postgres is required twice over: pytest-django creates and seeds a test
 # database, and tests/test_scripts_db.py creates a scratch database (needs

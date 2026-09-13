@@ -28,6 +28,7 @@ dev = [
   "mypy>=2.3",
   "pre-commit>=4.6",
   "pytest>=8.3",
+  "pytest-cov>=6.0",
   "pytest-django>=4.9",
   "ruff>=0.16.1",
 ]
@@ -193,6 +194,24 @@ ini_options.markers = [
   "live: needs the full live database (opt-in)",
   "slow: takes > 1s (excluded from the default fast run)",
 ]
+
+# ==== coverage ====
+# `just test` and CI run pytest with --cov; the app is the part the doc calls
+# out (views/middleware/templates). Tests and migrations are inputs, not code
+# under test; the one-off scripts don't run in the suite. fail_under is the
+# gate — a floor that should only ever rise.
+[tool.coverage]
+run.omit = [
+  "*/migrations/*",
+  "*/tests/*",
+  "config/wsgi.py",               # 4-line server entry point, not request-handled code
+  "manage.py",
+  "scripts/experiment_series.py", # one-off series experiment, not part of the pipeline
+]
+run.source = [ "config", "explorer", "scripts" ]
+report.fail_under = 70
+report.show_missing = true
+report.skip_covered = true
 
 # ==== djLint ====
 [tool.djlint]
