@@ -354,3 +354,48 @@ def test_report_stmts_binds_selected_facet():
     assert filtered["count"].sql == "SELECT COUNT(*) FROM t WHERE 1=1 AND org_slug = %s"
     assert filtered["list"].sql == "SELECT id FROM t WHERE 1=1 AND org_slug = %s ORDER BY id LIMIT %s OFFSET %s"
     assert filtered["params"] == ["abc"]
+
+
+# ---------------------------------------------------------------------------
+# Query-string bookkeeping — the shared URL builders
+# ---------------------------------------------------------------------------
+def test_preserve_params_order_and_skips_empty():
+    """sort/dir first, then each non-empty facet pair, then extras."""
+    base = facets.preserve_params("name", "asc", [("theme", "transport"), ("source", ""), ("links", "0")])
+    assert base == {"sort": "name", "dir": "asc", "theme": "transport", "links": "0"}
+    assert facets.preserve_params("name", "asc", [], extras={"formats": "all"}) == {
+        "sort": "name",
+        "dir": "asc",
+        "formats": "all",
+    }
+
+
+def test_facet_url_for_sets_and_clears_one_value():
+    facet_url = facets.facet_url_for({"sort": "name", "dir": "asc", "theme": "transport"})
+    assert facet_url("theme", "") == "?sort=name&dir=asc"
+    assert facet_url("source", "manual") == "?sort=name&dir=asc&theme=transport&source=manual"
+    assert facets.facet_url_for({})("x", "y") == "?x=y"
+    assert facets.facet_url_for({})("x", "") == "?"
+
+
+def test_facet_qs_and_pager_base_optionally_drop_sort():
+    base = {"sort": "name", "dir": "asc", "theme": "transport"}
+    assert facets.facet_qs(base) == "&sort=name&dir=asc&theme=transport"
+    assert facets.facet_qs(base, include_sort=False) == "&theme=transport"
+    assert facets.facet_qs({}, include_sort=False) == ""
+    assert facets.pager_base(base) == "?sort=name&dir=asc&theme=transport"
+    assert facets.pager_base(base, include_sort=False) == "?theme=transport"
+    # no state left → clean ?page=N base
+    assert facets.pager_base({"sort": "name", "dir": "asc"}, include_sort=False) == ""
+    assert facets.pager_base({}) == ""
+
+
+def test_facet_toggle_url_expands_and_collapses():
+    base = {"sort": "name", "dir": "asc", "theme": "transport"}
+    assert facets.facet_toggle_url(base, "publishers", expanded=True) == (
+        "?sort=name&dir=asc&theme=transport&publishers=all"
+    )
+    assert facets.facet_toggle_url({**base, "publishers": "all"}, "publishers", expanded=False) == (
+        "?sort=name&dir=asc&theme=transport"
+    )
+    assert facets.facet_toggle_url({}, "publishers", expanded=False) == "?"
