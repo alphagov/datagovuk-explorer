@@ -19,9 +19,10 @@ phased migration. Nothing here is a deadline; it's a direction.
 |---|---|
 | `c8cc1d9` | **Phase 1** — markers (`integration` / `live` / `slow`), `just test` / `test-all` / `test-live`, `test_rate_limit` marked `slow`. The fast filter lives in the **justfile** (not pytest `addopts`), so bare `pytest` runs everything; `just test` runs `-m "not slow and not live"`. |
 | `e0469aa` | **Audit (Phase 0) + shared unit tests (Phase 2)** — `docs/test-audit.md`, plus the "shared machinery tested once" unit tests: `test_unit_view_helpers.py`, `test_unit_macros.py`, and the facet query-string helpers in `test_facets.py`. 33 tests, no DB, all green. |
-| (in progress) | **Phase 3** — root `conftest.py` with the seeded fixture world (`make_fixtures()` + a session `django_db_setup`), proven by `explorer/tests/test_integration_queries.py` (40 tests against the fixture DB). The three legacy app-test modules are gated behind the `live` marker (interim). Default `just test` is now **181 passed, 109 deselected, ~3 s**. |
+| `e9d4a65` | **Phase 3** — root `conftest.py` with the seeded fixture world (`make_fixtures()` + a session `django_db_setup`), proven by `explorer/tests/test_integration_queries.py`. The three legacy app-test modules are gated behind the `live` marker (interim). Default `just test` was **181 passed, ~3 s** at that commit. |
+| (in progress) | **Phase 4** — `test_queries.py` ported/dropped and deleted; new fixture-backed `test_integration_queries.py`, `test_integration_reports.py`, `test_integration_link_errors.py`. `test_link_errors.py` pruned to the interim live view tests only. Default `just test`: **210 passed, 38 deselected, ~3 s**. |
 
-Working tree last clean at `e0469aa` (Phase 3 is uncommitted at the time
+Working tree last commit is `e9d4a65` (Phase 4 is uncommitted at the time
 of writing). Baseline before the rewrite: **235 tests, ~60 s, 11 live-data
 failures.**
 
@@ -66,12 +67,12 @@ failures.**
 
 ### Next step
 
-**Phase 4 — port the query/link_errors tests.** Convert the KEEP/REWRITE
-items from `docs/test-audit.md` in `test_queries.py` / `test_link_errors.py`
-to the seeded fixture DB (the first slice is `test_integration_queries.py`),
-migrate facet-order assertions to the query layer, and delete the DROP items.
-Then Phase 5 replaces `test_views.py` with the route smoke and the small
-behaviour suite.
+**Phase 5 — replace the view tests.** Add `test_integration_routes.py` (one
+parametrized all-routes respond smoke, incl. non-default `?sort=&dir=` /
+`?page=2`) and `test_integration_view_behavior.py` (the group C page-unique
+tests from the audit). Delete the legacy `test_views.py` and the remaining
+live view tests in `test_link_errors.py`, plus the now-subsumed per-page
+chrome tests.
 
 ### Phase 3 notes (what the fixture world covers)
 
@@ -424,11 +425,14 @@ inserts, committed once; no-op under `--reuse-db`). Proven by
 are marked `live` (interim) so the default run does not create the test DB
 alongside them.
 
-**Phase 4 — port the query/link_errors tests.** Convert the KEEP/REWRITE
-items in `test_queries.py` and `test_link_errors.py` to the fixture DB
-(started: `test_integration_queries.py`); migrate facet-order assertions to
-the query layer; delete the DROP items. This is where most of the 60 s
-disappears.
+**Phase 4 — port the query/link_errors tests (done, uncommitted).**
+`test_queries.py` was fully ported (KEEP/REWRITE) or dropped and then deleted;
+the ports live in `test_integration_queries.py` (query layer),
+`test_integration_reports.py` (every report) and
+`test_integration_link_errors.py`. `test_link_errors.py` shrank to its
+interim live view tests. One audit KEEP was dropped: `datasets-has-api` is
+no longer in `REPORTS`, so `test_has_api_facets_self_exclude` has no target
+(noted in `docs/test-audit.md`).
 
 **Phase 5 — replace the view tests.** Add `test_integration_routes.py` (one
 parametrized all-routes respond smoke, incl. non-default `?sort=&dir=` /
@@ -482,14 +486,16 @@ Nothing that depends on exact content.
 ## 12. Immediate next action
 
 The first four phases are done (markers + fast `just test`, the audit, the
-shared-machinery unit tests, the seeded fixture world). The next session
-starts at **Phase 4 — port the query/link_errors tests**:
+shared-machinery unit tests, the seeded fixture world, and the query-layer
+port). The next session starts at **Phase 5 — replace the view tests**:
 
-1. Move the remaining KEEP/REWRITE items from `test_queries.py` into
-   `test_integration_queries.py`, pointed at the fixture DB (drop the
-   `LIMIT 1_000_000` fetches — with a 16-row fixture, fetch all rows).
-2. Port `test_link_errors.py` similarly (`test_integration_link_errors.py`),
-   keeping the row-shape, count/list, self-exclusion and unknown-harvest-state
-   invariants; drop the live-host ordering.
-3. Delete the DROP items and remove the ported ones from the legacy
-   `live` modules (which shrink each phase until Phase 6 deletes them).
+1. Add `test_integration_routes.py`: one parametrized all-routes respond
+   smoke over `config/urls.py` (fixture ids for dynamic routes, `?q=` for
+   search, `/report/<key>` over `REPORTS`), plus a non-default `?sort=&dir=`
+   and `?page=2` variant per sortable route (respond-only).
+2. Add `test_integration_view_behavior.py`: the group C page-unique tests
+   from the audit (report facet validation, multi-facet report, datasets
+   filter fallback, harvester facet pools/headline, dataset detail review).
+3. Delete `test_views.py` and the remaining live view tests in
+   `test_link_errors.py`; move the health/auth/404 unit tests to
+   `test_unit_middleware.py`.

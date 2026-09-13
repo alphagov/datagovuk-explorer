@@ -117,7 +117,7 @@ Rewrites are mechanical (fixture instead of live DB, drop
 | `test_every_report_count_matches_list` | KEEP | integration; fetch all rows. |
 | `test_every_report_deterministic_order` | KEEP | integration. |
 | `test_report_facet_counts_shape` | REWRITE | assert wiring/shape, **not** "options non-empty" (fixture-dependent). |
-| `test_has_api_facets_self_exclude` | KEEP | integration; only multi-facet report. Fixes today's `StopIteration`. |
+| `test_has_api_facets_self_exclude` | DROP | the `datasets-has-api` report was removed from `REPORTS` (no multi-facet report survives), so there is no target. Dropped in Phase 4. |
 | `test_series_list_stmt` | KEEP | integration. |
 | `test_yearly_helpers` | DROP | type-only; low value. |
 | `test_metadata_values_pagination` | KEEP | integration. |
