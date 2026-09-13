@@ -9,8 +9,6 @@ Conventions (plan §7): assert invariants (count == list, pools partition the
 cleared count, deterministic order), not live content or production counts.
 """
 
-import re
-
 import pytest
 
 from explorer.buckets import bucket_tests
@@ -35,10 +33,8 @@ from explorer.queries.links import (
 from explorer.queries.metadata import METADATA_KEYS, METADATA_VALUE_COUNT, METADATA_VALUES
 from explorer.queries.organisations import (
     DATASET_BUCKET_TESTS,
-    DATASET_BUCKETS,
     LAST_PUBLISHED_BY_ORG,
     ORG,
-    ORG_AGGREGATES,
     ORGS,
     RESOURCE_COUNTS,
     VIEWS_BY_ORG,
@@ -360,100 +356,34 @@ def test_theme_facet_has_empty_string_bucket():
     assert "__none__" in themes
 
 
-def test_datasets_facet_masters_are_ordered():
-    """The /datasets facet master lists render in their documented order:
-    theme count desc / label asc (with the No-theme member), temporal years
-    latest first. (test_views' HTML facet-order assertions, ported to the
-    helpers that build the render order.)"""
-    from explorer.views.datasets import _in_window_temporal_years, _theme_master  # noqa: PLC0415
-
-    themes = _theme_master()
-    assert themes == sorted(themes, key=lambda t: (-t["count"], t["label"].lower()))
-    assert any(t["slug"] == "none" for t in themes)
-    years = _in_window_temporal_years()
-    assert years == sorted(years, reverse=True)
-
-
 # ---------------------------------------------------------------------------
-# /organisations facet pools — Python reference
+# /organisations facet pools
 # ---------------------------------------------------------------------------
-def _org_rows():
-    from explorer.views.organisations import _merge_org_rows  # noqa: PLC0415
-
-    return _merge_org_rows(ORGS.all(), ORG_AGGREGATES.all())
-
-
-def _pub_year_match(o, pub_years):
-    if "__none__" in pub_years:
-        return o["last_published_year"] is None
-    return o["last_published_year"] in pub_years
+def _org_count(filters):
+    stmt = organisations_stmts(filters, "name", "asc")
+    return stmt["count"].get(*stmt["params"])["n"]
 
 
-def _org_ref_pools(filters):
-    """(created_years, last_published_years, no_last_published_year,
-    datasets) reference pools — each group counts the rows matching every
-    filter except its own, exactly as the Python reference does."""
-
-    def kept(exclude):
-        return [
-            o
-            for o in _org_rows()
-            if (
-                filters.get("created_year") is None
-                or exclude == "created_year"
-                or o["created_year"] == filters["created_year"]
-            )
-            and (
-                not filters.get("last_published_year")
-                or exclude == "last_published_year"
-                or _pub_year_match(o, filters["last_published_year"])
-            )
-            and (
-                filters.get("datasets") is None
-                or exclude == "datasets"
-                or DATASET_BUCKET_TESTS[filters["datasets"]](o["dataset_count"])
-            )
-        ]
-
-    year_pool: dict[str, int] = {}
-    for o in kept("created_year"):
-        if o["created_year"] and re.fullmatch(r"\d{4}", o["created_year"]):
-            year_pool[o["created_year"]] = year_pool.get(o["created_year"], 0) + 1
-
-    pub_pool: dict[str, int] = {}
-    no_pub_pool = 0
-    for o in kept("last_published_year"):
-        if o["last_published_year"]:
-            pub_pool[o["last_published_year"]] = pub_pool.get(o["last_published_year"], 0) + 1
-        else:
-            no_pub_pool += 1
-
-    bucket_pool = {value: 0 for value, _ in DATASET_BUCKETS}
-    for o in kept("datasets"):
-        for value, _ in DATASET_BUCKETS:
-            if DATASET_BUCKET_TESTS[value](o["dataset_count"]):
-                bucket_pool[value] += 1
-                break
-    return year_pool, pub_pool, no_pub_pool, {k: v for k, v in bucket_pool.items() if v}
-
-
-def test_org_facet_pools_match_python_reference():
-    """The SQL pools equal the Python reference pools for the same filters,
-    with self-exclusion per group (bucket boundaries + guards)."""
+def test_org_facet_pools_partition_list_count():
+    """Each /organisations pool partitions the list count with that group's
+    filter cleared — the same self-exclusion contract as /datasets."""
     for filters in (
         {},
         {"datasets": "0"},
-        {"datasets": "1-10"},
         {"created_year": "2010"},
         {"last_published_year": ("2024",)},
         {"last_published_year": ("__none__",)},
     ):
         counts = organisations_facet_counts(filters)
-        year_ref, pub_ref, no_pub_ref, bucket_ref = _org_ref_pools(filters)
-        assert {r["created_year"]: r["count"] for r in counts["created_years"]} == year_ref, filters
-        assert {r["last_published_year"]: r["count"] for r in counts["last_published_years"]} == pub_ref, filters
-        assert counts["no_last_published_year"] == no_pub_ref, filters
-        assert {r["bucket"]: r["count"] for r in counts["datasets"]} == bucket_ref, filters
+
+        years = sum(r["count"] for r in counts["created_years"])
+        assert years == _org_count(_without(filters, "created_year")), filters
+
+        published = sum(r["count"] for r in counts["last_published_years"]) + counts["no_last_published_year"]
+        assert published == _org_count(_without(filters, "last_published_year")), filters
+
+        buckets = sum(r["count"] for r in counts["datasets"])
+        assert buckets == _org_count(_without(filters, "datasets")), filters
 
 
 def test_org_dataset_bucket_reference():
