@@ -52,6 +52,10 @@
 	--color-surface: oklch(100% 0 none);
 	--color-text: oklch(33% 0 none);
 	--color-muted: oklch(52% 0 none);
+	/* Lighter than --color-muted, for large text that only needs to clear
+	   WCAG 1.4.3's 3:1 large-text threshold (~3.2:1 on white) — used for the
+	   unselected sub-nav links so the active one stands out. */
+	--color-muted-light: oklch(63% 0 none);
 	--color-border: oklch(92% 0 none);
 	/* UI-component boundaries (text inputs, …) — must clear WCAG 1.4.11's
 	   3:1 non-text contrast against a white/light surface, which the

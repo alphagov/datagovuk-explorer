@@ -51,12 +51,6 @@
 
 .nav-link:hover {
 	color: var(--color-text);
-	border-bottom-color: var(--color-border);
-}
-
-.nav-link--active {
-	color: var(--color-accent);
-	border-bottom-color: var(--color-accent);
 }
 
 /* ---------- Menu toggle button (desktop: hidden) ---------- */
@@ -136,13 +130,7 @@
 	}
 
 	.site-nav .nav-link:hover {
-		border-bottom-color: transparent;
 		border-left-color: var(--color-border);
-	}
-
-	.site-nav .nav-link--active {
-		border-bottom-color: transparent;
-		border-left-color: var(--color-accent);
 	}
 
 	.header-inner.is-open .site-search {

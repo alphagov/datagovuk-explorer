@@ -7,26 +7,61 @@
  * /harvesters, /datasets, /series, /reviews and /suggestions pages —
  * loaded from their styles blocks.
  *
- * The links reuse .nav-link / .nav-link--active from layout.css, so the
- * sub-nav looks exactly like the primary site nav. The current report is an
- * <h1> (the page's heading) carrying the same active nav-link styling; this
- * file gives the strip its flex row/spacing and resets the h1's defaults so
- * it measures and lines up exactly like its sibling links. The strip's
- * spacing from the rest of the header is owned by the page header bar in
- * pages/app-layout.css.
+ * The links reuse .nav-link from layout.css; the current report carries
+ * .nav-link--active, whose sub-nav styling (size, colour, no underline) is
+ * defined here. The links are set one size larger (text-display) with lighter
+ * unselected text, so the sub-nav reads as the page's own section nav below
+ * the primary site nav. The current
+ * report is an <h1> (the page's heading) carrying the same active nav-link
+ * styling; this file gives the strip its flex row/spacing and resets the h1's
+ * defaults so it measures and lines up exactly like its sibling links. The
+ * strip's spacing from the rest of the header is owned by the page header bar
+ * in pages/app-layout.css.
  * ------------------------------------------------------------------------- */
 
 .subnav {
 	display: flex;
 	flex-wrap: wrap;
+	/* Keep the items on a shared text baseline as the row wraps. */
+	align-items: baseline;
 	column-gap: 20px; /* match .site-nav gaps */
 	row-gap: 10px;
 }
 
+/* The sub-nav sits one level below the primary site nav, so its items use the
+   display size (matching page titles) rather than .nav-link's text-subheading,
+   which the primary nav keeps. Higher specificity than .nav-link so it wins
+   regardless of source order, and applies to the heading and the links alike. */
+.subnav .nav-link {
+	font-size: var(--text-display);
+	/* Trim .nav-link's 16px vertical padding — the display-size text doesn't
+	   need as much room. */
+	padding-block: 10px;
+}
+
+/* Unselected links are lighter than the primary nav's muted grey, so the
+   selected report (full text colour) reads clearly at the larger size. Hover
+   restores the normal text colour but, unlike the primary nav, adds no
+   underline. */
+.subnav .nav-link:not(.nav-link--active) {
+	color: var(--color-muted-light);
+}
+
+.subnav .nav-link:not(.nav-link--active):hover {
+	color: var(--color-text);
+	border-bottom-color: transparent;
+}
+
+/* The active report is the page's <h1> heading, not a nav target: it keeps the
+   normal text colour and has no underline. */
+.subnav .nav-link--active {
+	color: var(--color-text);
+	border-bottom-color: transparent;
+}
+
 /* The heading version of a nav item — cancel base.css's h1 line-height and
-   margin so only .nav-link's text-subheading, padding, border etc. apply
-   (the .nav-link class also out-specifies the base h1 font-size), identical
-   to the <a> siblings. */
+   margin so only .nav-link's padding, border etc. apply (the .nav-link class
+   also out-specifies the base h1 font-size), identical to the <a> siblings. */
 .subnav h1 {
 	margin: 0;
 	line-height: inherit;

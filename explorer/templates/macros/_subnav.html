@@ -3,11 +3,10 @@
    Datasets + Series + Reviews + Suggestions; future sections — Metadata… —
    reuse it the same way). Rendered at the
    top of every child page, in place of the page heading: the current report
-   is rendered as the page's <h1> heading, styled as the active nav item
-   (exactly like the primary site nav — it reuses nav-link /
-   nav-link--active), and the other reports are links in the same row. The
-   current report is the heading rather than a link, so it's not a
-   self-referential navigation target.
+   is rendered as the page's <h1> heading, carrying .nav-link--active (whose
+   sub-nav styling lives in components/subnav.css), and the other reports are
+   links in the same row. The current report is the heading rather than a
+   link, so it's not a self-referential navigation target.
 
    Args:
      tabs     list of {key, label, url} — the section's child reports, in

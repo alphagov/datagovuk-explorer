@@ -30,12 +30,18 @@ a.page-link:hover {
 	border-bottom: 2px solid;
 }
 
+/* Current page: a slightly darker rounded pill rather than an underline. The
+   height matches the 2.25rem min-width so a 1–2 digit number sits in a true
+   circle (the base 1.6 line-height + 6px vertical padding otherwise made the
+   box taller than it was wide). */
 .page-link--active {
-    border-bottom: 2px solid;
-	border-color: var(--color-accent);
-}
-
-.page-link--active:hover {
+	color: var(--color-text);
+	background: var(--color-border);
+	border-bottom-color: transparent;
+	border-radius: var(--radius-pill);
+	min-width: 2.25rem;
+	height: 2.25rem;
+	padding-block: 0;
 }
 
 .page-link--ellipsis {

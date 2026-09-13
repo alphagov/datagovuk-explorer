@@ -29,7 +29,7 @@
   <body {% block body_attrs %}{% endblock body_attrs %}>
     {% macro nav_link(href, label, active_section, current_section) %}
       <a href="{{ href }}"
-         class="nav-link{% if current_section == active_section %} nav-link--active{% endif %}"
+         class="nav-link"
          {% if current_section == active_section %}aria-current="page"{% endif %}>{{ label }}</a>
     {% endmacro %}
 
