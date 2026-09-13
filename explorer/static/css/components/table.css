@@ -1,54 +1,31 @@
 /* ---------------------------------------------------------------------------
- * components/table.css — the shared table component.
- * Used by every content page (publishers, datasets, links, report pages,
- * reviews, dataset detail). Loaded on every page from _layout.njk.
+ * components/table.css — the shared table component; loaded on every page.
  *
- * Column typing — every column carries a type class, applied to BOTH the
- * header <th> and every body cell of that column:
- *   .col-text  — text: wraps at word boundaries (falling back to
- *                mid-word breaks for long strings), capped at 400px
- *   .col-num   — numbers: no wrap, right-aligned, tabular figures
- *   .col-date  — dates: no wrap, muted, tabular figures (body cells only;
- *                the header keeps the shared .data-table th label style)
- * Badges and format chips have their own nowrap (components/badges.css);
- * long single-value cells that need truncation/breaking are handled by
- * dedicated classes (e.g. .domain-cell, .url-cell).
+ * Column typing: apply the same type class to the header <th> and every body
+ * cell of that column — .col-text (wraps, 400px cap), .col-num (right-aligned,
+ * tabular, no wrap), .col-date (muted, tabular, no wrap; body cells only).
+ * Long single-value columns use dedicated classes (.domain-cell etc.).
  *
- * Variants:
- *   .data-table--wide-first  wider first column for name/title tables
- *   .data-table--report  fixed layout + explicit column widths
- *                            (defined in pages/report.css)
- *
- * Sticky header: the wrapper is its own scroll container (max-height +
- * overflow: auto), so wide tables scroll horizontally inside the white card
- * instead of stretching the page, and the header sticks to the top of the
- * card's scrollport while the table scrolls vertically within it. Short
- * tables never overflow, so the card just sits on the page like a block.
+ * Variants: .data-table--wide-first, .data-table--report (pages/report.css).
  * ------------------------------------------------------------------------- */
 
 .table-wrap {
-	/* Transparent scroll container — the white card is the table itself
-	   (see .data-table below). Scrolls inside the card, not the page. */
+	/* Transparent scroll container — the white card is .data-table itself. */
 	max-height: 70vh;
 	overflow: auto;
-	/* Big bottom padding *inside* the scroll area (this wrap is
-	   transparent, so the gap shows the page background): the last row
-	   floats above the pane edge when scrolled to the bottom, while a
-	   short table's white card ends with the last row (see also
-	   facets.css). */
+	/* Padding *inside* the scroll area (the wrap is transparent, so it shows
+	   the page background) keeps breathing room below the last row when the
+	   table is scrolled to the bottom. */
 	padding-bottom: 60px;
 }
 
 .data-table {
 	width: 100%;
-	/* separate (not collapse) so the sticky header cells keep their
-	   background/borders painted above the rows scrolling underneath */
+	/* separate (not collapse) so the sticky header keeps its background
+	   painted above rows scrolling underneath */
 	border-collapse: separate;
 	border-spacing: 0;
 	font-size: var(--text-body);
-	/* The white card — hugs the table content exactly, so the white
-	   always stops with the last row instead of stretching to the pane
-	   edge. */
 	background: var(--color-surface);
 	box-shadow: var(--shadow);
 }
@@ -62,18 +39,14 @@
 	white-space: nowrap;
 }
 
-/* Wide first column — only for tables whose first column holds names/titles
-   (org list and dataset list). Resources table uses the default narrow width.
-   Kept above the thead th rules so selector specificity stays non-descending. */
+/* Wider first column for tables whose first column holds names/titles
+   (publisher + dataset lists). */
 .data-table--wide-first td:first-child,
 .data-table--wide-first th:first-child {
 	min-width: 260px;
 }
 
-/* Sticky header — sticks to the top of the .table-wrap scrollport while
-   the table scrolls vertically inside the card (the card, not the page,
-   is the scroll container now). The th's own background stays with it and
-   covers rows scrolling underneath. */
+/* Sticky to the .table-wrap scrollport (the card scrolls, not the page). */
 .data-table thead th {
 	position: sticky;
 	top: 0;
@@ -84,13 +57,10 @@
 .data-table td {
 	padding: 10px 16px;
 	vertical-align: top;
-	/* text cells wrap by default — the 400px cap lives on .col-text */
 	white-space: normal;
 }
 
-/* Row headers (th scope="row" in tbody) should look like body cells,
-   not like the uppercase column headers above — but they are bold, and
-   being text they wrap like body cells. */
+/* Row headers read as body cells, not uppercase column headers. */
 .data-table tbody th {
 	padding: 10px 16px;
 	vertical-align: top;
@@ -112,11 +82,8 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* Date cells — muted colour and tabular figures for body cells only, at
-   the same size as text cells (no font-size override; the base .data-table
-   td size applies). Scoped to td so the header <th class="col-date"> does
-   not pick up the larger body size and stays on the shared label style
-   (base.css). */
+/* Muted, tabular date cells — body only, so the header keeps the shared
+   label style. */
 .data-table td.col-date {
 	white-space: nowrap;
 	color: var(--color-muted);
@@ -124,10 +91,7 @@
 }
 
 .data-table .col-text {
-	/* text columns — wrap at word boundaries within a 400px cap so long
-	   titles/names can't stretch the table; overflow-wrap: break-word
-	   falls back to breaking inside long strings (URLs, slugs) that
-	   would otherwise overflow the cap */
+	/* cap long values; break-word handles strings with no break points */
 	max-width: 400px;
 	overflow-wrap: break-word;
 	word-break: break-word; /* legacy alias, same behaviour */
@@ -146,14 +110,31 @@
 	text-decoration: underline;
 }
 
-.sort-indicator {
-	font-size: var(--text-xs);
-	margin-left: 4px;
+/* Bolder active-sort label (the link wraps only the label + chevron). */
+.sort-link.active {
+	font-weight: 600;
 }
 
-/* Cap the host column (links report) — some hosts come from malformed URLs
-   (e.g. "http://Table 1 …", or HTML fragments), and an uncapped nowrap
-   cell makes the whole table far too wide. Full host is in the title. */
+/* Lucide chevrons drawn as a mask so they inherit the link colour (an <img>
+   can't be tinted). Direction is announced by the .sr-only text. */
+.sort-indicator {
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	margin-left: 2px;
+	vertical-align: -2px;
+	background-color: currentColor;
+	-webkit-mask: url("../../images/lucide/chevron-up.svg") no-repeat center / contain;
+	mask: url("../../images/lucide/chevron-up.svg") no-repeat center / contain;
+}
+
+.sort-indicator--desc {
+	-webkit-mask-image: url("../../images/lucide/chevron-down.svg");
+	mask-image: url("../../images/lucide/chevron-down.svg");
+}
+
+/* Cap the host column — malformed URLs can otherwise stretch the nowrap
+   cell; the full host is in the title (links report). */
 .data-table td.domain-cell {
 	max-width: 280px;
 	overflow: hidden;
@@ -161,8 +142,7 @@
 	white-space: nowrap;
 }
 
-/* Resource name cell — the description as a muted second line under the
-   name, when both are present and differ (report pages + dataset pages). */
+/* Muted description as a second line under the resource name. */
 .data-table .res-desc {
 	display: block;
 	margin-top: 2px;

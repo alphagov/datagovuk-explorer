@@ -5,6 +5,9 @@
   {% set next_dir = "desc" if sort == key and dir == "asc" else "asc" %}
   <a href="?sort={{ key }}&dir={{ next_dir }}{{ preserve }}" class="sort-link{% if sort == key %} active{% endif %}">
     {{ label }}
-    {% if sort == key %}<span class="sort-indicator">{{ "▼" if dir == "desc" else "▲" }}</span>{% endif %}
+    {% if sort == key %}
+      <span class="sort-indicator sort-indicator--{{ dir }}" aria-hidden="true"></span>
+      <span class="sr-only">sorted {{ "descending" if dir == "desc" else "ascending" }}</span>
+    {% endif %}
   </a>
 {% endmacro %}

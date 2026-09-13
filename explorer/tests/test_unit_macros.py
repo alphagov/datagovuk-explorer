@@ -24,6 +24,11 @@ def _pagination(**kwargs) -> str:
     return _render(_macro("pagination", "macros/_pagination.html") + f"{{{{ pagination({args}) }}}}")
 
 
+def _sort_link(**kwargs) -> str:
+    args = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
+    return _render(_macro("sort_link", "macros/_sort_link.html") + f"{{{{ sort_link({args}) }}}}")
+
+
 def _facet_group(group: dict, *, search: bool = False) -> str:
     return _render(
         "{% from 'macros/_facet_group.html' import facet_group with context %}"
@@ -83,6 +88,27 @@ def test_subnav_active_heading_and_sibling_links():
     assert '<a href="/links" class="nav-link">Links</a>' in html
     # the active report is a heading, not a self-link
     assert 'href="/links/errors"' not in html
+
+
+# --- sort link -------------------------------------------------------------
+def test_sort_link_toggles_direction_on_active_column():
+    desc = _sort_link(key="name", label="Publisher", sort="name", dir="desc")
+    assert 'class="sort-link active"' in desc
+    assert "?sort=name&dir=asc" in desc  # desc is active → next click is asc
+    assert 'class="sort-indicator sort-indicator--desc" aria-hidden="true"' in desc
+    assert "sorted descending" in desc
+
+    asc = _sort_link(key="name", label="Publisher", sort="name", dir="asc")
+    assert "?sort=name&dir=desc" in asc
+    assert "sort-indicator--asc" in asc
+    assert "sorted ascending" in asc
+
+
+def test_sort_link_inactive_column_is_plain_descending_arrow():
+    html = _sort_link(key="views", label="Views", sort="name", dir="desc")
+    assert 'class="sort-link"' in html
+    assert "sort-indicator" not in html  # no chevron on the non-active column
+    assert "?sort=views&dir=asc" in html
 
 
 # --- facet group -----------------------------------------------------------
