@@ -411,13 +411,15 @@ conftest.py                # shared fixture DB + factories (root)
 
 ```bash
 just test        # fast default: -m "not slow and not live"
-just test-all    # everything (pytest -m "")
+just test-all    # both layers: `-m "not live"` then `-m live` (two sessions)
 just test-live   # live smoke against the dev DB (pytest -m live)
 ```
 
 The marker filter lives in the **justfile**, so bare `pytest` still runs
-everything (useful for a single file, risky for the whole suite — see the
-connection finding in §0).
+everything in one session (useful for a single file, risky for the whole
+suite — the fixture DB and the live smoke cannot share a session, see the
+connection finding in §0). That is why `test-all` runs two invocations
+rather than `pytest -m ""`.
 
 `just test` target budget: **< 15 s**. Unit < 5 s, integration < 10 s.
 
