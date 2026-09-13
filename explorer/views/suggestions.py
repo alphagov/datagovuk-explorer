@@ -18,17 +18,18 @@ import json
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.queries.reviews import SUGGESTIONS_SORT_EXPRS, suggestions_stmts
+from explorer.queries.reviews import SUGGESTIONS_SORT, suggestions_stmts
+from explorer.sort import parse_sort
 
-from .core import _sort_dir, paginate
+from .core import paginate
 
 
 def suggestions(request):
     """GET /suggestions — the LLM classification table with suggested themes."""
-    sort, dir_param = _sort_dir(request, SUGGESTIONS_SORT_EXPRS, "confidence")
+    sort, dir_ = parse_sort(request, SUGGESTIONS_SORT, "confidence")
 
     # Count + page in SQL (only the page's rows are fetched).
-    stmts = suggestions_stmts(sort, dir_param)
+    stmts = suggestions_stmts(sort, dir_)
     total = stmts["count"].get()["n"]
 
     pagination = paginate(request, total)
@@ -47,7 +48,7 @@ def suggestions(request):
         for r in rows
     ]
 
-    pager_base = facets.pager_base({"sort": sort, "dir": dir_param})
+    pager_base = facets.pager_base({"sort": sort, "dir": dir_})
 
     return render(
         request,
@@ -64,6 +65,6 @@ def suggestions(request):
             "pager_base": pager_base,
             **pagination,
             "sort": sort,
-            "dir": dir_param,
+            "dir": dir_,
         },
     )

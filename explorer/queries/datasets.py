@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from explorer.buckets import bucket_case, bucket_pairs, bucket_ranges
+from explorer.sort import order_by
 
 from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
@@ -23,10 +24,9 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 TEMPORAL_MIN_YEAR = 1900
 TEMPORAL_MAX_YEAR = datetime.now(UTC).year
 
-# Sortable column key → SQL ORDER BY expression. Text columns use LOWER for
-# case-insensitive sort; numeric columns sort numerically. `organisation` is
-# org_display_name, `resources` is resource_count.
-DATASETS_SORT_EXPRS = {
+# Text columns sort case-insensitively; organisation is org_display_name,
+# resources is resource_count.
+DATASETS_SORT = {
     "title": "LOWER(COALESCE(d.title, ''))",
     "organisation": "LOWER(COALESCE(d.org_display_name, ''))",
     "metadata_created": "COALESCE(d.metadata_created, '')",
@@ -248,8 +248,7 @@ def datasets_stmts(filters: dict, sort: str, dir_: str) -> dict:
         clause, meta_params = _metadata_clause(filters)
         where = f"{where} AND {clause}" if where else f" WHERE {clause}"
         params = [*params, *meta_params]
-    # If sort values tie, order by id. Keeps pages stable.
-    order_sql = f"{DATASETS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, d.id"
+    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id")
 
     entry = {
         "params": params,
@@ -272,10 +271,10 @@ def org_datasets_stmts(org_slug: str, sort: str, dir_: str) -> dict:
     page.
 
     Same {params, count, list} contract as datasets_stmts: one fixed org
-    param, the DATASETS_SORT_EXPRS ORDER BY (ties ordered by id), and a
-    LIMIT/OFFSET page the view drives with core.paginate().
+    param, the DATASETS_SORT ORDER BY, and a LIMIT/OFFSET page the view
+    drives with core.paginate().
     """
-    order_sql = f"{DATASETS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, d.id"
+    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id")
     return {
         "params": [org_slug],
         "count": Query("SELECT COUNT(*) AS n FROM datasets d WHERE d.org_slug = %s"),
@@ -298,7 +297,7 @@ def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
     harvest_source_id. All these datasets are harvested, so there's no
     harvested column.
     """
-    order_sql = f"{DATASETS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, d.id"
+    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id")
     return {
         "params": [source_id],
         "count": Query("SELECT COUNT(*) AS n FROM datasets d WHERE d.harvest_source_id = %s"),

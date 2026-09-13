@@ -12,7 +12,7 @@ import pytest
 from explorer.queries.core import Query
 from explorer.queries.link_errors import (
     CATEGORY_LABELS,
-    LINK_ERRORS_SORT_COLUMNS,
+    LINK_ERRORS_SORT,
     link_errors_facet_counts,
     link_errors_stats,
     link_errors_stmts,
@@ -74,7 +74,7 @@ def test_link_errors_list_shape_and_sort_whitelist():
     assert hosts == sorted(hosts)
 
 
-@pytest.mark.parametrize("sort", LINK_ERRORS_SORT_COLUMNS)
+@pytest.mark.parametrize("sort", LINK_ERRORS_SORT)
 def test_link_errors_count_matches_list_and_deterministic(sort):
     """Each sortable column, both directions: count/list agree and the
     ORDER BY ends with `, e.id`, so ties order the same on every run."""

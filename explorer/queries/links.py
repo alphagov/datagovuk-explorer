@@ -4,23 +4,22 @@
 
 import functools
 
+from explorer.sort import order_by
+
 from .core import Query, cached_unfiltered, facet_where
 
 # --- /links query builder ---
 #
 # filters: { domain: None | domain | "__none__", format, created_year }.
 
-# Sortable columns for the links table on the /links page
-LINK_SORT_COLUMNS = ["name", "domain", "format", "dataset_title", "org_display_name"]
-
-# Column key → SQL ORDER BY expression (text columns, COALESCE'd, qualified
-# with the l alias because the query joins against datasets)
-LINK_SORT_EXPRS = {
-    "name": "COALESCE(l.name, '')",
-    "domain": "COALESCE(l.host, '')",
-    "format": "COALESCE(l.format_norm, '')",
-    "dataset_title": "COALESCE(l.dataset_title, '')",
-    "org_display_name": "COALESCE(l.org_display_name, '')",
+# Text columns are COALESCE'd and qualified with the l alias (the query
+# joins against datasets).
+LINK_SORT = {
+    "name": "LOWER(COALESCE(l.name, ''))",
+    "domain": "LOWER(COALESCE(l.host, ''))",
+    "format": "LOWER(COALESCE(l.format_norm, ''))",
+    "dataset_title": "LOWER(COALESCE(l.dataset_title, ''))",
+    "org_display_name": "LOWER(COALESCE(l.org_display_name, ''))",
 }
 
 # Per-facet clause builders — same (filters, exclude) shape as datasets.py.
@@ -93,9 +92,7 @@ def links_stmts(filters: dict, sort: str, dir_: str) -> dict:
     # All filter and sort columns live on links itself, so no join is needed.
     from_ = "FROM links l"
 
-    order_sql = f"LOWER({LINK_SORT_EXPRS[sort]}) {'DESC' if dir_ == 'desc' else 'ASC'}"
-    # If sort values tie, order by id. Keeps pages stable.
-    order_sql += ", l.id"
+    order_sql = order_by(LINK_SORT, sort, dir_, "l.id")
 
     entry = {
         "params": params,

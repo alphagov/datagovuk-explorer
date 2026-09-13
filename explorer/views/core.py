@@ -53,16 +53,3 @@ def _page_param(request, default: int = 1) -> int:
 
 def _pill(label: str, value: str, href: str) -> dict:
     return {"label": label, "value": value, "href": href, "aria": f"Remove {label.lower()} filter: {value}"}
-
-
-def _sort_dir(request, valid_columns, default_sort: str, default_dir: str = "asc") -> tuple[str, str]:
-    """?sort=/?dir= parsed and validated against the view's column set.
-
-    Unknown sort keys fall back to default_sort; any dir other than "desc"
-    becomes "asc".
-    """
-    sort = request.GET.get("sort", default_sort)
-    sort = sort if sort in valid_columns else default_sort
-    dir_ = request.GET.get("dir", default_dir)
-    dir_ = "desc" if dir_ == "desc" else "asc"
-    return sort, dir_

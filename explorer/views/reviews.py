@@ -15,14 +15,15 @@ from django.shortcuts import render
 
 from explorer import facets
 from explorer.queries.reviews import (
-    REVIEWS_SORT_EXPRS,
+    REVIEWS_SORT,
     SCORE_KEYS,
     SCORE_VALUES,
     reviews_facet_counts,
     reviews_stmts,
 )
+from explorer.sort import parse_sort
 
-from .core import _pill, _sort_dir, paginate
+from .core import _pill, paginate
 
 # Score dimensions in sidebar order — the facet-group labels for the four
 # pools computed in SQL (queries/reviews.py owns the keys/clauses).
@@ -75,7 +76,7 @@ def reviews(request):
         if v == "none" or v in SCORE_VALUES:
             filters[key] = v
 
-    sort, dir_ = _sort_dir(request, REVIEWS_SORT_EXPRS, "overall")
+    sort, dir_ = parse_sort(request, REVIEWS_SORT, "overall")
 
     # Shared query-string machinery from explorer/facets.py: the base keeps
     # sort/dir then the active facets in SCORE_KEYS order; facet_qs drops

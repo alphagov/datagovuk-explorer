@@ -3,23 +3,27 @@ the fixed series statements and the series_built() helper."""
 
 from functools import cache
 
+from explorer.sort import order_by
+
 from .core import Query
 
 # --- /series list builder ---
 # ORDER BY is dynamic (whitelisted columns only); the column set is fixed.
 
-# Sortable columns whitelist
-SERIES_SORT_COLUMNS = ["root_title", "type", "dataset_count", "org_count"]
+SERIES_SORT = {
+    "root_title": "LOWER(root_title)",
+    "type": "LOWER(type)",
+    "dataset_count": "dataset_count",
+    "org_count": "org_count",
+}
 
 
 def series_list_stmt(sort: str, dir_: str) -> Query:
-    order_dir = "ASC" if dir_ == "asc" else "DESC"
-    order_expr = f"{sort} {order_dir}" if sort in ("dataset_count", "org_count") else f"LOWER({sort}) {order_dir}"
-    # If sort values tie, order by id. The series table has large tie
-    # groups, so this keeps pages stable.
+    # id breaks ties (the series table has large tie groups).
+    order_sql = order_by(SERIES_SORT, sort, dir_, "id")
     return Query(
         f"SELECT id, root_title, type, dataset_count, org_count "
-        f"FROM series ORDER BY {order_expr}, id LIMIT %s OFFSET %s",
+        f"FROM series ORDER BY {order_sql} LIMIT %s OFFSET %s",
     )
 
 

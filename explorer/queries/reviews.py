@@ -4,6 +4,8 @@ table (populated by scripts/ingest_reviews.py from the JSONL)."""
 import json
 from functools import cache
 
+from explorer.sort import order_by
+
 from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
 # ---------------------------------------------------------------------------
@@ -77,10 +79,9 @@ SCORE_KEYS = ("overall", "findability", "metadata", "resources")
 # data are rendered as items.
 SCORE_VALUES = ["0", "1", "2", "3", "4", "5"]
 
-# Sortable column key → SQL ORDER BY expression. Numeric scores use
-# COALESCE(..., -1) so missing scores sort below present ones; text columns
-# sort case-insensitively via LOWER.
-REVIEWS_SORT_EXPRS = {
+# Numeric scores use COALESCE(..., -1) so missing scores sort below present
+# ones; text columns sort case-insensitively.
+REVIEWS_SORT = {
     "title": "LOWER(COALESCE(d.title, ''))",
     "org": "LOWER(COALESCE(d.org_display_name, ''))",
     "overall": "COALESCE(r.overall, -1)",
@@ -125,7 +126,7 @@ def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
     so tied rows keep a stable order.
     """
     where, params = _facet_where(filters)
-    order_sql = f"{REVIEWS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, LOWER(COALESCE(d.title, '')), r.id"
+    order_sql = order_by(REVIEWS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.id")
     from_sql = f"({_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
 
     return {
@@ -156,11 +157,10 @@ _SUGGESTIONS_DEDUP = """
     FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
 """
 
-# Sortable column key → SQL ORDER BY expression. Text columns sort
-# case-insensitively; confidence maps high/medium/low to 3/2/1 (so default
-# asc lists the least confident first). `theme` sorts on the current theme
-# (d.theme_primary), not the suggested one (r.theme).
-SUGGESTIONS_SORT_EXPRS = {
+# Text columns sort case-insensitively; confidence maps high/medium/low to
+# 3/2/1 (so default asc lists the least confident first). `theme` sorts on
+# the current theme (d.theme_primary), not the suggested one (r.theme).
+SUGGESTIONS_SORT = {
     "title": "LOWER(COALESCE(d.title, ''))",
     "org": "LOWER(COALESCE(d.org_display_name, ''))",
     "theme": "LOWER(COALESCE(d.theme_primary, ''))",
@@ -175,10 +175,7 @@ def suggestions_stmts(sort: str, dir_: str) -> dict:
     sort expr with title then id appended, so tied rows keep a stable
     order.
     """
-    order_sql = (
-        f"{SUGGESTIONS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'},"
-        " LOWER(COALESCE(d.title, '')), r.id"
-    )
+    order_sql = order_by(SUGGESTIONS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.id")
     from_sql = f"({_SUGGESTIONS_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
 
     return {

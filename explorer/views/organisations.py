@@ -17,8 +17,8 @@ count + one page per request); the memoised full fetch still feeds the
 facet master lists, the last-published-year validation whitelist and the
 sidebar pools.
 
-Sort columns are whitelisted in explorer.sort.SORT_COLUMNS; unknown keys
-fall back to the default (name asc).
+Sort columns are whitelisted in ORG_SORT (queries/organisations.py); unknown
+keys fall back to the default (name asc).
 """
 
 from dataclasses import dataclass
@@ -30,6 +30,7 @@ from explorer.helpers import format_date
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
     DATASET_BUCKETS,
+    ORG_SORT,
     VALID_DATASET_BUCKETS,
     all_org_rows,
     org_aggregate_rows,
@@ -37,9 +38,9 @@ from explorer.queries.organisations import (
     organisations_facet_counts,
     organisations_stmts,
 )
-from explorer.sort import SORT_COLUMNS
+from explorer.sort import parse_sort
 
-from .core import _pill, _sort_dir, paginate
+from .core import _pill, paginate
 
 
 def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
@@ -145,7 +146,7 @@ def organisations(request):
     agg_rows = org_aggregate_rows()
     rows = _merge_org_rows(org_rows, agg_rows)
 
-    sort, dir_ = _sort_dir(request, SORT_COLUMNS, "name")
+    sort, dir_ = parse_sort(request, ORG_SORT, "name")
 
     # Facet master lists — the validation whitelists and the facet builders
     # consume these (computed once, not per consumer). Last-published years

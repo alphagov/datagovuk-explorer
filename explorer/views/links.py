@@ -15,13 +15,14 @@ from django.shortcuts import render
 
 from explorer import facets
 from explorer.queries.links import (
-    LINK_SORT_COLUMNS,
+    LINK_SORT,
     links_facet_counts,
     links_stats,
     links_stmts,
 )
+from explorer.sort import parse_sort
 
-from .core import _pill, _sort_dir, paginate
+from .core import _pill, paginate
 
 # Hostnames — RFC 1035/2181 caps a fully-qualified name at 253 chars.
 MAX_DOMAIN_LENGTH = 253
@@ -76,7 +77,7 @@ def links(request):
     publisher = request.GET.get("publisher")
     current_publisher = publisher if publisher in valid_publishers else None
 
-    sort, dir_ = _sort_dir(request, LINK_SORT_COLUMNS, "domain")
+    sort, dir_ = parse_sort(request, LINK_SORT, "domain")
 
     filters = {
         "domain": current_domain,

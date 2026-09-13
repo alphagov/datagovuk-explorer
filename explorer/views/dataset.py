@@ -22,9 +22,7 @@ from explorer.queries.harvesters import HARVEST_SOURCE
 from explorer.queries.organisations import ORG
 from explorer.queries.reviews import get_classification, get_review
 from explorer.queries.series import DATASET_SERIES, SERIES_DATASETS_EXCEPT
-from explorer.sort import RESOURCE_SORT_COLUMNS, sort_resources
-
-from .core import _sort_dir
+from explorer.sort import RESOURCE_SORT_COLUMNS, parse_sort, sort_resources
 
 # Common English stopwords, plus CKAN boilerplate terms that pollute the
 # match string with noise ("data", "dataset", "open", etc.).
@@ -236,7 +234,7 @@ def dataset(request, org_slug, dataset_id):
         }
 
     # Resources default to natural (position) order
-    sort, dir_ = _sort_dir(request, RESOURCE_SORT_COLUMNS, "position")
+    sort, dir_ = parse_sort(request, RESOURCE_SORT_COLUMNS, "position")
     if dataset.get("resources"):
         sort_resources(dataset["resources"], sort, dir_)
 

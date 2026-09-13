@@ -10,6 +10,7 @@ import functools
 from typing import Any
 
 from explorer.buckets import BUCKET_EDGES, bucket_case, bucket_pairs, bucket_ranges, bucket_tests
+from explorer.sort import order_by
 
 from .core import Query, cached_unfiltered, facet_where
 
@@ -271,11 +272,7 @@ def organisations_facet_counts(filters: dict) -> dict:
 # If sort values tie, order by display name then slug. Keeps each page's
 # rows stable between requests.
 
-# Sortable column key → SQL ORDER BY expression (mirrors
-# explorer.sort.sort_orgs: the numeric columns sort COALESCE'd to 0 —
-# missing sorts as 0, exactly like Python's `or 0` — and the text
-# columns sort case-insensitively via LOWER).
-ORG_SORT_EXPRS = {
+ORG_SORT = {
     "name": "LOWER(COALESCE(o.display_name, o.title, o.name, ''))",
     "dataset_count": "COALESCE(o.package_count, 0)",
     "resource_count": "COALESCE(a.total_resources, 0)",
@@ -305,9 +302,9 @@ def organisations_stmts(filters: dict, sort: str, dir_: str) -> dict:
 
     {params, count, list} contract, same as datasets_stmts: the view drives
     the LIMIT/OFFSET page with core.paginate(). The WHERE clauses come from
-    _ORG_FACET_CLAUSES, the ORDER BY from ORG_SORT_EXPRS."""
+    _ORG_FACET_CLAUSES, the ORDER BY from ORG_SORT."""
     where, params = facet_where(_ORG_FACET_CLAUSES, filters)
-    order_sql = f"{ORG_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, LOWER(o.display_name), o.slug"
+    order_sql = order_by(ORG_SORT, sort, dir_, "LOWER(o.display_name), o.slug")
     return {
         "params": params,
         "count": Query(f"SELECT COUNT(*) AS n FROM organisations o {_ORG_AGG}{where}"),

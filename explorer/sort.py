@@ -1,67 +1,32 @@
-"""Client-visible sort-column whitelists, plus the one in-place sorter.
+"""Shared sort helpers for every sortable page.
 
-Every page whitelists the keys it accepts in ?sort=; unknown keys fall back
-to the page's default. Sorting itself happens in PostgreSQL (ORDER BY in
-the query builders — datasets, org, harvester, series, ...) except the
-dataset page's resource table, which is sorted in place by sort_resources.
-
-Text columns sort case-insensitively and numeric-aware (locale-aware
-collation: "base" sensitivity, numeric ordering).
+Each page defines a dict of column keys -> SQL ORDER BY expressions. Views
+parse `?sort=`/`?dir=` with `parse_sort`; query builders render the ORDER BY
+with `order_by`. The dataset page's resource table is the one Python-sorted
+table (see `sort_resources`).
 """
 
 import re
 from typing import Any
 
-# Sortable columns for the org table on the /organisations page (the
-# accepted-keys whitelist — sorting happens in PostgreSQL, see
-# ORG_SORT_EXPRS in explorer/queries/organisations.py)
-SORT_COLUMNS = [
-    "name",
-    "dataset_count",
-    "resource_count",
-    "views",
-    "type",
-    "state",
-    "approval_status",
-    "created",
-    "last_published",
-]
 
-# Sortable columns for the harvest sources table on the /harvesters page
-HARVESTER_SORT_COLUMNS = [
-    "title",
-    "org_name",
-    "type",
-    "active",
-    "frequency",
-    "dataset_count",
-    "last_run",
-]
+def parse_sort(request, columns, default, default_dir="asc"):
+    """?sort=/?dir= validated against `columns`, falling back to the
+    defaults. Any dir other than "desc" becomes "asc"."""
+    sort = request.GET.get("sort", default)
+    sort = sort if sort in columns else default
+    dir_ = "desc" if request.GET.get("dir", default_dir) == "desc" else "asc"
+    return sort, dir_
 
-# Sortable columns for the dataset table on the organisation page
-DATASET_SORT_COLUMNS = [
-    "title",
-    "metadata_created",
-    "metadata_modified",
-    "resources",
-    "views",
-    "harvested",
-]
 
-# Sortable columns for the all-datasets table on the /datasets page — sorting
-# happens in PostgreSQL (ORDER BY in the /datasets query builder,
-# explorer/queries/datasets.py); this list is just the accepted-keys whitelist.
-DATASETS_SORT_COLUMNS = [
-    "title",
-    "organisation",
-    "metadata_created",
-    "metadata_modified",
-    "resources",
-    "views",
-    "harvested",
-]
+def order_by(exprs, sort, dir_, tiebreak):
+    """ORDER BY fragment: the column expression, direction, tie-breaker."""
+    direction = "DESC" if dir_ == "desc" else "ASC"
+    return f"{exprs[sort]} {direction}, {tiebreak}"
 
-# Sortable columns for the resource table on the dataset page
+
+# Sortable columns for the resource table on the dataset page — sorted in
+# Python by sort_resources, not SQL.
 RESOURCE_SORT_COLUMNS = [
     "position",
     "name",

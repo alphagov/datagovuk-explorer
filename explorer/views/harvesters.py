@@ -13,7 +13,7 @@ The list is filtered/sorted/paged in SQL (one count + one page per
 request); the sidebar facet counts stay Python-side over the memoised full
 fetch (cheap Counters over the small list, correct self-excluding pools).
 
-Sort columns are whitelisted in explorer.sort.HARVESTER_SORT_COLUMNS;
+Sort columns are whitelisted in HARVESTER_SORT (queries/harvesters.py);
 unknown keys fall back to the default (dataset_count desc).
 """
 
@@ -26,9 +26,10 @@ from django.shortcuts import render
 
 from explorer import facets
 from explorer.helpers import format_date
-from explorer.queries.datasets import source_datasets_stmts
+from explorer.queries.datasets import DATASETS_SORT, source_datasets_stmts
 from explorer.queries.harvesters import (
     HARVEST_SOURCE,
+    HARVESTER_SORT,
     harvest_source_rows,
     harvest_sources_stmts,
     harvested_total,
@@ -40,9 +41,9 @@ from explorer.queries.organisations import (
     ORG,
     VALID_DATASET_BUCKETS,
 )
-from explorer.sort import DATASET_SORT_COLUMNS, HARVESTER_SORT_COLUMNS
+from explorer.sort import parse_sort
 
-from .core import _pill, _sort_dir, paginate
+from .core import _pill, paginate
 
 # Fixed value → display-label maps for the type/frequency columns and
 # facets. The facet master lists are derived from the data (counts order),
@@ -156,7 +157,7 @@ def harvesters(request):
     type_labels = dict(type_master)
     frequency_labels = dict(frequency_master)
 
-    sort, dir_ = _sort_dir(request, HARVESTER_SORT_COLUMNS, "dataset_count", "desc")
+    sort, dir_ = parse_sort(request, HARVESTER_SORT, "dataset_count", "desc")
 
     filters = _parse_filters(
         request,
@@ -165,7 +166,7 @@ def harvesters(request):
     )
 
     # Count + page in SQL — WHERE from the shared facet clauses, ORDER BY
-    # from HARVESTER_SORT_EXPRS (see queries/harvesters.py).
+    # from HARVESTER_SORT (see queries/harvesters.py).
     stmts = harvest_sources_stmts(
         {
             "type": filters.type,
@@ -317,7 +318,7 @@ def harvester(request, source_id):
         if org_row is not None:
             org_name = org_row["display_name"] or org_row["title"] or org_row["name"]
 
-    sort, dir_ = _sort_dir(request, DATASET_SORT_COLUMNS, "metadata_modified", "desc")
+    sort, dir_ = parse_sort(request, DATASETS_SORT, "metadata_modified", "desc")
 
     # Count + page in SQL — one page of 100, same builder shape as
     # /organisation/{slug}.

@@ -26,14 +26,15 @@ from explorer import facets
 from explorer.queries.link_errors import (
     CATEGORY_LABELS,
     HARVEST_STATES,
-    LINK_ERRORS_SORT_COLUMNS,
+    LINK_ERRORS_SORT,
     TO_DELETE_VALUES,
     link_errors_facet_counts,
     link_errors_stats,
     link_errors_stmts,
 )
+from explorer.sort import parse_sort
 
-from .core import _pill, _sort_dir, paginate
+from .core import _pill, paginate
 
 # Facet-group labels (sidebar order — to delete, outcome/category, domain,
 # HTTP status, harvest state, publisher).
@@ -106,7 +107,7 @@ def link_errors(request):
         "publisher": current_publisher,
     }
 
-    sort, dir_ = _sort_dir(request, LINK_ERRORS_SORT_COLUMNS, "url")
+    sort, dir_ = parse_sort(request, LINK_ERRORS_SORT, "url")
 
     # Count + page in SQL — only the page's rows are fetched (the LEFT
     # JOIN supplies org slug / harvest state / harvest source per row).

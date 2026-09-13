@@ -14,6 +14,8 @@ SQL (one shared expression for the sort, the facet pool and its clause).
 
 import functools
 
+from explorer.sort import order_by
+
 from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
 # The shared join behind every statement. link_errors is ingested against
@@ -63,22 +65,17 @@ TO_DELETE_VALUES = [
     ("no", "No"),
 ]
 
-# Sortable column key -> SQL ORDER BY expression (already LOWER()/COALESCE'd,
-# so the builder only appends ASC/DESC). Text columns sort case-insensitively.
-LINK_ERRORS_SORT_COLUMNS = ["url", "dataset", "publisher", "status", "to_delete"]
-
 # Host from resource_url — pulls "host[:port]" out of "scheme://host:port/
 # path" and drops any :port.
 _URL_HOST = "split_part(substring(e.resource_url FROM '://([^/]+)'), ':', 1)"
 
-LINK_ERRORS_SORT_EXPRS = {
+# Text columns sort case-insensitively. No-response rows (http_status NULL)
+# sort below real codes on asc, above them on desc — COALESCE(-1).
+LINK_ERRORS_SORT = {
     "url": f"LOWER(COALESCE({_URL_HOST}, ''))",
     "dataset": "LOWER(COALESCE(e.package_name, ''))",
-    # Publisher sorts by display name (same value the cell shows), not the
-    # slug column — o rides the shared organisations join.
+    # Publisher sorts by the displayed name, not the slug column.
     "publisher": f"LOWER(COALESCE({_PUBLISHER_NAME}, ''))",
-    # No-response rows (http_status NULL) sort below real codes on asc,
-    # above them on desc — COALESCE(-1), the reviews scores pattern.
     "status": "COALESCE(e.http_status, -1)",
     "to_delete": "e.to_delete",
 }
@@ -181,9 +178,7 @@ _CLAUSES = {
 def link_errors_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = facet_where(_CLAUSES, filters)
-    order_sql = f"{LINK_ERRORS_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}"
-    # If sort values tie, order by id (ingest order). Keeps pages stable.
-    order_sql += ", e.id"
+    order_sql = order_by(LINK_ERRORS_SORT, sort, dir_, "e.id")
 
     return {
         "params": params,

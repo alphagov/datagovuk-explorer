@@ -14,12 +14,13 @@ from explorer.queries.series import (
     SERIES_BY_ID,
     SERIES_COUNT,
     SERIES_DATASETS,
-    SERIES_SORT_COLUMNS,
+    SERIES_SORT,
     series_built,
     series_list_stmt,
 )
+from explorer.sort import parse_sort
 
-from .core import _sort_dir, paginate
+from .core import paginate
 
 # Leading digits, stop at the first non-digit (so "/series/12.5" reads as
 # 12, not a 404).
@@ -41,7 +42,7 @@ def series_list(request):
     total = SERIES_COUNT.get()["n"]
     pagination = paginate(request, total)
 
-    sort, dir_ = _sort_dir(request, SERIES_SORT_COLUMNS, "dataset_count", "desc")
+    sort, dir_ = parse_sort(request, SERIES_SORT, "dataset_count", "desc")
     pager_base = facets.pager_base({"sort": sort, "dir": dir_})
 
     series = series_list_stmt(sort, dir_).all(pagination["page_size"], pagination["offset"])

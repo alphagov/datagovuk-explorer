@@ -23,6 +23,7 @@ from explorer import facets
 from explorer.helpers import theme_label
 from explorer.queries.datasets import (
     DATASET_TOTAL,
+    DATASETS_SORT,
     LINK_BUCKET_NAMES,
     LINK_BUCKETS,
     TEMPORAL_MAX_YEAR,
@@ -36,9 +37,9 @@ from explorer.queries.datasets import (
     fetched_slugs,
     harvested_count,
 )
-from explorer.sort import DATASETS_SORT_COLUMNS
+from explorer.sort import parse_sort
 
-from .core import _pill, _sort_dir, paginate
+from .core import _pill, paginate
 
 # In-window temporal years (latest first) — filter-independent, memoised at
 # module level (the DB is a build-time snapshot, so the result is stable).
@@ -223,7 +224,7 @@ def datasets(request):  # noqa: PLR0915
         },
     )
 
-    sort, dir_ = _sort_dir(request, DATASETS_SORT_COLUMNS, "views", default_dir="desc")
+    sort, dir_ = parse_sort(request, DATASETS_SORT, "views", "desc")
 
     # Query-string base shared by sort links / facet links / pills and the
     # temporal-year / publisher More toggles. preserve_params gives the

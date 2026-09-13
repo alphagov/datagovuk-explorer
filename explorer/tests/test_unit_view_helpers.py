@@ -7,7 +7,8 @@ tested once here instead of per page.
 
 from django.test import RequestFactory
 
-from explorer.views.core import PAGE_SIZE, _page_param, _sort_dir, paginate
+from explorer.sort import parse_sort
+from explorer.views.core import PAGE_SIZE, _page_param, paginate
 
 _rf = RequestFactory()
 
@@ -44,10 +45,10 @@ def test_paginate_short_and_empty():
     assert (ctx["page"], ctx["total_pages"], ctx["start_index"], ctx["end_index"]) == (1, 1, 1, 0)
 
 
-def test_sort_dir_whitelist_and_fallbacks():
+def test_parse_sort_whitelist_and_fallbacks():
     cols = {"name", "count"}
-    assert _sort_dir(_req(), cols, "name") == ("name", "asc")
-    assert _sort_dir(_req("?sort=count&dir=desc"), cols, "name") == ("count", "desc")
+    assert parse_sort(_req(), cols, "name") == ("name", "asc")
+    assert parse_sort(_req("?sort=count&dir=desc"), cols, "name") == ("count", "desc")
     # Unknown sort falls back; any dir other than "desc" becomes "asc".
-    assert _sort_dir(_req("?sort=bogus&dir=sideways"), cols, "name") == ("name", "asc")
-    assert _sort_dir(_req("?sort=bogus"), cols, "count", "desc") == ("count", "desc")
+    assert parse_sort(_req("?sort=bogus&dir=sideways"), cols, "name") == ("name", "asc")
+    assert parse_sort(_req("?sort=bogus"), cols, "count", "desc") == ("count", "desc")

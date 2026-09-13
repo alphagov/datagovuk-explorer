@@ -29,6 +29,7 @@ import functools
 from typing import Any
 
 from explorer.queries.organisations import DATASET_BUCKET_RANGES
+from explorer.sort import order_by
 
 from .core import Query, facet_where
 
@@ -73,10 +74,8 @@ HARVEST_SOURCE = Query(
 # If sort values tie, order by title then id. Keeps each page's rows
 # stable between requests.
 
-# Sortable column key → SQL ORDER BY expression (mirrors
-# explorer.sort.sort_harvesters; `active` is a real boolean, so FALSE
-# sorts before TRUE exactly like "False" < "True" in Python).
-HARVESTER_SORT_EXPRS = {
+# `active` is a real boolean, so FALSE sorts before TRUE.
+HARVESTER_SORT = {
     "title": "LOWER(COALESCE(h.title, ''))",
     "org_name": "LOWER(COALESCE(o.display_name, o.title, o.name, ''))",
     "type": "LOWER(COALESCE(h.type, ''))",
@@ -157,7 +156,7 @@ def harvest_sources_stmts(filters: dict, sort: str, dir_: str) -> dict:
         lo, hi = DATASET_BUCKET_RANGES[bucket]
         having = " HAVING COUNT(d.id) > %s" if hi is None else " HAVING COUNT(d.id) BETWEEN %s AND %s"
         params = [*params, lo] if hi is None else [*params, lo, hi]
-    order_sql = f"{HARVESTER_SORT_EXPRS[sort]} {'DESC' if dir_ == 'desc' else 'ASC'}, LOWER(h.title), h.id"
+    order_sql = order_by(HARVESTER_SORT, sort, dir_, "LOWER(h.title), h.id")
     stmt = f"{_HARVEST_SOURCE_SELECT}{where}{_GROUP_BY}{having}"
     return {
         "params": params,
