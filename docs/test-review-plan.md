@@ -7,6 +7,71 @@ phased migration. Nothing here is a deadline; it's a direction.
 
 ---
 
+## 0. Status & handoff (2026-09-13)
+
+**Read this first.** The rewrite is in progress. This doc is the design;
+`docs/test-audit.md` is the per-test keep/drop/rewrite spec that drives it.
+**Do not port a legacy test without checking the audit.**
+
+### Done
+
+| commit | what |
+|---|---|
+| `c8cc1d9` | **Phase 1** — markers (`integration` / `live` / `slow`), `just test` / `test-all` / `test-live`, `test_rate_limit` marked `slow`. The fast filter lives in the **justfile** (not pytest `addopts`), so bare `pytest` runs everything; `just test` runs `-m "not slow and not live"`. |
+| `e0469aa` | **Audit (Phase 0) + shared unit tests (Phase 2)** — `docs/test-audit.md`, plus the "shared machinery tested once" unit tests: `test_unit_view_helpers.py`, `test_unit_macros.py`, and the facet query-string helpers in `test_facets.py`. 33 tests, no DB, all green. |
+
+Working tree clean at `e0469aa`. Baseline before the rewrite: **235 tests,
+~60 s, 11 live-data failures.**
+
+### Decisions since the first draft
+
+1. **Prune before building fixtures.** The fixture world is sized to the
+   target suite (the audit), not the legacy one. Revised order:
+   audit → shared unit tests → fixtures → port → delete live.
+2. **Test shared code once.** A per-page test survives only if the page has
+   behaviour nothing else exercises, or to verify the page responds. All page
+   chrome (pager, sub-nav, facet search box, badges, pills) is tested once via
+   the shared macros / pure helpers.
+3. **View data contracts live at the query layer, not in HTML scraping.**
+4. **Route wiring is one parametrized smoke**, not one test per page.
+5. **Don't test obvious visual config** (e.g. which pages opt into facet
+   search). Two gaps are deliberate and recorded in the audit: view→builder
+   sort wiring, and per-page search opt-in.
+6. **Route smoke also hits non-default `?sort=&dir=` / `?page=2`**
+   (respond-only) so those branches can't crash green.
+7. **Filenames** follow the §8 layout (`test_unit_*` / `test_integration_*` /
+   `test_live_*`).
+
+### Technical findings (don't rediscover)
+
+- **pytest-django's test DB rewrites the global default connection.** Once
+  any `@pytest.mark.django_db` test runs, `setup_databases()` switches the
+  default connection to `test_datagovuk_explorer` for the whole session, so
+  the still-live `db_ready` tests would read the empty test DB. Live and
+  fixture tests therefore cannot share one pytest invocation. Resolution: the
+  not-yet-ported live tests are gated behind the `live` marker and run only via
+  `just test-live`; default runs never create the test DB alongside them.
+  (Verified empirically.)
+- **`response.context` is unavailable.** Django's Jinja2 backend does not
+  fire `template_rendered`, so `client.get(...).context is None`. Do not plan
+  on asserting view context; assert query-layer data + structural markers.
+  (No production refactor.)
+- **Jinja2 macros are unit-testable in isolation** via
+  `django.template.engines["jinja2"].from_string(...)`. `facet_group` must be
+  imported `with context` (the app does this in `_layout.html`).
+- **Pagination `base` is passed with a raw `&`**; autoescape renders `&amp;`
+  in the href, so tests assert the escaped form.
+
+### Next step
+
+**Phase 3 — build the fixture world.** Root `conftest.py` with
+`django_db_setup` + `make_fixtures()` (ORM inserts, seeded once), one
+converted query test to prove it, and the interim `live` marking of the three
+legacy app-test modules so the default run stays green. Fixture shape is
+listed in `docs/test-audit.md` ("Fixture requirements implied by the KEEPs").
+
+---
+
 ## 1. Where we are
 
 Current state, measured on the dev machine:
@@ -106,7 +171,8 @@ to layer 2, and delete assertions that only worked against live data.**
 | `explorer/queries/core.py` (`facet_where`, `Query`) | unit + integration | `facet_where` is pure; `Query` needs the fixture DB. |
 | `explorer/queries/*.py` (datasets, links, link_errors, reports, …) | **integration** | The highest-value target: count == list, ordering, self-excluding facets. |
 | `explorer/facets.py` | unit | Already. Keep. |
-| `explorer/views/*` | integration | Use the Django test client against the fixture DB. Assert status + a few structural markers, not page content. |
+| `explorer/views/*` | integration + unit | One parametrized all-routes respond smoke; page-unique behaviour only (see `docs/test-audit.md`). Shared chrome (pager/sub-nav/facet/badges/pills) is unit-tested once via the macros. |
+| `explorer/templates/macros/*` | unit | Render each macro once in isolation through the Jinja2 engine. |
 | `explorer/middleware.py` (basic auth) | unit | Already. Keep. |
 | `explorer/templates/` | integration (light) | One smoke render per view. No substring-matching whole pages. |
 | Every report | unit (shape) | Every report compiles and runs `count` + `list` — cheap with a small DB. |
@@ -245,6 +311,17 @@ schema changes.
   assertions are the most brittle part of `test_views.py`.
 - Keep using `assertInHTML` where it genuinely validates markup structure.
 
+**Scope (what earns a test)**
+
+- **Test shared code once.** If a macro/helper renders it for every page,
+  test it once in isolation — not per page.
+- **A per-page test survives only if the page has unique behaviour, or to
+  verify the page responds.** Route wiring is one parametrized smoke.
+- **Don't test obvious visual config** (which pages opt into a feature). A
+  regression visible the moment the page renders isn't worth a test.
+- **Data contracts belong at the query layer**, not in HTML scraping
+  (`response.context` is unavailable — see §0).
+
 **Skips vs failures**
 
 - Unit tests must **never** skip (no DB, no excuses).
@@ -276,54 +353,68 @@ markers = [
 ```
 tests/                     # pipeline — mostly pure (stays)
 explorer/tests/            # app — split by layer
-  test_unit_*.py           # pure: facets, facet_where, middleware, SQL shape
-  test_integration_*.py    # seeded DB: queries, views
+  test_unit_*.py           # pure: facets, facet_where, middleware, view helpers, macros
+  test_integration_*.py    # seeded DB: queries, link_errors, reports, routes, view behaviour
   test_live_*.py           # opt-in smoke
-conftest.py                # shared fixture DB + factories
+conftest.py                # shared fixture DB + factories (root)
 ```
 
 ```bash
-just test        # fast default: unit + integration, excludes live/slow
-just test-all    # everything, including slow
-just test-live   # live smoke against the dev DB
+just test        # fast default: -m "not slow and not live"
+just test-all    # everything (pytest -m "")
+just test-live   # live smoke against the dev DB (pytest -m live)
 ```
+
+The marker filter lives in the **justfile**, so bare `pytest` still runs
+everything (useful for a single file, risky for the whole suite — see the
+connection finding in §0).
 
 `just test` target budget: **< 15 s**. Unit < 5 s, integration < 10 s.
 
 ---
 
-## 9. Migration plan
+## 9. Migration plan (revised)
 
-Incremental — each phase leaves a working suite.
+Incremental — each phase leaves a working, green suite. The order changed
+after the audit: **prune/spec before fixtures.**
 
-**Phase 1 — make the fast path real (small).**
-Add the markers and the `just test` / `test-all` / `test-live` commands.
-Mark `test_rate_limit` `slow`. Default run excludes `slow` and `live`
-(nothing is `live` yet, so this is a no-op safety net).
+**Phase 0 — audit (done, `e0469aa`).** `docs/test-audit.md` gives every app
+test its disposition (KEEP / REWRITE / MERGE / DROP) and lists the fixture
+shape the KEEPs require.
 
-**Phase 2 — build the fixture world.**
-Add a top-level `conftest.py` with the seeded test DB and factory helpers.
-Prove it with one converted query test. Add a test that the fixture loads
-and every report's `count`/`list` runs against it.
+**Phase 1 — markers + fast path (done, `c8cc1d9`).** Markers registered;
+`just test` / `test-all` / `test-live`; `test_rate_limit` marked `slow`.
 
-**Phase 3 — port the query tests.**
-Move `explorer/tests/test_queries.py` and `test_link_errors.py` onto the
-fixture DB. Keep the invariant assertions; drop live-data ones. This is
-where most of the 60 s disappears.
+**Phase 2 — shared-machinery unit tests (done, `e0469aa`).**
+`test_unit_view_helpers.py`, `test_unit_macros.py`, facet query-string
+helpers in `test_facets.py`. Pure additions — nothing deleted yet.
 
-**Phase 4 — port the view tests.**
-Move `test_views.py` onto the fixture DB. Replace whole-page `_squash`
-assertions with structural ones. Keep one smoke check per route.
+**Phase 3 — build the fixture world.** Root `conftest.py` with a seeded
+`django_db_setup` + `make_fixtures()` (ORM inserts, committed once; use
+`--reuse-db` locally). Prove it with one converted query test. Mark the
+three legacy app-test modules `live` (interim) so the default run does not
+create the test DB alongside the still-live `db_ready` tests. Add a test that
+the fixture loads and every report's `count`/`list` runs against it.
 
-**Phase 5 — live smoke.**
-Add a small `test_live_smoke.py` (opt-in): the snapshot is reachable, the
-dashboard/reports return 200, counts are non-zero. Nothing that depends on
-exact content.
+**Phase 4 — port the query/link_errors tests.** Convert the KEEP/REWRITE
+items in `test_queries.py` and `test_link_errors.py` to the fixture DB;
+migrate facet-order assertions to the query layer; delete the DROP items.
+This is where most of the 60 s disappears.
 
-**Phase 6 — cleanup.**
-Delete dead fixtures, the live-DB `django_db_blocker` hack in
-`explorer/tests/conftest.py`, and any test that only ever passed against
-one particular snapshot.
+**Phase 5 — replace the view tests.** Add `test_integration_routes.py` (one
+parametrized all-routes respond smoke, incl. non-default `?sort=&dir=` /
+`?page=2`) and `test_integration_view_behavior.py` (the five page-unique
+tests from the audit group C). Delete the legacy `test_views.py` and the
+now-subsumed per-page chrome tests.
+
+**Phase 6 — delete the live layer + cleanup.** Remove the live-DB
+`django_db_blocker` hack in `explorer/tests/conftest.py`, the interim `live`
+markers on the ported modules, dead fixtures, and any test that only ever
+passed against one snapshot.
+
+**Phase 7 — live smoke.** `test_live_smoke.py` (opt-in `live` marker): the
+snapshot is reachable, dashboard/reports return 200, counts non-zero.
+Nothing that depends on exact content.
 
 ---
 
@@ -341,26 +432,36 @@ one particular snapshot.
 
 ## 11. Open decisions
 
-1. **Test DB lifecycle.** pytest-django's created-once test database +
-   transaction rollback is the simplest. Confirm the pgvector/HNSW
-   migrations run fast enough on an empty DB (they should; the slow part is
-   indexing populated data).
-2. **Where factories live.** One `conftest.py` at the repo root vs.
-   `explorer/tests/factories.py`. Lean root-`conftest.py` for simplicity.
+1. **Test DB lifecycle — resolved.** pytest-django's created-once test DB +
+   transaction rollback. Still to verify in Phase 3: the pgvector/HNSW
+   migrations run fast on an empty DB (they should; the slow part is indexing
+   populated data).
+2. **Where factories live — resolved.** A single root `conftest.py`.
 3. **CI.** There's no CI config today. If/when we add one, it needs a
    Postgres service with pgvector. Until then `just test` is a local
    contract.
 4. **Do the pipeline tests move too?** They're already fast and pure; leave
    them unless the layout unification in §8 is worth the churn.
+5. **Live vs fixture in one invocation — resolved (workaround).** They cannot
+   share a session (§0). The `live` marker + `just test-live` keeps them
+   apart. A future option (rejected for now) is a separate `live` DB alias +
+   routing in `explorer/queries/core.py`, so both could run together — not
+   worth the test-only production seam.
 
 ---
 
-## 12. First three things to do
+## 12. Immediate next action
 
-If nothing else from this doc happens, do these:
+The first three things are done (markers + fast `just test`, the audit, the
+shared-machinery unit tests). The next session starts at **Phase 3 — build
+the fixture world**:
 
-1. **Add the markers and a fast `just test`** that skips `slow`.
-2. **Seed a 20-dataset fixture DB** and port one query test to prove it.
-3. **Delete the live-content assertions** (`'Academy School Catchments'`,
-   exact counts) — they're what's failing today, and they're not testing
-   the code.
+1. Root `conftest.py`: `django_db_setup` seed via `make_fixtures()`, and a
+   `--reuse-db`-friendly session scope.
+2. `make_fixtures()`: the shape in `docs/test-audit.md` (3 orgs, ~20
+   datasets, ~40 links, ~20 link_errors, reviews incl. two-for-one-dataset,
+   a `theme_primary = ''` row, a link_errors package absent from datasets,
+   duplicate titles/URLs, populated report facets).
+3. Prove it with one converted query test; mark the three legacy app-test
+   modules `live` (interim) so `just test` stays green until Phases 4–5 port
+   them.
