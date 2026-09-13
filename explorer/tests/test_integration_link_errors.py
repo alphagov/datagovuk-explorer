@@ -112,17 +112,39 @@ def test_harvest_state_join_includes_unknown():
     assert all(r["harvest_state"] == "unknown" for r in unknown_rows)
 
 
+def _assert_pools_partition(filters):
+    """Every /links/errors pool (plus its trailing bucket, where it has
+    one) equals the list count with that group's filter cleared."""
+    pool_group = {
+        "categories": "category",
+        "statuses": "status",
+        "domains": "domain",
+        "harvested": "harvested",
+        "publishers": "publisher",
+    }
+    trailing = {"statuses": "no_response", "domains": "no_url"}
+
+    counts = link_errors_facet_counts(filters)
+    for pool, group in pool_group.items():
+        value = counts[pool]
+        # most pools are row lists; harvested is a {value: count} dict
+        total = sum(value.values()) if isinstance(value, dict) else sum(r["count"] for r in value)
+        if pool in trailing:
+            total += counts[trailing[pool]]
+        assert total == _count(_without(filters, group)), (filters, pool)
+    assert sum(counts["to_delete"].values()) == _count(_without(filters, "to_delete")), filters
+
+
 def test_link_errors_facet_pools_partition_list_count():
     """Each group's pool total equals the list count with that group's
-    filter cleared — category/status/domain/harvest/publisher, with the
-    No response / No URL trailing buckets folded in."""
+    filter cleared, under every filter combo."""
     base = link_errors_facet_counts({})
     category = base["categories"][0]["value"]
     status = base["statuses"][0]["value"]
     publisher = base["publishers"][0]["value"]
     domain = base["domains"][0]["value"]
 
-    combos = [
+    for filters in (
         {},
         {"category": category},
         {"status": status},
@@ -135,21 +157,8 @@ def test_link_errors_facet_pools_partition_list_count():
         {"publisher": publisher},
         {"category": category, "status": "__none__"},
         {"category": "OK", "harvested": "harvested"},
-    ]
-    for filters in combos:
-        counts = link_errors_facet_counts(filters)
-        assert sum(r["count"] for r in counts["categories"]) == _count(_without(filters, "category")), filters
-        assert sum(r["count"] for r in counts["statuses"]) + counts["no_response"] == _count(
-            _without(filters, "status"),
-        ), filters
-        assert sum(counts["to_delete"].values()) == _count(_without(filters, "to_delete")), filters
-        assert sum(r["count"] for r in counts["domains"]) + counts["no_url"] == _count(
-            _without(filters, "domain"),
-        ), filters
-        assert sum(counts["harvested"].values()) == _count(_without(filters, "harvested")), filters
-        assert sum(r["count"] for r in counts["publishers"]) == _count(
-            _without(filters, "publisher"),
-        ), filters
+    ):
+        _assert_pools_partition(filters)
 
 
 def test_link_errors_facet_value_matches_filtered_count():
