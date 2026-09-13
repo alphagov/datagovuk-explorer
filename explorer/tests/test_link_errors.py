@@ -21,7 +21,11 @@ from explorer.queries.link_errors import (
     link_errors_stmts,
 )
 
-pytestmark = pytest.mark.usefixtures("db_ready")
+# INTERIM (plan Phase 3): these tests still read the live dev DB. They are
+# gated behind the `live` marker so `just test` (the fast, seeded suite)
+# never creates the test DB alongside them. Phase 4 ports the KEEP/REWRITE
+# items to the fixture DB and deletes the rest.
+pytestmark = [pytest.mark.live, pytest.mark.usefixtures("db_ready")]
 
 
 @pytest.fixture(scope="module")

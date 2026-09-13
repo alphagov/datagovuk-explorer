@@ -60,7 +60,7 @@ from explorer.queries.reviews import get_classification, get_review, latest_revi
 from explorer.queries.series import SERIES_COUNT, series_list_stmt
 from explorer.views.core import PAGE_SIZE
 
-pytestmark = pytest.mark.usefixtures("db_ready")
+pytestmark = [pytest.mark.live, pytest.mark.usefixtures("db_ready")]
 
 
 # ---------------------------------------------------------------------------

@@ -51,6 +51,12 @@ from explorer.queries.reviews import (
 from explorer.queries.series import SERIES_BY_ID, SERIES_COUNT, series_list_stmt
 from explorer.views.core import PAGE_SIZE
 
+# INTERIM (plan Phase 3): the live view tests are gated behind the `live`
+# marker; Phase 5 replaces them with the route smoke + fixture behaviour
+# tests. `db_ready` keeps them skipping (not failing) when the live DB is
+# unavailable.
+pytestmark = [pytest.mark.live, pytest.mark.usefixtures("db_ready")]
+
 
 def esc(s):
     """Titles render through Jinja2 autoescape (markupsafe), which escapes

@@ -45,7 +45,7 @@ def db_ready():
     legitimately be down (or a fresh checkout may not have run the build
     yet). Skip loudly instead of failing with a connection error.
     """
-    from django.db import connection  # noqa: PLC0415 — lazy: only when a fixture runs against the live DB
+    from django.db import connection
 
     try:
         with connection.cursor() as cur:
@@ -62,9 +62,8 @@ def db_ready():
     return {"datasets": datasets, "orgs": orgs, "reviews": reviews}
 
 
-@pytest.fixture
-def client(db_ready):
-    """Django test client for app tests (live DB, no test database)."""
-    from django.test import Client  # noqa: PLC0415 — lazy: only when a fixture runs against the live DB
-
-    return Client()
+# NOTE: the live tests used to override the `client` fixture to depend on
+# `db_ready`. That is gone: pytest-django's own `client` fixture is the same
+# bare `Client()` and is what the seeded integration tests
+# (test_integration_*.py) need. The legacy live modules keep working because
+# `_allow_live_db` still unblocks DB access for them.

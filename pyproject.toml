@@ -121,6 +121,21 @@ lint.ignore = [
   # exception classes, so it never hits these rules.
   "TRY003",
 ]
+lint.per-file-ignores."conftest.py" = [
+  # The root conftest is the seeded fixture world: rows are long, explicit
+  # keyword dicts (C408), assembled by one make_fixtures() (C901/PLR0913),
+  # with deliberate lazy imports so Django isn't touched at collection time
+  # (PLC0415). Same spirit as the tests/*.py and explorer/tests/*.py
+  # ignores below — test data, not product code.
+  "C408",
+  "C901",
+  "PLC0415",
+  "PLR0913",
+]
+# The shared facet builder's parameters are its API surface — one option
+# per page behaviour (docs/refactor-plan.md step 1 pins this exact
+# signature) — not a complexity smell.
+lint.per-file-ignores."explorer/facets.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."explorer/tests/*.py" = [ "PLR2004" ]
 lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
 # Status codes and pagination sizes in test assertions are intent, not magic.
@@ -132,10 +147,6 @@ lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
 lint.per-file-ignores."scripts/download_datasets.py" = [ "PLR0913" ]
 lint.per-file-ignores."scripts/embed_only.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."scripts/review_suggest.py" = [ "PLR0913" ]
-# The shared facet builder's parameters are its API surface — one option
-# per page behaviour (docs/refactor-plan.md step 1 pins this exact
-# signature) — not a complexity smell.
-lint.per-file-ignores."explorer/facets.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."tests/*.py" = [ "PLR2004", "SLF001" ]
 # Fullwidth-digit strings are deliberate fixtures: they prove the date/year
 # regexes use re.ASCII so \d does NOT match U+FF10..U+FF19.

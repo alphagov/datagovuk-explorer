@@ -19,9 +19,11 @@ phased migration. Nothing here is a deadline; it's a direction.
 |---|---|
 | `c8cc1d9` | **Phase 1** — markers (`integration` / `live` / `slow`), `just test` / `test-all` / `test-live`, `test_rate_limit` marked `slow`. The fast filter lives in the **justfile** (not pytest `addopts`), so bare `pytest` runs everything; `just test` runs `-m "not slow and not live"`. |
 | `e0469aa` | **Audit (Phase 0) + shared unit tests (Phase 2)** — `docs/test-audit.md`, plus the "shared machinery tested once" unit tests: `test_unit_view_helpers.py`, `test_unit_macros.py`, and the facet query-string helpers in `test_facets.py`. 33 tests, no DB, all green. |
+| (in progress) | **Phase 3** — root `conftest.py` with the seeded fixture world (`make_fixtures()` + a session `django_db_setup`), proven by `explorer/tests/test_integration_queries.py` (40 tests against the fixture DB). The three legacy app-test modules are gated behind the `live` marker (interim). Default `just test` is now **181 passed, 109 deselected, ~3 s**. |
 
-Working tree clean at `e0469aa`. Baseline before the rewrite: **235 tests,
-~60 s, 11 live-data failures.**
+Working tree last clean at `e0469aa` (Phase 3 is uncommitted at the time
+of writing). Baseline before the rewrite: **235 tests, ~60 s, 11 live-data
+failures.**
 
 ### Decisions since the first draft
 
@@ -64,11 +66,37 @@ Working tree clean at `e0469aa`. Baseline before the rewrite: **235 tests,
 
 ### Next step
 
-**Phase 3 — build the fixture world.** Root `conftest.py` with
-`django_db_setup` + `make_fixtures()` (ORM inserts, seeded once), one
-converted query test to prove it, and the interim `live` marking of the three
-legacy app-test modules so the default run stays green. Fixture shape is
-listed in `docs/test-audit.md` ("Fixture requirements implied by the KEEPs").
+**Phase 4 — port the query/link_errors tests.** Convert the KEEP/REWRITE
+items from `docs/test-audit.md` in `test_queries.py` / `test_link_errors.py`
+to the seeded fixture DB (the first slice is `test_integration_queries.py`),
+migrate facet-order assertions to the query layer, and delete the DROP items.
+Then Phase 5 replaces `test_views.py` with the route smoke and the small
+behaviour suite.
+
+### Phase 3 notes (what the fixture world covers)
+
+- **Root `conftest.py`** holds `make_fixtures()` + the `django_db_setup`
+  override. It seeds inside `django_db_blocker.unblock()` after DB creation
+  and is a no-op when the tables already hold rows (so `--reuse-db` never
+  double-seeds).
+- **Shape:** 3 orgs (alpha named, beta `display_name` NULL, gamma empty),
+  16 datasets (with/without notes, short titles, duplicate titles per org,
+  withdrawn wording, `theme_primary=''` and NULL rows, created years across
+  the window, no-links and API rows), ~26 links (a URL shared across
+  datasets, NULL/empty and scheme-less URLs, missing format/name), 18
+  link_errors (every category, all three harvest states incl. a
+  package absent from datasets, both to-delete values, NULL http_status), a
+  harvest source with and without datasets, metadata keys/values, a series,
+  and reviews including two for one dataset plus an `ok:false`.
+- **`test_integration_queries.py`** proves the world: the `/datasets`
+  self-exclusion pools partition the cleared list count, the `theme=none`
+  semantics are checked against a deliberate `''` row, every report's
+  `count`/`list` runs and is deterministic, and review dedup returns the
+  latest `ok:true` record.
+- **Legacy modules** (`test_queries.py`, `test_link_errors.py`,
+  `test_views.py`) carry `pytestmark = [pytest.mark.live, ...]` so `just
+  test` never creates the test DB alongside them. `test-views` no longer
+  overrides the `client` fixture (pytest-django's bare one is enough).
 
 ---
 
@@ -389,17 +417,18 @@ shape the KEEPs require.
 `test_unit_view_helpers.py`, `test_unit_macros.py`, facet query-string
 helpers in `test_facets.py`. Pure additions — nothing deleted yet.
 
-**Phase 3 — build the fixture world.** Root `conftest.py` with a seeded
-`django_db_setup` + `make_fixtures()` (ORM inserts, committed once; use
-`--reuse-db` locally). Prove it with one converted query test. Mark the
-three legacy app-test modules `live` (interim) so the default run does not
-create the test DB alongside the still-live `db_ready` tests. Add a test that
-the fixture loads and every report's `count`/`list` runs against it.
+**Phase 3 — build the fixture world (done, uncommitted).** Root
+`conftest.py` with a seeded `django_db_setup` + `make_fixtures()` (ORM
+inserts, committed once; no-op under `--reuse-db`). Proven by
+`test_integration_queries.py` (40 tests). The three legacy app-test modules
+are marked `live` (interim) so the default run does not create the test DB
+alongside them.
 
 **Phase 4 — port the query/link_errors tests.** Convert the KEEP/REWRITE
-items in `test_queries.py` and `test_link_errors.py` to the fixture DB;
-migrate facet-order assertions to the query layer; delete the DROP items.
-This is where most of the 60 s disappears.
+items in `test_queries.py` and `test_link_errors.py` to the fixture DB
+(started: `test_integration_queries.py`); migrate facet-order assertions to
+the query layer; delete the DROP items. This is where most of the 60 s
+disappears.
 
 **Phase 5 — replace the view tests.** Add `test_integration_routes.py` (one
 parametrized all-routes respond smoke, incl. non-default `?sort=&dir=` /
@@ -452,16 +481,15 @@ Nothing that depends on exact content.
 
 ## 12. Immediate next action
 
-The first three things are done (markers + fast `just test`, the audit, the
-shared-machinery unit tests). The next session starts at **Phase 3 — build
-the fixture world**:
+The first four phases are done (markers + fast `just test`, the audit, the
+shared-machinery unit tests, the seeded fixture world). The next session
+starts at **Phase 4 — port the query/link_errors tests**:
 
-1. Root `conftest.py`: `django_db_setup` seed via `make_fixtures()`, and a
-   `--reuse-db`-friendly session scope.
-2. `make_fixtures()`: the shape in `docs/test-audit.md` (3 orgs, ~20
-   datasets, ~40 links, ~20 link_errors, reviews incl. two-for-one-dataset,
-   a `theme_primary = ''` row, a link_errors package absent from datasets,
-   duplicate titles/URLs, populated report facets).
-3. Prove it with one converted query test; mark the three legacy app-test
-   modules `live` (interim) so `just test` stays green until Phases 4–5 port
-   them.
+1. Move the remaining KEEP/REWRITE items from `test_queries.py` into
+   `test_integration_queries.py`, pointed at the fixture DB (drop the
+   `LIMIT 1_000_000` fetches — with a 16-row fixture, fetch all rows).
+2. Port `test_link_errors.py` similarly (`test_integration_link_errors.py`),
+   keeping the row-shape, count/list, self-exclusion and unknown-harvest-state
+   invariants; drop the live-host ordering.
+3. Delete the DROP items and remove the ported ones from the legacy
+   `live` modules (which shrink each phase until Phase 6 deletes them).
