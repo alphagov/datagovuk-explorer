@@ -278,7 +278,6 @@ ORG_SORT = {
     "resource_count": "COALESCE(a.total_resources, 0)",
     "views": "COALESCE(a.total_views, 0)",
     "type": "LOWER(COALESCE(o.type, ''))",
-    "state": "LOWER(COALESCE(o.state, ''))",
     "approval_status": "LOWER(COALESCE(o.approval_status, ''))",
     "created": "COALESCE(o.created, '')",
     "last_published": "COALESCE(a.last_published, '')",
