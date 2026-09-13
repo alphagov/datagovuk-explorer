@@ -9,9 +9,9 @@ phased migration. Nothing here is a deadline; it's a direction.
 
 ## 0. Status & handoff (2026-09-13)
 
-**Read this first.** The rewrite is in progress. This doc is the design;
-`docs/test-audit.md` is the per-test keep/drop/rewrite spec that drives it.
-**Do not port a legacy test without checking the audit.**
+**Read this first.** The rewrite is complete through Phase 7 (see the Done
+table below). `docs/test-audit.md` is the per-test keep/drop/rewrite spec
+that drove it — **do not port a legacy test without checking the audit.**
 
 ### Done
 
@@ -21,11 +21,11 @@ phased migration. Nothing here is a deadline; it's a direction.
 | `e0469aa` | **Audit (Phase 0) + shared unit tests (Phase 2)** — `docs/test-audit.md`, plus the "shared machinery tested once" unit tests: `test_unit_view_helpers.py`, `test_unit_macros.py`, and the facet query-string helpers in `test_facets.py`. 33 tests, no DB, all green. |
 | `e9d4a65` | **Phase 3** — root `conftest.py` with the seeded fixture world (`make_fixtures()` + a session `django_db_setup`), proven by fixture-backed integration tests. Default `just test` was **181 passed, ~3 s** at that commit. |
 | `62fc0b7` | **Phase 4** — `test_queries.py` ported/dropped and deleted; new `test_integration_queries.py`, `test_integration_reports.py`, `test_integration_link_errors.py`. `test_link_errors.py` pruned to interim live views. |
-| (uncommitted) | **Phases 5–7** — view tests replaced by `test_integration_routes.py` (all-routes smoke) + `test_integration_view_behavior.py` (group C) + `test_unit_middleware.py`; `test_views.py` / `test_link_errors.py` / `explorer/tests/conftest.py` deleted; the `live` layer is now just `test_live_smoke.py`. Default `just test`: **271 passed, 1 deselected, ~4 s**; `just test-live`: 19 passed. |
+| `b6145fc` | **Phases 5–7** — view tests replaced by `test_integration_routes.py` (all-routes smoke) + `test_integration_view_behavior.py` (group C) + `test_unit_middleware.py`; `test_views.py` / `test_link_errors.py` / `explorer/tests/conftest.py` deleted; the `live` layer is now just `test_live_smoke.py`. `a543a59` then made `just test-all` run the two layers in separate sessions. Default `just test`: **271 passed, 20 deselected, ~4 s**; `just test-live`: 19 passed. |
 
-Everything through Phase 7 is complete in the working tree (Phases 5–7 are
-uncommitted at the time of writing). Baseline before the rewrite: **235
-tests, ~60 s, 11 live-data failures.**
+The rewrite is complete through Phase 7; the working tree is clean at
+`a543a59`. Baseline before the rewrite: **235 tests, ~60 s, 11 live-data
+failures.**
 
 ### Decisions since the first draft
 
@@ -441,14 +441,14 @@ shape the KEEPs require.
 `test_unit_view_helpers.py`, `test_unit_macros.py`, facet query-string
 helpers in `test_facets.py`. Pure additions — nothing deleted yet.
 
-**Phase 3 — build the fixture world (done, uncommitted).** Root
+**Phase 3 — build the fixture world (done, `e9d4a65`).** Root
 `conftest.py` with a seeded `django_db_setup` + `make_fixtures()` (ORM
 inserts, committed once; no-op under `--reuse-db`). Proven by
 `test_integration_queries.py` (40 tests). The three legacy app-test modules
 are marked `live` (interim) so the default run does not create the test DB
 alongside them.
 
-**Phase 4 — port the query/link_errors tests (done, uncommitted).**
+**Phase 4 — port the query/link_errors tests (done, `62fc0b7`).**
 `test_queries.py` was fully ported (KEEP/REWRITE) or dropped and then deleted;
 the ports live in `test_integration_queries.py` (query layer),
 `test_integration_reports.py` (every report) and
@@ -457,18 +457,18 @@ interim live view tests. One audit KEEP was dropped: `datasets-has-api` is
 no longer in `REPORTS`, so `test_has_api_facets_self_exclude` has no target
 (noted in `docs/test-audit.md`).
 
-**Phase 5 — replace the view tests (done, uncommitted).**
+**Phase 5 — replace the view tests (done, `b6145fc`).**
 `test_integration_routes.py` (one parametrized all-routes smoke, incl.
 non-default `?sort=&dir=` / `?page=2`) and
 `test_integration_view_behavior.py` (the group C page-unique tests).
 `test_views.py` and the remaining live view tests deleted; the health/
 auth/404 tests moved to `test_unit_middleware.py`.
 
-**Phase 6 — delete the live layer + cleanup (done, uncommitted).** Removed
+**Phase 6 — delete the live layer + cleanup (done, `b6145fc`).** Removed
 `explorer/tests/conftest.py` (the live-DB blocker hack) and the interim
 `live` markers; the root conftest is the single source of DB setup.
 
-**Phase 7 — live smoke (done, uncommitted).** `test_live_smoke.py`
+**Phase 7 — live smoke (done, `b6145fc`).** `test_live_smoke.py`
 (opt-in `live` marker): the snapshot is reachable, key pages and every
 report return 200, counts non-zero. Nothing content-dependent.
 
@@ -508,7 +508,7 @@ report return 200, counts non-zero. Nothing content-dependent.
 
 ## 12. Immediate next action
 
-The plan is executed through Phase 7 (Phases 5–7 uncommitted). Remaining
-options: commit the final phases, run the pre-commit hooks over the changed
-files, and add CI (Postgres service with pgvector) around `just test`. The
-per-test keep/drop spec remains `docs/test-audit.md` if any gap surfaces.
+The plan is executed through Phase 7 (working tree clean at `a543a59`).
+Remaining options: run the pre-commit hooks over any further edits and add
+CI (Postgres service with pgvector) around `just test`. The per-test
+keep/drop spec remains `docs/test-audit.md` if any gap surfaces.
