@@ -1,15 +1,21 @@
-{# Pagination controls for the header-right pane: the "X–Y of Z" count
-   followed by the pager. `base` is the "?…" query fragment the view builds
-   (sort/dir + active facets for sortable pages, facets only for reports,
-   "" for pages with no query state). Each page link is
-   base + "&page=N" (or "?page=N" when base is empty), so pages without
-   a sort UI stop emitting the old sort=undefined URLs.
+{# Pagination controls for the header-right pane: the total count with the
+   name of the thing being listed ("1,234 datasets") followed by the pager.
+   `base` is the "?…" query fragment the view builds (sort/dir + active
+   facets for sortable pages, facets only for reports, "" for pages with no
+   query state).
+
+   `label` is the plural noun for the listed items (e.g. "datasets"); pass
+   `label_singular` too so a total of 1 reads "1 dataset".
 
    The count renders only when `total` is given (start/end/total); the pager
    renders only when total_pages > 1. #}
-{% macro pagination(start=None, end=None, total=None, page=1, total_pages=1, base="") %}
+{% macro pagination(start=None, end=None, total=None, page=1, total_pages=1, base="", label="", label_singular=None) %}
   {% if total is not none %}
-    <p class="count">{{ start | num }}-{{ end | num }} of {{ total | num }}</p>
+    {% set noun = (label_singular or label) if total == 1 else label %}
+    <p class="count">
+      {{ total | num }}
+      {% if noun %}{{ noun }}{% endif %}
+    </p>
   {% endif %}
   {% if total_pages > 1 %}
     {% set page_href = base + "&page=" if base else "?page=" %}

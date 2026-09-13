@@ -24,7 +24,7 @@
 {% endblock header_left %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, shown_orgs, page, total_pages, pager_base) }}
+  {{ pagination(start_index, end_index, shown_orgs, page, total_pages, pager_base, label="publishers", label_singular="publisher") }}
 {% endblock header_right %}
 
 {% block facets %}

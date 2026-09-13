@@ -31,13 +31,11 @@
   ] %}
   {{ subnav(subnav_tabs, "suggestions", "Datasets") }}
 
-  <p class="subtitle">
-    LLM-suggested titles, descriptions, themes and tags
-  </p>
+  <p class="subtitle">LLM-suggested titles, descriptions, themes and tags</p>
 {% endblock header_left %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, total, page, total_pages, pager_base) }}
+  {{ pagination(start_index, end_index, total, page, total_pages, pager_base, label="suggestions", label_singular="suggestion") }}
 {% endblock header_right %}
 
 {% macro tag_list(tags, cls) %}

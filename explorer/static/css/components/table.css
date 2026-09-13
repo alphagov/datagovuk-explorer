@@ -58,7 +58,7 @@
 	font-weight: 400;
 	vertical-align: top;
 	padding: 12px 16px;
-	background: var(--color-bg);
+	background: var(--color-surface);
 	white-space: nowrap;
 }
 
@@ -78,6 +78,7 @@
 	position: sticky;
 	top: 0;
 	z-index: 1;
+	border-bottom: 1px solid var(--color-border);
 }
 
 .data-table td {
@@ -130,10 +131,6 @@
 	max-width: 400px;
 	overflow-wrap: break-word;
 	word-break: break-word; /* legacy alias, same behaviour */
-}
-
-.data-table tr:last-child :is(td, th) {
-	border-bottom: none;
 }
 
 .data-table tbody tr:hover {

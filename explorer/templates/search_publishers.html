@@ -23,9 +23,11 @@
           </li>
         {% endfor %}
       </ul>
-      {{ pagination(start_index, end_index, total, page, total_pages, pager_base) }}
+      {{ pagination(start_index, end_index, total, page, total_pages, pager_base, label="publishers", label_singular="publisher") }}
     {% else %}
-      <p class="subtitle">No publishers matched <strong>{{ q }}</strong>.</p>
+      <p class="subtitle">
+        No publishers matched <strong>{{ q }}</strong>.
+      </p>
     {% endif %}
   </div>
 {% endblock content %}

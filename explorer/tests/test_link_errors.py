@@ -266,7 +266,7 @@ def test_link_errors_view(client, link_errors_loaded):
     assert '<a href="/links" class="nav-link">Links</a>' in html
 
     # page description + count of the current filter
-    assert f"1-100 of {link_errors_loaded:,}" in html
+    assert f"{link_errors_loaded:,} errors" in html
 
     # the three badge states render across their filters
     assert _has_badge(client.get("/links/errors?harvested=harvested").content.decode(), "badge-harvested", "Harvested")

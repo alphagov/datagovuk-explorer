@@ -26,7 +26,14 @@
 {% endblock header_left %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, current.count, page, total_pages, pager_base) }}
+  {% if current.kind == "duplicate-urls" %}
+    {% set count_label, count_label_singular = 'URLs', 'URL' %}
+  {% elif current.kind == "links" %}
+    {% set count_label, count_label_singular = 'links', 'link' %}
+  {% else %}
+    {% set count_label, count_label_singular = 'datasets', 'dataset' %}
+  {% endif %}
+  {{ pagination(start_index, end_index, current.count, page, total_pages, pager_base, label=count_label, label_singular=count_label_singular) }}
 {% endblock header_right %}
 
 {% block facets %}

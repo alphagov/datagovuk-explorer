@@ -25,7 +25,7 @@
 {% endblock header_left %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, filtered_errors, page, total_pages, pager_base) }}
+  {{ pagination(start_index, end_index, filtered_errors, page, total_pages, pager_base, label="errors", label_singular="error") }}
 {% endblock header_right %}
 
 {% block facets %}

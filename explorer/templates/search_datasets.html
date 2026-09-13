@@ -23,9 +23,11 @@
           </li>
         {% endfor %}
       </ul>
-      {{ pagination(start_index, end_index, total, page, total_pages, pager_base) }}
+      {{ pagination(start_index, end_index, total, page, total_pages, pager_base, label="datasets", label_singular="dataset") }}
     {% else %}
-      <p class="subtitle">No datasets matched <strong>{{ q }}</strong>.</p>
+      <p class="subtitle">
+        No datasets matched <strong>{{ q }}</strong>.
+      </p>
     {% endif %}
   </div>
 {% endblock content %}

@@ -13,7 +13,7 @@
 {% endblock header_left %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, total, page, total_pages) }}
+  {{ pagination(start_index, end_index, total, page, total_pages, label="values", label_singular="value") }}
 {% endblock header_right %}
 
 {% block table %}
