@@ -11,7 +11,9 @@
 }
 
 .dataset-detail h1 {
+    color: var(--color-text);
 	margin-bottom: 20px;
+	max-width: 670px;
 }
 
 .dataset-detail h1 a,
@@ -61,10 +63,13 @@
 
 .notes-wrap {
 	padding: 20px 0;
+	max-width: 670px;
 }
 
 .notes-content {
 	line-height: 1.7;
+	font-size: var(--text-body);
+	color: var(--color-text);
 }
 
 .notes-content--clamped {

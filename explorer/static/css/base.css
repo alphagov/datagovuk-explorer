@@ -48,11 +48,11 @@
 /* ---- Design tokens ---- */
 
 :root {
-	--color-bg: oklch(97.3% 0.003 264.5);
+	--color-bg: oklch(97% 0 none);
 	--color-surface: oklch(100% 0 none);
-	--color-text: oklch(22.8% 0.038 282.9);
-	--color-muted: oklch(52% 0.02 264.4);
-	--color-border: oklch(92.8% 0.006 264.5);
+	--color-text: oklch(33% 0 none);
+	--color-muted: oklch(52% 0 none);
+	--color-border: oklch(92% 0 none);
 	/* UI-component boundaries (text inputs, …) — must clear WCAG 1.4.11's
 	   3:1 non-text contrast against a white/light surface, which the
 	   structural --color-border above does not. #767676 is ~4.5:1 vs
@@ -80,10 +80,10 @@
 	   styles reference the token so the scale can be tuned in one place. */
 	--text-display: 1.75rem; /* page titles (h1) and hero numbers */
 	--text-heading: 1.25rem; /* section headings (h2) */
-	--text-subheading: 1.05rem; /* subsection headings (h3, h4) */
-	--text-body: 1rem; /* default body and table text */
-	--text-sm: 0.9rem; /* secondary text, dates, descriptions */
-	--text-xs: 0.8rem; /* labels, badges, chips, chart annotations */
+	--text-subheading: 1.2rem; /* subsection headings (h3, h4) */
+	--text-body: 1.1rem; /* default body and table text */
+	--text-sm: 1rem; /* secondary text, dates, descriptions */
+	--text-xs: 0.9rem; /* labels, badges, chips, chart annotations */
 
 	/* ---- Spacing ----
 	   Margins, padding and gaps are plain px, NOT rem. Font sizes are
@@ -174,7 +174,7 @@ body {
 }
 
 .container--narrow {
-	max-width: 900px;
+	max-width: 1000px;
 	margin: 32px auto;
 }
 
@@ -200,6 +200,7 @@ body {
 
 /* Result count line above tables/lists */
 .count {
-	color: var(--color-muted);
+	color: var(--color-text);
 	margin-bottom: 20px;
+	font-size: var(--text-body);
 }
