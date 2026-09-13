@@ -8,6 +8,8 @@ Verifies the limiter's contract:
 
 import time
 
+import pytest
+
 from scripts.rate_limit import create_rate_limiter, sleep
 
 
@@ -57,5 +59,6 @@ def _rate_limit_checks() -> None:
     print(f"ok: sleep(100) took {took:.1f}ms")
 
 
+@pytest.mark.slow
 def test_rate_limit() -> None:
     _rate_limit_checks()

@@ -30,9 +30,18 @@ typecheck:
 format:
     uv run ruff check --fix . && uv run ruff format .
 
-# Run all unit tests
+# Fast default: unit + integration, excluding slow/live. Bare `pytest` runs
+# everything; the filter lives here (not in pytest addopts) so it stays visible.
 test:
-    uv run pytest
+    uv run pytest -m "not slow and not live"
+
+# Everything, including slow and live tests.
+test-all:
+    uv run pytest -m ""
+
+# Opt-in smoke tests against the full live dev database.
+test-live:
+    uv run pytest -m live
 
 # Install dependencies (first run)
 setup:

@@ -177,6 +177,11 @@ django_settings_module = "config.settings"
 # DB can never hold it). The pipeline tests have their own conftest in tests/.
 ini_options.DJANGO_SETTINGS_MODULE = "config.settings"
 ini_options.testpaths = [ "tests", "explorer/tests" ]
+ini_options.markers = [
+  "integration: needs the seeded test database",
+  "live: needs the full live database (opt-in)",
+  "slow: takes > 1s (excluded from the default fast run)",
+]
 
 # ==== djLint ====
 [tool.djlint]
