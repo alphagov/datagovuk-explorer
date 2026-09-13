@@ -36,6 +36,11 @@ format:
 # the same command that gates CI gates local runs. Extra args are forwarded,
 # so CI runs `just test --fail-on-skip` (a skip must not hide a test there).
 test *args:
+    # pytest-django forces settings.DEBUG=false, so the static() template tag
+    # resolves through the manifest storage and needs staticfiles/staticfiles.json.
+    # (The dev server skips this: DEBUG=true emits plain URLs, served by
+    # WHITENOISE_USE_FINDERS. Tests render the same hashed URLs as production.)
+    uv run python manage.py collectstatic --noinput
     uv run pytest -m "not slow and not live" --cov --cov-report=term-missing {{args}}
 
 # Everything: the fast suite (incl. slow) then the opt-in live smoke, in two

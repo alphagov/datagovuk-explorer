@@ -1,0 +1,49 @@
+/* ---------------------------------------------------------------------------
+ * components/cards.css — summary cards: the home dashboard (/), and the
+ * publisher detail page (/organisation/:slug). Loaded via {% block styles %}
+ * in dashboard.html and organisation.html; each page adds its own row/grid
+ * layout on top (pages/dashboard.css, pages/organisation.css).
+ * ------------------------------------------------------------------------- */
+
+.card {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 20px;
+	background: var(--color-surface);
+	border-radius: var(--radius);
+	color: var(--color-text);
+	text-decoration: none;
+	transition:
+		box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+		transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+a.card:hover {
+	box-shadow: var(--shadow-hover);
+	transform: translateY(-2px);
+}
+
+div.card {
+	cursor: default;
+	background: transparent;
+	box-shadow: none;
+}
+
+.card__count {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	font-size: var(--text-display);
+}
+
+.card__percent {
+	font-size: var(--text-sm);
+	font-weight: 400;
+	color: var(--color-muted);
+}
+
+.card__label {
+	font-size: var(--text-body);
+	color: var(--color-muted);
+}

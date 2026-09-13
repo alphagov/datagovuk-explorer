@@ -13,9 +13,11 @@ Plain CSS, split into files. No build step — files are loaded straight from
 | `components/badges.css` | Status badges, format badges, score badges | every page (layout) |
 | `components/pagination.css` | `.pagination`, `.page-link` | every page (layout) |
 | `components/chart.css` | Yearly bar chart | `/`, `/datasets`, `/organisation/:slug` |
+| `components/cards.css` | Summary cards (`.card`) | `/`, `/organisation/:slug` |
 | `components/pills.css` | Active-filter pills | `/datasets`, `/links`, `/report/:key`, `/reviews` |
 | `components/facets.css` | Facet sidebar + `.links-layout` grid | `/datasets`, `/links`, `/report/:key`, `/reviews` |
-| `pages/dashboard.css` | Dashboard summary cards (home) | `/` |
+| `pages/dashboard.css` | Dashboard grid + grouped layout (home) | `/` |
+| `pages/organisation.css` | Publisher detail page card row | `/organisation/:slug` |
 | `pages/report.css` | Report pages — description + fixed-width tables | `/report/:key` |
 | `pages/dataset.css` | Dataset detail page (incl. LLM review card) | `/dataset/:orgSlug/:datasetId` |
 | `pages/404.css` | Not-found page | 404 |

@@ -1,7 +1,9 @@
 /* ---------------------------------------------------------------------------
- * pages/dashboard.css — the dashboard summary cards (home page). Report
- * pages (/report/:key) have their own stylesheet (pages/report.css).
- * Loaded via {% block styles %} in dashboard.html.
+ * pages/dashboard.css — the home dashboard (/): the grid and grouped layout.
+ * The summary cards themselves are the shared component in
+ * components/cards.css. Report pages (/report/:key) have their own
+ * stylesheet (pages/report.css). Loaded via {% block styles %} in
+ * dashboard.html.
  * ------------------------------------------------------------------------- */
 
 .dashboard {
@@ -41,47 +43,4 @@
 	.dashboard {
 		grid-template-columns: 1fr;
 	}
-}
-
-.dashboard-card {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	padding: 20px;
-	background: var(--color-surface);
-	border-radius: var(--radius);
-	color: var(--color-text);
-	text-decoration: none;
-	transition:
-		box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-		transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-a.dashboard-card:hover {
-	box-shadow: var(--shadow-hover);
-	transform: translateY(-2px);
-}
-
-div.dashboard-card {
-	cursor: default;
-	background: transparent;
-	box-shadow: none;
-}
-
-.dashboard-card-count {
-	display: flex;
-	align-items: baseline;
-	gap: 6px;
-	font-size: var(--text-display);
-}
-
-.dashboard-card-percent {
-	font-size: var(--text-sm);
-	font-weight: 400;
-	color: var(--color-muted);
-}
-
-.dashboard-card-label {
-	font-size: var(--text-body);
-	color: var(--color-muted);
 }

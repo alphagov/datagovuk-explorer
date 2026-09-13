@@ -7,18 +7,19 @@
    stays in sync with the report pages. #}
 {% macro dashboard_card(key) %}
   {% if cards[key].count %}
-    <a href="{{ cards[key].href }}" class="dashboard-card">
-      <span class="dashboard-card-count">{{ cards[key].count | num }}
+    <a href="{{ cards[key].href }}" class="card">
+      <span class="card__count">{{ cards[key].count | num }}
         {% if cards[key].percent is not none %}
-          <span class="dashboard-card-percent">{{ cards[key].percent | percent }}</span>
+          <span class="card__percent">{{ cards[key].percent | percent }}</span>
         {% endif %}
       </span>
-      <span class="dashboard-card-label">{{ cards[key].label }}</span>
+      <span class="card__label">{{ cards[key].label }}</span>
     </a>
   {% endif %}
 {% endmacro %}
 
 {% block styles %}
+  <link rel="stylesheet" href="{{ static('css/components/cards.css') }}" />
   <link rel="stylesheet" href="{{ static('css/pages/dashboard.css') }}" />
 {% endblock styles %}
 
