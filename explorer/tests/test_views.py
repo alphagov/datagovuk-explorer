@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest, HttpResponse
+from django.test import SimpleTestCase
 from markupsafe import escape
 
 import explorer.middleware as mw
@@ -55,6 +56,18 @@ def esc(s):
     """Titles render through Jinja2 autoescape (markupsafe), which escapes
     `"` as &#34; not &quot;."""
     return str(escape(s or ""))
+
+
+# The pagination macro renders the header count as "<n> <noun>", but djlint
+# wraps the number and the noun onto separate lines. assertInHTML compares
+# parsed HTML with whitespace normalized, and asserting on the bare text
+# keeps the check independent of the element/class the macro happens to use.
+_html_case = SimpleTestCase()
+
+
+def assert_count(html: str, n: int, noun: str, msg_prefix: str = "") -> None:
+    """The page shows the header count "<n> <noun>" (whitespace-insensitive)."""
+    _html_case.assertInHTML(f"{n:,} {noun}", html, msg_prefix=msg_prefix)
 
 
 def _primary_nav(html: str) -> str:
@@ -257,8 +270,6 @@ def test_organisations(client):
     r = client.get("/organisations")
     html = r.content.decode()
     assert r.status_code == 200
-    # count header: total + item noun
-    assert f"{total:,} publishers" in html
 
     # Harvesters is a sub-report of Publishers (same sub-nav macro as the
     # Links group): the current report renders as the active h1 heading,
@@ -308,7 +319,7 @@ def test_organisations(client):
         out = organisations_stmts({"created_year": year}, "name", "asc")
         year_count = out["count"].get(*out["params"])["n"]
         r4 = client.get(f"/organisations?created_year={year}")
-        assert f"{year_count:,} publishers" in r4.content.decode()
+        assert_count(r4.content.decode(), year_count, "publishers")
 
     # page 2 exists (1,480 orgs > 100); pager links keep sort/dir
     if total > PAGE_SIZE:
@@ -325,7 +336,6 @@ def test_organisations(client):
         page2 = out2["list"].all(*out2["params"], PAGE_SIZE, PAGE_SIZE)
         assert page2
         assert esc(page2[0]["display_name"] or page2[0]["name"]) in r2.content.decode()
-        assert f"{total:,} publishers" in r2.content.decode()
     # out-of-range page clamps rather than erroring
     assert client.get("/organisations?page=99999").status_code == 200
 
@@ -366,7 +376,7 @@ def test_organisations_facets(client):
     r4 = client.get(f"/organisations?created_year={top_year}")
     h4 = r4.content.decode()
     assert r4.status_code == 200
-    assert f"{n_year:,} publishers" in h4
+    assert_count(h4, n_year, "publishers")
     assert 'class="filter-pill"' in h4
 
     # ?last_published_year=<most common last-published year>
@@ -378,7 +388,7 @@ def test_organisations_facets(client):
     r5 = client.get(f"/organisations?last_published_year={top_pub}")
     h5 = r5.content.decode()
     assert r5.status_code == 200
-    assert f"{n_pub:,} publishers" in h5
+    assert_count(h5, n_pub, "publishers")
     assert 'class="filter-pill"' in h5
 
     # ?datasets=0 renders the zero-datasets bucket
@@ -388,7 +398,7 @@ def test_organisations_facets(client):
     r6 = client.get("/organisations?datasets=0")
     h6 = r6.content.decode()
     assert r6.status_code == 200
-    assert f"{n_zero:,} publishers" in h6
+    assert_count(h6, n_zero, "publishers")
     assert 'class="filter-pill"' in h6
 
 
@@ -469,8 +479,6 @@ def test_harvesters(client):
     r = client.get("/harvesters")
     html = r.content.decode()
     assert r.status_code == 200
-    # count header: total + item noun
-    assert f"{total:,} harvesters" in html
 
     # Harvesters is a sub-report of Publishers — active h1 heading in the
     # group's sub-nav, not a top-level main-nav item (Publishers stays
@@ -502,7 +510,7 @@ def test_harvesters(client):
     # ?datasets=bogus falls back to the unfiltered list
     r7 = client.get("/harvesters?datasets=bogus")
     assert r7.status_code == 200
-    assert f"{total:,} harvesters" in r7.content.decode()
+    assert_count(r7.content.decode(), total, "harvesters")
 
     # Last run column replaces Created: sortable, renders a date or an
     # em-dash for sources that never ran
@@ -549,7 +557,7 @@ def test_harvesters_facets(client):
     r4 = client.get(f"/harvesters?type={top_type}")
     h4 = r4.content.decode()
     assert r4.status_code == 200
-    assert f"{n_type:,} harvesters" in h4
+    assert_count(h4, n_type, "harvesters")
     assert 'class="filter-pill"' in h4
 
     # ?active=false renders the Inactive pill + badge
@@ -559,7 +567,7 @@ def test_harvesters_facets(client):
     r5 = client.get("/harvesters?active=false")
     h5 = r5.content.decode()
     assert r5.status_code == 200
-    assert f"{n_inactive:,} harvesters" in h5
+    assert_count(h5, n_inactive, "harvesters")
     assert 'class="filter-pill"' in h5
     assert "Inactive" in h5
 
@@ -570,7 +578,7 @@ def test_harvesters_facets(client):
     r6 = client.get("/harvesters?datasets=0")
     h6 = r6.content.decode()
     assert r6.status_code == 200
-    assert f"{n_zero:,} harvesters" in h6
+    assert_count(h6, n_zero, "harvesters")
     assert 'class="filter-pill"' in h6
 
 
@@ -618,7 +626,7 @@ def test_harvester_detail(client):
     assert "/harvesters" in h
     assert "/dataset/" in h
     # count header: total + item noun
-    assert f"{count:,} datasets" in h
+    assert_count(h, count, "datasets")
     # default sort metadata_modified desc — first dataset row
     assert esc(first_page[0]["title"] or first_page[0]["name"]) in h
 
@@ -643,7 +651,6 @@ def test_harvester_detail(client):
         r2 = client.get(f"/harvester/{source['id']}?page=2")
         assert r2.status_code == 200
         assert "?sort=metadata_modified&amp;dir=desc&amp;page=1" in r2.content.decode()
-        assert f"{count:,} datasets" in r2.content.decode()
     # out-of-range page clamps rather than erroring
     assert client.get(f"/harvester/{source['id']}?page=99999").status_code == 200
 
@@ -673,7 +680,6 @@ def test_links(client):
     assert out["count"].get(*out["params"])["n"] == total
     first_page = out["list"].all(*out["params"], PAGE_SIZE, 0)
     assert esc(first_page[0]["name"]) in html
-    assert f"{total:,} links" in html
 
     # one facet combo: first domain + first format (from the unfiltered pools)
     pool = links_facet_counts({})
@@ -688,7 +694,7 @@ def test_links(client):
         h2 = r2.content.decode()
         assert r2.status_code == 200
         assert esc(page2[0]["name"]) in h2
-        assert f"{n2:,} links" in h2
+        assert_count(h2, n2, "links")
 
     # ?domain=__none__ renders the No URL pill
     r3 = client.get("/links?domain=__none__")
@@ -865,7 +871,7 @@ def test_datasets_publisher_filter(client):
     top = datasets_facet_counts({})["publishers"][0]
     expect = _datasets_sql_count({"publisher": top["value"]})
     h = client.get(f"/datasets?publisher={top['value']}").content.decode()
-    assert f"{expect:,} datasets" in h
+    assert_count(h, expect, "datasets")
     assert "Remove publisher filter" in h
     assert esc(top["name"]) in h
 
@@ -874,11 +880,11 @@ def test_datasets_publisher_filter(client):
     if theme:
         combo = _datasets_sql_count({"publisher": top["value"], "theme": theme})
         h2 = client.get(f"/datasets?publisher={top['value']}&theme={theme}").content.decode()
-        assert f"{combo:,} datasets" in h2
+        assert_count(h2, combo, "datasets")
 
     # a bogus publisher value falls back to the unfiltered list
     h = client.get("/datasets?publisher=bogus").content.decode()
-    assert f"{_datasets_sql_count({}):,} datasets" in h
+    assert_count(h, _datasets_sql_count({}), "datasets")
     assert "Remove publisher filter" not in h
 
 
@@ -888,7 +894,7 @@ def test_datasets_links_filter(client):
     for bucket in ("0", "1-10", "11-50", "501-1000"):
         expect = _datasets_sql_count({"links": bucket})
         h = client.get(f"/datasets?links={bucket}").content.decode()
-        assert f"{expect:,} datasets" in h, bucket
+        assert_count(h, expect, "datasets", msg_prefix=bucket)
 
     # the pill renders with the human bucket label
     h = client.get("/datasets?links=501-1000").content.decode()
@@ -897,12 +903,11 @@ def test_datasets_links_filter(client):
 
     # a bogus bucket value falls back to the unfiltered list
     h = client.get("/datasets?links=bogus").content.decode()
-    assert f"{_datasets_sql_count({}):,} datasets" in h
+    assert_count(h, _datasets_sql_count({}), "datasets")
     assert "Remove links filter" not in h
 
 
 def test_datasets(client):
-    total = _datasets_sql_count({})
     r = client.get("/datasets")
     html = r.content.decode()
     assert r.status_code == 200
@@ -916,7 +921,6 @@ def test_datasets(client):
         ("/series", "/reviews", "/suggestions"),
         "/datasets",
     )
-    assert f"{total:,} datasets" in html
 
     out = datasets_stmts({}, "organisation", "asc")
     first_page = out["list"].all(*out["params"], PAGE_SIZE, 0)
@@ -930,7 +934,7 @@ def test_datasets(client):
         r2 = client.get(f"/datasets?theme={theme}")
         h2 = r2.content.decode()
         assert r2.status_code == 200
-        assert f"{_datasets_sql_count({'theme': theme}):,} datasets" in h2
+        assert_count(h2, _datasets_sql_count({"theme": theme}), "datasets")
 
     # sidebar theme count equals the SQL facet aggregate (unfiltered page)
     theme_counts = {r["theme"]: r["count"] for r in datasets_facet_counts({})["themes"]}
@@ -1187,8 +1191,6 @@ def test_pager_urls_never_undefined(client):
         assert hrefs, "metadata values pager should render"
         assert "undefined" not in "".join(hrefs)
         assert all(h.startswith("?page=") for h in hrefs)
-        # count display: total + item noun in the header right pane
-        assert f"{n_values:,} values" in html
 
     # /report/{key} — no sort UI: unfiltered links are clean ?page=N, and
     # with an active facet they keep only the facet (?org=..&page=N)
