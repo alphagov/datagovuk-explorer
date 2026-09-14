@@ -75,7 +75,7 @@ migrate:
 # first, so a fresh checkout or a DB restored from an older dump can't hit
 # missing tables — the schema is applied before the build populates.
 build-db *args: migrate
-    uv run --env-file .env python -m scripts.build_db {{args}}
+    uv run --env-file .env python -m scripts.build_db main {{args}}
 
 # Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Use when tweaking the API detection algorithm.
