@@ -1,0 +1,33 @@
+/* ---------------------------------------------------------------------------
+ * components/detail-list.css — label/value definition list used on entity
+ * detail pages (datasets, publishers, harvesters). The shared micro-label
+ * style for <dt> lives in base.css alongside the other uppercase captions.
+ * ------------------------------------------------------------------------- */
+
+.detail-list {
+	display: grid;
+	grid-template-columns: minmax(150px, 220px) 1fr;
+	align-items: start;
+	margin-bottom: 32px;
+}
+
+.detail-list dt {
+	padding: 10px 30px 10px 0;
+	border-top: 1px solid var(--color-border);
+	font-size: var(--text-body);
+	color: var(--color-muted);
+}
+
+
+.detail-list dd {
+    font-size: var(--text-body);
+	margin: 0;
+	padding: 10px 0;
+	border-top: 1px solid var(--color-border);
+	overflow-wrap: anywhere;
+}
+
+.detail-list dt:first-child,
+.detail-list dd:nth-child(2) {
+	border-top: none;
+}

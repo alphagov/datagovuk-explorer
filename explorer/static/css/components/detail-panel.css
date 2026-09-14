@@ -1,0 +1,77 @@
+/* ---------------------------------------------------------------------------
+ * components/detail-panel.css — the white "detail" surface and the collapsible
+ * sections that sit inside it. Used by any entity detail page: datasets
+ * (/dataset/…), publishers (/organisation/…), harvesters (/harvester/…).
+ * Loaded via {% block styles %} in dataset.html, organisation.html and
+ * harvester.html.
+ * ------------------------------------------------------------------------- */
+
+.detail-panel {
+	background: var(--color-surface);
+	padding: 32px;
+	border-radius: var(--radius);
+}
+
+.detail-panel h1 {
+	color: var(--color-text);
+	margin-block-start: 10px;
+	margin-block-end: 30px;
+	max-width: 670px;
+}
+
+.detail-panel h1 a,
+.detail-panel h1 a:visited {
+	color: var(--color-text);
+	text-underline-offset: 2px;
+	text-decoration-thickness: 1px;
+}
+
+/* ---- Sections ---- */
+
+.section {
+	margin-bottom: 32px;
+}
+
+.section h3 {
+	font-size: 1.2rem;
+	margin-top: 8px;
+	margin-bottom: 16px;
+	padding-bottom: 6px;
+}
+
+/* Collapsible <details> section — the heading doubles as the toggle. */
+.section-toggle > summary {
+	font-size: 1.2rem;
+	margin-top: 8px;
+	padding-bottom: 6px;
+	cursor: pointer;
+	user-select: none;
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.section-toggle > summary::-webkit-details-marker {
+	display: none;
+}
+
+.section-toggle > summary::before {
+	content: "";
+	display: inline-block;
+	width: 18px;
+	height: 18px;
+	flex-shrink: 0;
+	background-color: var(--color-muted);
+	-webkit-mask: url("../../images/lucide/chevron-down.svg") no-repeat center / contain;
+	mask: url("../../images/lucide/chevron-down.svg") no-repeat center / contain;
+	transition: transform 0.15s;
+}
+
+.section-toggle:not([open]) > summary::before {
+	transform: rotate(-90deg);
+}
+
+.section-toggle[open] > summary {
+	margin-bottom: 16px;
+}

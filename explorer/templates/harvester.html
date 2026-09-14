@@ -10,12 +10,14 @@
 {% endmacro %}
 
 {% block styles %}
-  <link rel="stylesheet" href="{{ static('css/pages/dataset.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/detail-panel.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/detail-list.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/notes.css') }}" />
 {% endblock styles %}
 
 {% block content %}
   {{ back_link('/harvesters', 'All harvesters') }}
-  <article class="dataset-detail">
+  <article class="detail-panel">
     <h1>{{ source.title or source.id }}</h1>
 
     <p class="count">

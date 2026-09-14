@@ -1,0 +1,41 @@
+/* ---------------------------------------------------------------------------
+ * components/notes.css — long free-text block with an optional "show more"
+ * clamp. Used for dataset descriptions (/dataset/…) and harvester source
+ * descriptions (/harvester/…). The toggle wiring lives in dataset.html.
+ * ------------------------------------------------------------------------- */
+
+.notes-wrap {
+	padding: 20px 0;
+	max-width: 670px;
+}
+
+.notes-content {
+	line-height: 1.7;
+	font-size: var(--text-body);
+	color: var(--color-text);
+}
+
+.notes-content--clamped {
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.notes-toggle {
+	display: flex;
+	margin: 10px auto 0;
+	padding: 5px 14px;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius);
+	color: var(--color-accent);
+	font-size: var(--text-sm);
+	cursor: pointer;
+	align-items: center;
+	gap: 5px;
+}
+
+.notes-toggle:hover {
+	border-color: var(--color-accent);
+}

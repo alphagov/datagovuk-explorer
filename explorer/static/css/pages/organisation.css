@@ -1,16 +1,16 @@
 /* ---------------------------------------------------------------------------
  * pages/organisation.css — the publisher detail page (/organisation/:slug).
  * A row of shared summary cards (components/cards.css). They sit on the white
- * .dataset-detail surface rather than the page background, so linked cards
- * use --color-bg to stand out. Loaded via {% block styles %} in
- * organisation.html.
+ * .detail-panel surface (components/detail-panel.css) rather than the page
+ * background, so linked cards use --color-bg to stand out. Loaded via
+ * {% block styles %} in organisation.html.
  * ------------------------------------------------------------------------- */
 
 .org-cards {
 	display: flex;
 	gap: 12px;
 	flex-wrap: wrap;
-	margin-bottom: 24px;
+	margin-bottom: 40px;
 }
 
 .org-cards .card {

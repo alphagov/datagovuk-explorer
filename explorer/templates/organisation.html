@@ -3,14 +3,15 @@
 {% block styles %}
   <link rel="stylesheet" href="{{ static('css/components/chart.css') }}" />
   <link rel="stylesheet" href="{{ static('css/components/cards.css') }}" />
-  <link rel="stylesheet" href="{{ static('css/pages/dataset.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/detail-panel.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/detail-list.css') }}" />
   <link rel="stylesheet" href="{{ static('css/pages/organisation.css') }}" />
 {% endblock styles %}
 
 {% block content %}
   {{ back_link('/organisations', 'All publishers') }}
 
-  <article class="dataset-detail">
+  <article class="detail-panel">
     <h1>{{ org.display_name }}</h1>
 
     <div class="org-cards">
@@ -62,7 +63,7 @@
 
     {% if harvesters %}
       <section class="section">
-        <h2>Harvesters ({{ harvesters | length | num }})</h2>
+        <h2>Harvesters</h2>
         <div class="table-wrap">
           <table class="data-table data-table--wide-first">
             <thead>

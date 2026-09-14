@@ -1,101 +1,10 @@
 /* ---------------------------------------------------------------------------
- * pages/dataset.css — the dataset detail page (/dataset/:orgSlug/:datasetId),
- * including the LLM review card. Loaded via {% block styles %} in dataset.njk.
+ * pages/dataset.css — styles unique to the dataset detail page
+ * (/dataset/:orgSlug/:datasetId): the LLM review block, JSON dumps, extras
+ * table cells, classification labels and related-dataset lists. Shared
+ * patterns (detail panel, sections, definition lists, notes) live in
+ * components/. Loaded via {% block styles %} in dataset.html.
  * ------------------------------------------------------------------------- */
-
-
-.dataset-detail {
-	background: var(--color-surface);
-	padding: 32px;
-	border-radius: var(--radius);
-}
-
-.dataset-detail h1 {
-    color: var(--color-text);
-	margin-bottom: 20px;
-	max-width: 670px;
-}
-
-.dataset-detail h1 a,
-.dataset-detail h1 a:visited {
-    color: var(--color-text);
-    text-underline-offset: 2px;
-    text-decoration-thickness: 1px;
-}
-
-.detail-list {
-	display: grid;
-	grid-template-columns: minmax(150px, 220px) 1fr;
-	column-gap: 24px;
-	align-items: start;
-	margin-bottom: 32px;
-}
-
-.detail-list dt {
-	padding: 10px 0;
-	border-top: 1px solid var(--color-border);
-}
-
-.detail-list dd {
-	margin: 0;
-	padding: 10px 0;
-	border-top: 1px solid var(--color-border);
-	overflow-wrap: anywhere;
-}
-
-.detail-list dt:first-child,
-.detail-list dd:nth-child(2) {
-	border-top: none;
-	padding-top: 0;
-}
-
-.section {
-	margin-bottom: 32px;
-}
-
-.section h3 {
-	font-size: 1.2rem;
-	margin-top: 8px;
-	margin-bottom: 16px;
-	padding-bottom: 6px;
-	border-bottom: 2px solid var(--color-border);
-}
-
-.notes-wrap {
-	padding: 20px 0;
-	max-width: 670px;
-}
-
-.notes-content {
-	line-height: 1.7;
-	font-size: var(--text-body);
-	color: var(--color-text);
-}
-
-.notes-content--clamped {
-	display: -webkit-box;
-	-webkit-line-clamp: 3;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-}
-
-.notes-toggle {
-	display: flex;
-	margin: 10px auto 0;
-	padding: 5px 14px;
-	background: var(--color-surface);
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius);
-	color: var(--color-accent);
-	font-size: var(--text-sm);
-	cursor: pointer;
-	align-items: center;
-	gap: 5px;
-}
-
-.notes-toggle:hover {
-	border-color: var(--color-accent);
-}
 
 /* ---- JSON block ---- */
 
@@ -115,43 +24,6 @@
 }
 
 /* ---- Extras table ---- */
-
-.section-toggle > summary {
-	font-size: 1.2rem;
-	margin-top: 8px;
-	padding-bottom: 6px;
-	border-bottom: 2px solid var(--color-border);
-	cursor: pointer;
-	user-select: none;
-	list-style: none;
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.section-toggle > summary::-webkit-details-marker {
-	display: none;
-}
-
-.section-toggle > summary::before {
-	content: "";
-	display: inline-block;
-	width: 16px;
-	height: 16px;
-	flex-shrink: 0;
-	background-color: var(--color-muted);
-	-webkit-mask: url("../../images/lucide/chevron-down.svg") no-repeat center / contain;
-	mask: url("../../images/lucide/chevron-down.svg") no-repeat center / contain;
-	transition: transform 0.15s;
-}
-
-.section-toggle:not([open]) > summary::before {
-	transform: rotate(-90deg);
-}
-
-.section-toggle[open] > summary {
-	margin-bottom: 16px;
-}
 
 .extra-key {
 	font-family: var(--font-mono);
@@ -209,7 +81,6 @@
 
 /* ---- LLM review block ---- */
 
-
 .review-criteria {
 	list-style: none;
 	margin: 8px 0 0;
@@ -260,6 +131,10 @@
 }
 
 .related-col h4 {
+	font-size: var(--text-xs);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--color-muted);
 	margin-bottom: 8px;
 	padding-bottom: 5px;
 	border-bottom: 1px solid var(--color-border);

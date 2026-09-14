@@ -1,6 +1,9 @@
 {% extends "_layout.html" %}
 
 {% block styles %}
+  <link rel="stylesheet" href="{{ static('css/components/detail-panel.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/detail-list.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/notes.css') }}" />
   <link rel="stylesheet" href="{{ static('css/pages/dataset.css') }}" />
 {% endblock styles %}
 
@@ -15,7 +18,7 @@
 
 {% block content %}
   {{ back_link("/organisation/" ~ org.slug, org.display_name) }}
-  <article class="dataset-detail">
+  <article class="detail-panel">
     <h1>
       <a href="https://www.data.gov.uk/dataset/{{ dataset.name }}" target="_blank" rel="noopener">
         {{ dataset.title or dataset.name }}

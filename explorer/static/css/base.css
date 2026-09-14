@@ -129,9 +129,7 @@ h4 {
    labels are deliberately NOT here — they sit on the accent surface, so
    their colour lives with the pill in components/pills.css.) */
 .facet-heading,
-.data-table th,
-.detail-list dt,
-.related-col h4 {
+.data-table th {
 	font-size: var(--text-xs);
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
