@@ -40,7 +40,7 @@
               {% endif %}
             </th>
             <td class="col-text">
-              <a href="/organisation/{{ s.org_slug }}">{{ s.org_display_name }}</a>
+              {{ s.org_display_name }}
             </td>
             <td class="col-text">
               {{ s.current_theme or "—" }}

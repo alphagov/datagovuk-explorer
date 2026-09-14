@@ -34,9 +34,7 @@
             <th scope="row" class="col-text">
               <a href="/dataset/{{ ds.org_slug }}/{{ ds.id }}">{{ ds.title }}</a>
             </th>
-            <td class="col-text">
-              <a href="/organisation/{{ ds.org_slug }}">{{ ds.organisation }}</a>
-            </td>
+            <td class="col-text">{{ ds.organisation }}</td>
             <td class="col-date">{{ ds.metadata_created | date_short }}</td>
             <td class="col-date">{{ ds.metadata_modified | date_short }}</td>
             <td class="col-num">{{ ds.resource_count | num }}</td>

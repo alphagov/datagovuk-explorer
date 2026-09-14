@@ -33,7 +33,7 @@
               <a href="/dataset/{{ l.org_slug }}/{{ l.dataset_id }}">{{ l.dataset_title }}</a>
             </td>
             <td class="col-text">
-              <a href="/organisation/{{ l.org_slug }}">{{ l.org_display_name }}</a>
+              {{ l.org_display_name }}
             </td>
           </tr>
         {% endfor %}

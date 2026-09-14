@@ -31,14 +31,14 @@
               <a href="/dataset/{{ r.org_slug }}/{{ r.dataset_id }}">{{ r.title }}</a>
             </th>
             <td class="col-text">
-              <a href="/organisation/{{ r.org_slug }}">{{ r.org_display_name }}</a>
+              {{ r.org_display_name }}
             </td>
             <td class="col-num">
               <span class="score-badge score-{{ r.overall }}">{{ r.overall }}/5</span>
             </td>
-            <td class="col-num">{{ r.findability if r.findability is not none else "—" }}/5</td>
-            <td class="col-num">{{ r.metadata if r.metadata is not none else "—" }}/5</td>
-            <td class="col-num">{{ r.resources if r.resources is not none else "—" }}/5</td>
+            <td class="col-num">{{ r.findability }}/5</td>
+            <td class="col-num">{{ r.metadata }}/5</td>
+            <td class="col-num">{{ r.resources }}/5</td>
           </tr>
         {% endfor %}
       </tbody>

@@ -69,7 +69,7 @@
                 <a href="/dataset/{{ row.org_slug }}/{{ row.id }}">{{ row.title or row.name }}</a>
               </th>
               <td class="col-text">
-                <a href="/organisation/{{ row.org_slug }}">{{ row.org_display_name }}</a>
+                {{ row.org_display_name }}
               </td>
               <td class="col-date">{{ row.metadata_created | date_short }}</td>
               <td class="col-date">{{ row.metadata_modified | date_short }}</td>
@@ -158,7 +158,7 @@
                 <a href="/dataset/{{ row.org_slug }}/{{ row.dataset_id }}">{{ row.dataset_title }}</a>
               </td>
               <td class="col-text">
-                <a href="/organisation/{{ row.org_slug }}">{{ row.org_display_name }}</a>
+                {{ row.org_display_name }}
               </td>
             </tr>
           {% endfor %}
