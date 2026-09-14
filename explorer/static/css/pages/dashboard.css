@@ -13,7 +13,7 @@
 	grid-template-columns: repeat(3, 1fr);
 	gap: 30px;
 	margin-top: 40px;
-	margin-bottom: 150px;
+	margin-bottom: 80px;
 }
 
 .dashboard-group {
@@ -48,6 +48,15 @@
 	color: var(--color-muted);
 }
 
+
+.dashboard-fetched {
+    max-width: 1200px;
+    margin: auto;
+    margin-bottom: 120px;
+    text-align: center;
+    color: var(--color-muted);
+    font-size: var(--text-small);
+}
 
 @media (max-width: 900px) {
 	.dashboard {
