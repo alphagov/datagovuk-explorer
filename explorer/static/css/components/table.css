@@ -2,8 +2,10 @@
  * components/table.css — the shared table component; loaded on every page.
  *
  * Column typing: apply the same type class to the header <th> and every body
- * cell of that column — .col-text (wraps, 400px cap), .col-num (right-aligned,
- * tabular, no wrap), .col-date (muted, tabular, no wrap; body cells only).
+ * cell of that column
+ * .col-text (wraps, 400px cap)
+ * .col-num (right-aligned, tabular, no wrap)
+ * .col-date (muted, tabular, no wrap; body cells only).
  * Long single-value columns use dedicated classes (.domain-cell etc.).
  *
  * Variants: .data-table--wide-first, .data-table--report (pages/report.css).
@@ -34,7 +36,6 @@
 	text-align: left;
 	font-weight: 400;
 	vertical-align: top;
-	padding: 12px 16px;
 	background: var(--color-surface);
 	white-space: nowrap;
 }
@@ -51,6 +52,7 @@
 	position: sticky;
 	top: 0;
 	z-index: 1;
+	padding: 18px 16px;
 	border-bottom: 1px solid var(--color-border);
 }
 
@@ -82,8 +84,6 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* Muted, tabular date cells — body only, so the header keeps the shared
-   label style. */
 .data-table td.col-date {
 	white-space: nowrap;
 	color: var(--color-muted);
@@ -110,18 +110,14 @@
 	text-decoration: underline;
 }
 
-/* Bolder active-sort label (the link wraps only the label + chevron). */
 .sort-link.active {
 	font-weight: 600;
 }
 
-/* Lucide chevrons drawn as a mask so they inherit the link colour (an <img>
-   can't be tinted). Direction is announced by the .sr-only text. */
 .sort-indicator {
 	display: inline-block;
-	width: 14px;
-	height: 14px;
-	margin-left: 2px;
+	width: 16px;
+	height: 16px;
 	vertical-align: -2px;
 	background-color: currentColor;
 	-webkit-mask: url("../../images/lucide/chevron-up.svg") no-repeat center / contain;

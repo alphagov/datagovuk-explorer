@@ -91,18 +91,15 @@
 		overflow-wrap: anywhere;
 	}
 
-	/* Active-filter pills on their own row beneath the bar. */
 	body.app-layout .page-header .filter-pills {
 		margin: 20px 0 0;
 	}
 
-	/* Facets scroll inside their own column */
 	body.app-layout .facets {
 		min-height: 0;
 		overflow-y: auto;
 	}
 
-	/* Table pane: fills the height; the table scrolls inside it. */
 	body.app-layout .content-main {
 		display: flex;
 		flex-direction: column;
@@ -118,11 +115,11 @@
 
 	/* Inset cell content but keep row backgrounds/borders full-width. */
 	body.app-layout .data-table :is(th, td):first-child {
-		padding-left: 20px;
+		padding-left: 30px;
 	}
 
 	body.app-layout .data-table :is(th, td):last-child {
-		padding-right: 20px;
+		padding-right: 30px;
 	}
 
 	body.app-layout .table-wrap {

@@ -10,10 +10,12 @@
 
 .content-layout {
 	display: grid;
-	/* 1fr would be minmax(auto, 1fr): the table's nowrap cells make its
-     min-content huge, which squashes the facets column. minmax(0, 1fr)
+	/* Facets are a fixed 280px — nothing inside them sizes the column.
+     The table column takes the rest, and must be minmax(0, 1fr) not 1fr:
+     1fr is minmax(auto, 1fr), and the table's nowrap cells make its
+     min-content huge, which would squash the facets column. minmax(0, …)
      lets the table shrink and scroll inside .table-wrap instead. */
-	grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+	grid-template-columns: 300px minmax(0, 1fr);
 	row-gap: 24px;
 	column-gap: 0;
 	align-items: start;
