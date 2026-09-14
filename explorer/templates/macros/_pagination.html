@@ -1,36 +1,48 @@
-{# Pagination controls for the header-right pane: the total count with the
-   name of the thing being listed ("1,234 datasets") followed by the pager.
-   `base` is the "?…" query fragment the view builds (sort/dir + active
-   facets for sortable pages, facets only for reports, "" for pages with no
-   query state).
+{# Result count + pager for the header-right pane. The pager is the current
+   page ("2 of 30") followed by previous/next arrows: the number is an inline
+   number input that doubles as the jump control, and each arrow is an inert
+   <span> when it would go nowhere, so the layout doesn't shift.
 
-   `label` is the plural noun for the listed items (e.g. "datasets"); pass
-   `label_singular` too so a total of 1 reads "1 dataset".
-
-   The count renders only when `total` is given (start/end/total); the pager
-   renders only when total_pages > 1. #}
+   `base` is the view's "?…" query fragment for the arrow links; the form
+   re-sends the other current query params from `request.GET` as hidden inputs,
+   since a GET form replaces the query string. `label`/`label_singular` name
+   the listed items. The pager renders only when total_pages > 1. #}
 {% macro pagination(start=None, end=None, total=None, page=1, total_pages=1, base="", label="", label_singular=None) %}
   {% if total is not none %}
     {% set noun = (label_singular or label) if total == 1 else label %}
     <p class="count">
       {{ total | num }}
-      {% if noun %}{{ noun }}{% endif %}
+      {%- if noun %} {{ noun }}{% endif %}
     </p>
   {% endif %}
   {% if total_pages > 1 %}
     {% set page_href = base + "&page=" if base else "?page=" %}
     <nav class="pagination" aria-label="Pagination">
-      {% if page > 1 %}<a class="page-link" href="{{ page_href }}{{ page - 1 }}" aria-label="Previous page">←</a>{% endif %}
-      {% for p in range(1, total_pages + 1) %}
-        {% if p == page %}
-          <span class="page-link page-link--active">{{ p }}</span>
-        {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
-          <a class="page-link" href="{{ page_href }}{{ p }}">{{ p }}</a>
-        {% elif p == page - 3 or p == page + 3 %}
-          <span class="page-link page-link--ellipsis">…</span>
+      <form class="page-jump" method="get" action="">
+        {% if request is defined %}
+          {% for key, values in request.GET.lists() %}
+            {% if key != 'page' %}
+              {% for value in values %}
+                <input type="hidden" name="{{ key }}" value="{{ value }}" />
+              {% endfor %}
+            {% endif %}
+          {% endfor %}
         {% endif %}
-      {% endfor %}
-      {% if page < total_pages %}<a class="page-link" href="{{ page_href }}{{ page + 1 }}" aria-label="Next page">→</a>{% endif %}
+        <input class="page-jump__input" type="number" name="page" value="{{ page }}"
+               min="1" max="{{ total_pages }}" step="1" inputmode="numeric"
+               enterkeyhint="go" aria-label="Page number, of {{ total_pages }}" />
+        <span class="page-jump__of" aria-hidden="true">of {{ total_pages | num }}</span>
+      </form>
+      {% if page > 1 %}
+        <a class="page-link" href="{{ page_href }}{{ page - 1 }}" aria-label="Previous page">‹</a>
+      {% else %}
+        <span class="page-link page-link--disabled" aria-hidden="true">‹</span>
+      {% endif %}
+      {% if page < total_pages %}
+        <a class="page-link" href="{{ page_href }}{{ page + 1 }}" aria-label="Next page">›</a>
+      {% else %}
+        <span class="page-link page-link--disabled" aria-hidden="true">›</span>
+      {% endif %}
     </nav>
   {% endif %}
 {% endmacro %}

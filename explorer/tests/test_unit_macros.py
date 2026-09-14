@@ -73,6 +73,30 @@ def test_pagination_count_and_singular_label():
     assert "1,234 datasets" in " ".join(many.split())
 
 
+def test_pagination_jump_form_rebuilds_query_params():
+    class _GET:
+        def lists(self):
+            return [("sort", ["name"]), ("dir", ["asc"]), ("page", ["9"])]
+
+    class _Request:
+        GET = _GET()
+
+    html = _render(
+        "{% from 'macros/_pagination.html' import pagination with context %}"
+        "{{ pagination(start=101, end=200, total=250, page=2, total_pages=3,"
+        " base='?sort=name&dir=asc', label='datasets') }}",
+        {"request": _Request()},
+    )
+    # other params are re-sent; the page is rebuilt from the current page
+    assert 'name="sort" value="name"' in html
+    assert 'name="dir" value="asc"' in html
+    assert 'value="9"' not in html
+    assert 'name="page" value="2"' in html
+    assert 'min="1" max="3"' in html
+    assert 'aria-label="Page number, of 3"' in html
+    assert "of 3" in " ".join(html.split())
+
+
 # --- sub-nav ---------------------------------------------------------------
 def test_subnav_active_heading_and_sibling_links():
     html = _render(
