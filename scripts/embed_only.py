@@ -40,6 +40,17 @@ _WS_RE = re.compile(r"\s+")
 # this script truncates + repopulates, never creates.
 TRUNCATE_SQL = "TRUNCATE TABLE embedding_map, dataset_embeddings CASCADE"
 
+# Drop the HNSW index before bulk-loading embeddings and recreate it after.
+# Incremental HNSW maintenance during individual INSERTs degrades from ~180
+# rows/s at the start to ~30 rows/s by 67k rows, adding ~30-40 minutes to a
+# full rebuild. A single bulk CREATE INDEX takes ~5 minutes and produces the
+# same result.
+DROP_HNSW_SQL = "DROP INDEX IF EXISTS idx_dataset_embeddings_hnsw"
+CREATE_HNSW_SQL = (
+    "CREATE INDEX idx_dataset_embeddings_hnsw "
+    "ON dataset_embeddings USING hnsw (embedding vector_l2_ops)"
+)
+
 
 def build_texts(rows: list[dict]) -> list[str | None]:
     """Build BGE-prefixed input texts.
@@ -142,6 +153,11 @@ def main() -> None:
         # Truncate + repopulate the embedding tables (migration-owned).
         db.exec(TRUNCATE_SQL)
 
+        # Drop the HNSW index before bulk-loading — incremental maintenance is
+        # O(n log n) overall and adds 30-40 min on a 67k-row rebuild.
+        db.exec(DROP_HNSW_SQL)
+        print("HNSW index dropped; will rebuild after inserts.", file=sys.stderr)
+
         rows = db.prepare("SELECT id, title, notes FROM datasets").all()
         print(f"datasets to embed: {len(rows)}", file=sys.stderr)
 
@@ -167,9 +183,20 @@ def main() -> None:
 
         elapsed = (time.time() - start_time) / 60
         print(
-            f"Done: {len(texts)} datasets embedded in {elapsed:.1f} min.",
+            f"Embeddings done: {len(texts)} datasets in {elapsed:.1f} min.",
             file=sys.stderr,
         )
+
+        print("Rebuilding HNSW index (this takes ~5 min)...", file=sys.stderr)
+        t_idx = time.time()
+        db.exec(CREATE_HNSW_SQL)
+        print(
+            f"HNSW index rebuilt in {(time.time() - t_idx) / 60:.1f} min.",
+            file=sys.stderr,
+        )
+
+        total_elapsed = (time.time() - start_time) / 60
+        print(f"Done: total {total_elapsed:.1f} min.", file=sys.stderr)
     finally:
         db.close()
 
