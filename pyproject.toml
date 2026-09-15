@@ -136,6 +136,8 @@ lint.per-file-ignores."conftest.py" = [
 # The shared facet builder's parameters are its API surface — one option
 # per page behaviour — not a complexity smell.
 lint.per-file-ignores."explorer/facets.py" = [ "PLR0913", "PLR0917" ]
+# _report_facets' keyword-only sort params are its interface, not complexity.
+lint.per-file-ignores."explorer/views/reports.py" = [ "PLR0913" ]
 lint.per-file-ignores."explorer/tests/*.py" = [ "PLR2004" ]
 lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
 # Status codes and pagination sizes in test assertions are intent, not magic.

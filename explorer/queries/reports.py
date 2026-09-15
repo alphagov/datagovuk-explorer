@@ -3,6 +3,8 @@ count/list statements."""
 
 import functools
 
+from explorer.sort import order_by as _order_by_sql
+
 from .core import Query, facet_where
 
 # --- Data-quality report definitions and their compiled count/list statements ---
@@ -31,6 +33,38 @@ LINK_REPORT_COLS = (
 )
 LINK_REPORT_ORDER = "LOWER(org_display_name), LOWER(dataset_title), id"
 
+DATASET_REPORT_SORT = {
+    "org": "LOWER(org_display_name)",
+    "title": "LOWER(COALESCE(title, ''))",
+    "metadata_created": "COALESCE(metadata_created, '')",
+    "metadata_modified": "COALESCE(metadata_modified, '')",
+    "views": "COALESCE(views, 0)",
+}
+DATASET_REPORT_SORT_DEFAULT = ("org", "asc")
+
+LINK_REPORT_SORT = {
+    "org": "LOWER(org_display_name)",
+    "dataset_title": "LOWER(COALESCE(dataset_title, ''))",
+    "name": "LOWER(COALESCE(name, ''))",
+    "url": "LOWER(COALESCE(url, ''))",
+    "format": "LOWER(COALESCE(format_norm, ''))",
+}
+LINK_REPORT_SORT_DEFAULT = ("org", "asc")
+
+DUPLICATE_CONTENT_SORT = {
+    "dataset_count": "dataset_count",
+    "org_count": "org_count",
+    "title": "LOWER(title)",
+}
+DUPLICATE_CONTENT_SORT_DEFAULT = ("dataset_count", "desc")
+
+DUPLICATE_URL_SORT = {
+    "dataset_count": "dataset_count",
+    "org_count": "org_count",
+    "url": "LOWER(url)",
+}
+DUPLICATE_URL_SORT_DEFAULT = ("dataset_count", "desc")
+
 # Prefixed variants for the special reports' aliased queries (d./datasets./
 # l. table aliases — the bare column names would be ambiguous with their
 # joins).
@@ -44,8 +78,7 @@ def _dataset_report_sql(where: str) -> dict:
         "where": where,
         "count_sql": f"SELECT COUNT(*) AS n FROM datasets WHERE {where}",
         "list_sql": (
-            f"SELECT {DATASET_REPORT_COLS} FROM datasets WHERE {where}"
-            f" ORDER BY {DATASET_REPORT_ORDER} LIMIT %s OFFSET %s"
+            f"SELECT {DATASET_REPORT_COLS} FROM datasets WHERE {where} ORDER BY {{order_by}} LIMIT %s OFFSET %s"
         ),
     }
 
@@ -55,9 +88,7 @@ def _link_report_sql(where: str) -> dict:
     return {
         "where": where,
         "count_sql": f"SELECT COUNT(*) AS n FROM links WHERE {where}",
-        "list_sql": (
-            f"SELECT {LINK_REPORT_COLS} FROM links WHERE {where} ORDER BY {LINK_REPORT_ORDER} LIMIT %s OFFSET %s"
-        ),
+        "list_sql": (f"SELECT {LINK_REPORT_COLS} FROM links WHERE {where} ORDER BY {{order_by}} LIMIT %s OFFSET %s"),
     }
 
 
@@ -86,7 +117,7 @@ REPORTS = [
     {
         "key": "datasets-no-description",
         "label": "Datasets with no description",
-        "description":"",
+        "description": "",
         "kind": "datasets",
         "facets": [
             {
@@ -147,10 +178,7 @@ REPORTS = [
     {
         "key": "datasets-withdrawn",
         "label": "Datasets that have been withdrawn",
-        "description": (
-            "Datasets marked as withdrawn, retired or no longer available in their "
-            "title or description."
-        ),
+        "description": ("Datasets marked as withdrawn, retired or no longer available in their title or description."),
         "kind": "datasets",
         "facets": [
             {
@@ -188,9 +216,7 @@ REPORTS = [
         # kind is "duplicate-content" (no such totals bucket), but the card's
         # count is still a share of all datasets — name the bucket explicitly.
         "percent_of": "datasets",
-        "description": (
-            "Datasets that share an identical title, description and link URLs "
-        ),
+        "description": ("Datasets that share an identical title, description and link URLs "),
         "kind": "duplicate-content",
         # content_hash (dataset_content_hash, built by scripts/build_db.py) is
         # an md5 of the normalised title+notes+resource-URL-set — an exact
@@ -257,21 +283,21 @@ REPORTS = [
               JOIN datasets d ON d.id = h.dataset_id
               GROUP BY h.content_hash
               HAVING COUNT(*) > 1{org}
-              ORDER BY dataset_count DESC, title
+              ORDER BY {order_by}
               LIMIT %s OFFSET %s""",
         # Detail: every dataset in one content-hash group (used when ?hash= is set)
         "detail_sql": f"""SELECT {_DATASET_REPORT_COLS_D}
                 FROM dataset_content_hash h
                 JOIN datasets d ON d.id = h.dataset_id
                 WHERE h.content_hash = %s
-                ORDER BY LOWER(d.org_display_name), LOWER(d.title), d.metadata_created, d.id
+                ORDER BY {{order_by}}
                 LIMIT %s OFFSET %s""",
         "detail_count_sql": "SELECT COUNT(*) AS n FROM dataset_content_hash WHERE content_hash = %s",
     },
     {
         "key": "links-no-url",
         "label": "Links with no URL",
-        "description":"",
+        "description": "",
         "kind": "links",
         # Columns the WHERE clause guarantees to be empty — hidden so the
         # table doesn't show a column of dashes (shared links table).
@@ -293,7 +319,7 @@ REPORTS = [
     {
         "key": "links-bad-url",
         "label": "Links with broken URLs",
-        "description":"",
+        "description": "",
         "kind": "links",
         "facets": [
             {
@@ -311,7 +337,7 @@ REPORTS = [
     {
         "key": "links-no-format",
         "label": "Links with no format",
-        "description":"",
+        "description": "",
         "kind": "links",
         "hidden_cols": ["format"],
         "facets": [
@@ -354,10 +380,7 @@ REPORTS = [
     {
         "key": "links-duplicate-urls",
         "label": "Duplicate URLs across datasets",
-        "description": (
-            "URLs that appear on more than one dataset."
-            "Click a URL to see every dataset that links to it."
-        ),
+        "description": ("URLs that appear on more than one dataset.Click a URL to see every dataset that links to it."),
         "kind": "duplicate-urls",
         # Count: unique URLs that appear in 2+ datasets
         "count_sql": f"""SELECT COUNT(*) AS n FROM (
@@ -373,13 +396,13 @@ REPORTS = [
               WHERE {_DUP_URLS_FILTER}
               GROUP BY url
               HAVING COUNT(DISTINCT dataset_id) > 1
-              ORDER BY dataset_count DESC, url
+              ORDER BY {{order_by}}
               LIMIT %s OFFSET %s""",
         # Detail: all links for one URL (used when ?url= is set)
         "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}
                 FROM links l
                 WHERE l.url = %s
-                ORDER BY LOWER(l.org_display_name), LOWER(l.dataset_title), l.id
+                ORDER BY {{order_by}}
                 LIMIT %s OFFSET %s""",
         "detail_count_sql": "SELECT COUNT(*) AS n FROM links WHERE url = %s",
     },
@@ -446,9 +469,14 @@ def report_unfiltered_options(key: str) -> dict[str, list[dict]]:
     return {facet_key: Query(sql).all(*params) for facet_key, (sql, params) in entry.items()}
 
 
-def report_stmts(report: dict, filters: dict[str, str] | None = None) -> dict:
+def report_stmts(
+    report: dict,
+    filters: dict[str, str] | None = None,
+    sort: str | None = None,
+    dir_: str | None = None,
+) -> dict:
     """Return {params, count, list} statements for a report, optionally
-    filtered by facet values (facet key → selected value)."""
+    filtered by facet values (facet key → selected value) and sorted."""
     filters = filters or {}
     count_sql = report["count_sql"]
     list_sql = report["list_sql"]
@@ -471,6 +499,25 @@ def report_stmts(report: dict, filters: dict[str, str] | None = None) -> dict:
             list_sql = list_sql.replace(placeholder, fragment)
             if append_param:
                 params.append(value)
+
+    kind = report.get("kind")
+    if "{order_by}" in list_sql:
+        if kind == "datasets":
+            s = sort if sort in DATASET_REPORT_SORT else DATASET_REPORT_SORT_DEFAULT[0]
+            d = dir_ if dir_ in ("asc", "desc") else DATASET_REPORT_SORT_DEFAULT[1]
+            list_sql = list_sql.replace("{order_by}", _order_by_sql(DATASET_REPORT_SORT, s, d, "LOWER(title), id"))
+        elif kind == "links":
+            s = sort if sort in LINK_REPORT_SORT else LINK_REPORT_SORT_DEFAULT[0]
+            d = dir_ if dir_ in ("asc", "desc") else LINK_REPORT_SORT_DEFAULT[1]
+            list_sql = list_sql.replace("{order_by}", _order_by_sql(LINK_REPORT_SORT, s, d, "LOWER(dataset_title), id"))
+        elif kind == "duplicate-content":
+            s = sort if sort in DUPLICATE_CONTENT_SORT else DUPLICATE_CONTENT_SORT_DEFAULT[0]
+            d = dir_ if dir_ in ("asc", "desc") else DUPLICATE_CONTENT_SORT_DEFAULT[1]
+            list_sql = list_sql.replace("{order_by}", _order_by_sql(DUPLICATE_CONTENT_SORT, s, d, "title"))
+        elif kind == "duplicate-urls":
+            s = sort if sort in DUPLICATE_URL_SORT else DUPLICATE_URL_SORT_DEFAULT[0]
+            d = dir_ if dir_ in ("asc", "desc") else DUPLICATE_URL_SORT_DEFAULT[1]
+            list_sql = list_sql.replace("{order_by}", _order_by_sql(DUPLICATE_URL_SORT, s, d, "url"))
 
     entry = {
         "params": params,

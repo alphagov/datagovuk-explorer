@@ -58,11 +58,11 @@
         {% endif %}
         <thead>
           <tr>
-            <th class="col-text">Dataset</th>
-            <th class="col-text">Publisher</th>
-            <th class="col-date">Created</th>
-            <th class="col-date">Modified</th>
-            <th class="col-num">Views</th>
+            <th class="col-text">{{ sort_link("title", "Dataset", sort, dir, facet_qs) }}</th>
+            <th class="col-text">{{ sort_link("org", "Publisher", sort, dir, facet_qs) }}</th>
+            <th class="col-date">{{ sort_link("metadata_created", "Created", sort, dir, facet_qs) }}</th>
+            <th class="col-date">{{ sort_link("metadata_modified", "Modified", sort, dir, facet_qs) }}</th>
+            <th class="col-num">{{ sort_link("views", "Views", sort, dir, facet_qs) }}</th>
             {% if current.show_api_links %}<th class="col-text">API links</th>{% endif %}
           </tr>
         </thead>
@@ -109,9 +109,9 @@
         </colgroup>
         <thead>
           <tr>
-            <th class="col-text">URL</th>
-            <th class="col-num">Datasets</th>
-            <th class="col-num">Publishers</th>
+            <th class="col-text">{{ sort_link("url", "URL", sort, dir, facet_qs) }}</th>
+            <th class="col-num">{{ sort_link("dataset_count", "Datasets", sort, dir, facet_qs) }}</th>
+            <th class="col-num">{{ sort_link("org_count", "Publishers", sort, dir, facet_qs) }}</th>
           </tr>
         </thead>
         <tbody>
@@ -133,9 +133,9 @@
         </colgroup>
         <thead>
           <tr>
-            <th class="col-text">Title</th>
-            <th class="col-num">Datasets</th>
-            <th class="col-num">Publishers</th>
+            <th class="col-text">{{ sort_link("title", "Title", sort, dir, facet_qs) }}</th>
+            <th class="col-num">{{ sort_link("dataset_count", "Datasets", sort, dir, facet_qs) }}</th>
+            <th class="col-num">{{ sort_link("org_count", "Publishers", sort, dir, facet_qs) }}</th>
           </tr>
         </thead>
         <tbody>
@@ -159,11 +159,11 @@
         </colgroup>
         <thead>
           <tr>
-            {% if "name" not in current.hidden_cols %}<th class="col-text">Name</th>{% endif %}
-            {% if "url" not in current.hidden_cols %}<th>URL</th>{% endif %}
-            {% if "format" not in current.hidden_cols %}<th class="col-text">Format</th>{% endif %}
-            <th class="col-text">Dataset</th>
-            <th class="col-text">Publisher</th>
+            {% if "name" not in current.hidden_cols %}<th class="col-text">{{ sort_link("name", "Name", sort, dir, facet_qs) }}</th>{% endif %}
+            {% if "url" not in current.hidden_cols %}<th>{{ sort_link("url", "URL", sort, dir, facet_qs) }}</th>{% endif %}
+            {% if "format" not in current.hidden_cols %}<th class="col-text">{{ sort_link("format", "Format", sort, dir, facet_qs) }}</th>{% endif %}
+            <th class="col-text">{{ sort_link("dataset_title", "Dataset", sort, dir, facet_qs) }}</th>
+            <th class="col-text">{{ sort_link("org", "Publisher", sort, dir, facet_qs) }}</th>
           </tr>
         </thead>
         <tbody>

@@ -18,12 +18,21 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.queries.core import Query
 from explorer.queries.reports import (
+    DATASET_REPORT_SORT,
+    DATASET_REPORT_SORT_DEFAULT,
+    DUPLICATE_CONTENT_SORT,
+    DUPLICATE_CONTENT_SORT_DEFAULT,
+    DUPLICATE_URL_SORT,
+    DUPLICATE_URL_SORT_DEFAULT,
+    LINK_REPORT_SORT,
+    LINK_REPORT_SORT_DEFAULT,
     REPORTS,
     report_facet_counts,
     report_stmts,
     report_unfiltered_count,
     report_unfiltered_options,
 )
+from explorer.sort import order_by as _order_by_sql, parse_sort
 
 from .core import _pill, paginate
 
@@ -36,17 +45,34 @@ REPORT_FACET_PLURALS = {
     "api_type": "api types",
 }
 
+# Sort columns and defaults for each report kind.
+_REPORT_SORT = {
+    "datasets": (DATASET_REPORT_SORT, DATASET_REPORT_SORT_DEFAULT),
+    "links": (LINK_REPORT_SORT, LINK_REPORT_SORT_DEFAULT),
+    "duplicate-content": (DUPLICATE_CONTENT_SORT, DUPLICATE_CONTENT_SORT_DEFAULT),
+    "duplicate-urls": (DUPLICATE_URL_SORT, DUPLICATE_URL_SORT_DEFAULT),
+}
+_NO_SORT = ({}, ("name", "asc"))
+
+_DUPLICATE_CONTENT_DETAIL_SORT_DEFAULT = ("metadata_created", "asc")
+
 
 def _duplicate_url_report(request, report, url):
     """Duplicate-URLs detail mode (?url=<encoded-url>) — every dataset that
     links to one shared URL."""
+    sort, dir_ = parse_sort(request, LINK_REPORT_SORT, *LINK_REPORT_SORT_DEFAULT)
+    order_sql = _order_by_sql(LINK_REPORT_SORT, sort, dir_, "LOWER(dataset_title), id")
+    list_stmt = Query(report["detail_sql"].replace("{order_by}", order_sql))
+
     count_stmt = Query(report["detail_count_sql"])
-    list_stmt = Query(report["detail_sql"])
     total = count_stmt.get(url)["n"]
 
     pagination = paginate(request, total)
-
     rows = list_stmt.all(url, pagination["page_size"], pagination["offset"])
+
+    base_params = facets.preserve_params(sort, dir_, [("url", url)], defaults=LINK_REPORT_SORT_DEFAULT)
+    facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params)
 
     return render(
         request,
@@ -64,7 +90,10 @@ def _duplicate_url_report(request, report, url):
             },
             "detail_url": url,
             "pills": [],
-            "pager_base": "",
+            "sort": sort,
+            "dir": dir_,
+            "facet_qs": facet_qs,
+            "pager_base": pager_base,
             "rows": rows,
             **pagination,
         },
@@ -74,13 +103,21 @@ def _duplicate_url_report(request, report, url):
 def _duplicate_content_report(request, report, content_hash):
     """Duplicate-content detail mode (?hash=<md5>) — every dataset that
     shares one identical title/notes/resource-URL-set hash."""
+    sort, dir_ = parse_sort(request, DATASET_REPORT_SORT, *_DUPLICATE_CONTENT_DETAIL_SORT_DEFAULT)
+    order_sql = _order_by_sql(DATASET_REPORT_SORT, sort, dir_, "LOWER(title), id")
+    list_stmt = Query(report["detail_sql"].replace("{order_by}", order_sql))
+
     count_stmt = Query(report["detail_count_sql"])
-    list_stmt = Query(report["detail_sql"])
     total = count_stmt.get(content_hash)["n"]
 
     pagination = paginate(request, total)
-
     rows = list_stmt.all(content_hash, pagination["page_size"], pagination["offset"])
+
+    base_params = facets.preserve_params(
+        sort, dir_, [("hash", content_hash)], defaults=_DUPLICATE_CONTENT_DETAIL_SORT_DEFAULT,
+    )
+    facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params)
 
     return render(
         request,
@@ -98,14 +135,25 @@ def _duplicate_content_report(request, report, content_hash):
             },
             "detail_hash": content_hash,
             "pills": [],
-            "pager_base": "",
+            "sort": sort,
+            "dir": dir_,
+            "facet_qs": facet_qs,
+            "pager_base": pager_base,
             "rows": rows,
             **pagination,
         },
     )
 
 
-def _report_facets(report, query_params, expanded) -> tuple[dict, dict, list, dict]:
+def _report_facets(
+    report,
+    query_params,
+    expanded,
+    *,
+    sort="name",
+    dir_="asc",
+    sort_defaults=("name", "asc"),
+) -> tuple[dict, dict, list, dict]:
     """The report's facet groups + active selections for one request,
     validated against the report's own unfiltered facet options.
 
@@ -139,20 +187,16 @@ def _report_facets(report, query_params, expanded) -> tuple[dict, dict, list, di
                     },
                 )
 
-    # Query-string base — built before the groups so the More toggles can
-    # use it. Report pages have no sort UI: "name"/"asc" are placeholders
-    # that match `defaults`, so preserve_params omits them and the base is
-    # facets + the expanded-lists extras only.
     extras = {}
     for key, plural in REPORT_FACET_PLURALS.items():
         if expanded.get(key):
             extras[plural.replace(" ", "_")] = "all"
     base_params = facets.preserve_params(
-        "name",
-        "asc",
+        sort,
+        dir_,
         list(active_filters.items()),
         extras or None,
-        defaults=("name", "asc"),
+        defaults=sort_defaults,
     )
 
     # Pass 2 — self-excluding counts with the complete active-filter set.
@@ -206,6 +250,10 @@ def report(request, key):
     if report["kind"] == "duplicate-content" and content_hash is not None:
         return _duplicate_content_report(request, report, content_hash)
 
+    kind = report["kind"]
+    sort_cols, sort_defaults = _REPORT_SORT.get(kind, _NO_SORT)
+    sort, dir_ = parse_sort(request, sort_cols, *sort_defaults)
+
     # Optional single-select facets (?org=<slug>, ?api_type=<slug>...). Each
     # report defines its own `facets` list; the selected values are validated
     # against the compiled facet options before being used as filters.
@@ -221,15 +269,18 @@ def report(request, key):
             "api_type": request.GET.get("api_type"),
         },
         expanded,
+        sort=sort,
+        dir_=dir_,
+        sort_defaults=sort_defaults,
     )
 
-    # Query-string machinery — same pattern as the other facet pages: a
-    # preserve_params base (report pages have no sort UI, so the pager
-    # base is facets only), facet_url_for for the facet links and pills.
+    # Query-string machinery — facet_url_for for the facet links and pills;
+    # pager_base includes sort so pagination preserves the chosen column.
     facet_url = facets.facet_url_for(base_params)
-    pager_base = facets.pager_base(base_params, include_sort=False)
+    facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params)
 
-    stmt = report_stmts(report, active_filters)
+    stmt = report_stmts(report, active_filters, sort=sort, dir_=dir_)
     # No-filter count is memoised per report key (build-time snapshot);
     # filtered counts run live (per-combo SQL).
     total = report_unfiltered_count(report["key"]) if not active_filters else stmt["count"].get(*stmt["params"])["n"]
@@ -267,7 +318,10 @@ def report(request, key):
             "facet_groups": facet_groups,
             "pills": pills,
             "facet_url": facet_url,
+            "facet_qs": facet_qs,
             "pager_base": pager_base,
+            "sort": sort,
+            "dir": dir_,
             "rows": rows,
             **pagination,
         },
