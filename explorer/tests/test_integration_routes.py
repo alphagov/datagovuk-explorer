@@ -39,6 +39,9 @@ BASE_ROUTES = [
     ("/search/publishers", {"q": "alpha"}),
     ("/search/datasets", {"q": "flood"}),
     ("/api/publishers", {"q": "al"}),
+    # Duplicate-content detail mode (?hash=) — see root conftest.py's
+    # DatasetContentHash fixture (d01/d09 share "hash-shared-d01-d09").
+    ("/report/datasets-duplicate-content", {"hash": "hash-shared-d01-d09"}),
 ]
 
 # Respond-only: exercise a non-default sort/dir and a page-2 branch per

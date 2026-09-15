@@ -2,7 +2,9 @@
 
 GET /report/{key}        — one paginated report per finding, with optional
                             single-select org facet (?org=)
-GET /report/{key}?url=... — duplicate-URL detail mode (links-duplicate-urls)
+GET /report/{key}?url=...  — duplicate-URL detail mode (links-duplicate-urls)
+GET /report/{key}?hash=... — duplicate-content detail mode
+                              (datasets-duplicate-content)
 
 The home dashboard (GET /) is views/dashboard.py; its card data is
 assembled in queries/dashboard.py.
@@ -61,6 +63,40 @@ def _duplicate_url_report(request, report, url):
                 "hidden_cols": {"url"},
             },
             "detail_url": url,
+            "pills": [],
+            "pager_base": "",
+            "rows": rows,
+            **pagination,
+        },
+    )
+
+
+def _duplicate_content_report(request, report, content_hash):
+    """Duplicate-content detail mode (?hash=<md5>) — every dataset that
+    shares one identical title/notes/resource-URL-set hash."""
+    count_stmt = Query(report["detail_count_sql"])
+    list_stmt = Query(report["detail_sql"])
+    total = count_stmt.get(content_hash)["n"]
+
+    pagination = paginate(request, total)
+
+    rows = list_stmt.all(content_hash, pagination["page_size"], pagination["offset"])
+
+    return render(
+        request,
+        "report.html",
+        {
+            "title": "Duplicate dataset content — data.gov.uk Explorer",
+            "nav_key": "dashboard",
+            "current": {
+                "key": report["key"],
+                "label": report["label"],
+                "description": report["description"],
+                "kind": "datasets",
+                "count": total,
+                "hidden_cols": set(),
+            },
+            "detail_hash": content_hash,
             "pills": [],
             "pager_base": "",
             "rows": rows,
@@ -160,10 +196,15 @@ def report(request, key):
         raise Http404
 
     url = request.GET.get("url")
+    content_hash = request.GET.get("hash")
 
     # Duplicate URLs detail mode: ?url=<encoded-url>
     if report["kind"] == "duplicate-urls" and url is not None:
         return _duplicate_url_report(request, report, url)
+
+    # Duplicate content detail mode: ?hash=<md5>
+    if report["kind"] == "duplicate-content" and content_hash is not None:
+        return _duplicate_content_report(request, report, content_hash)
 
     # Optional single-select facets (?org=<slug>, ?api_type=<slug>...). Each
     # report defines its own `facets` list; the selected values are validated

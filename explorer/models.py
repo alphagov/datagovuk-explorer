@@ -147,6 +147,36 @@ class DatasetApi(models.Model):
         return f"{self.dataset_id} ({self.api_category})"
 
 
+class DatasetContentHash(models.Model):
+    """One row per dataset: an md5 hash of its normalised title, notes and
+    resource URL set, for exact-duplicate detection (Tier 1 — see
+    docs/ideas.md "Duplicate dataset detection"). Computed by a single
+    INSERT...SELECT in scripts/build_db.py, TRUNCATE + rebuilt like
+    dataset_api, so the hash algorithm can be tweaked without a full
+    rebuild. content_hash is indexed (not unique — that's the point:
+    GROUP BY content_hash HAVING COUNT(*) > 1 finds the duplicate sets)
+    so other queries can join/filter on it cheaply."""
+
+    dataset = models.OneToOneField(
+        Dataset,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        db_column="dataset_id",
+        db_index=False,
+    )
+    content_hash = models.TextField()
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "dataset_content_hash"
+        indexes = [
+            models.Index(fields=["content_hash"], name="dataset_content_hash_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.dataset_id} ({self.content_hash})"
+
+
 class DatasetJson(models.Model):
     dataset = models.OneToOneField(
         Dataset,

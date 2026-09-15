@@ -369,6 +369,7 @@ def make_fixtures():
     from explorer.models import (
         Dataset,
         DatasetApi,
+        DatasetContentHash,
         DatasetJson,
         HarvestSource,
         Link,
@@ -425,6 +426,24 @@ def make_fixtures():
         [
             DatasetApi(dataset_id="d09", api_category="map-layers"),
             DatasetApi(dataset_id="d13", api_category="data-apis"),
+        ],
+    )
+
+    # One row per dataset, as the real build populates it — every dataset
+    # gets its own hash except the three that share one: d01 + d05 (alpha)
+    # and d09 (beta). Three members, not two, so a group has a distinct
+    # group count (1), member count (3) and redundant-record count (2) —
+    # the datasets-duplicate-content report's own count, its dashboard card
+    # and the detail page each assert a different one. Cross-org, so the
+    # detail page's org_count is exercised too.
+    _shared_hash = "hash-shared-d01-d05-d09"
+    DatasetContentHash.objects.bulk_create(
+        [
+            DatasetContentHash(
+                dataset_id=row["id"],
+                content_hash=_shared_hash if row["id"] in ("d01", "d05", "d09") else f"hash-{row['id']}",
+            )
+            for row in _DATASETS
         ],
     )
 

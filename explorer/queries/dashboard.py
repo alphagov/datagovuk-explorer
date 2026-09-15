@@ -19,7 +19,7 @@ from explorer.queries.core import fetch_parallel
 from explorer.queries.datasets import DATASET_TOTAL, DATASETS_NO_LINKS_COUNT, THEME_COUNTS
 from explorer.queries.links import LINKS_STATS
 from explorer.queries.organisations import LAST_PUBLISHED_BY_ORG, ORGS
-from explorer.queries.reports import REPORTS, report_stmts
+from explorer.queries.reports import REPORTS, report_dashboard_count
 
 # Active-org card — how many most-recent publication years count as "active".
 ACTIVE_YEAR_COUNT = 2
@@ -55,8 +55,9 @@ def cards() -> dict:
     card key), per-kind has-items flags, and the grand total.
 
     Cards come in two shapes:
-    - one per report, counting that report's rows via queries/reports'
-      report_stmts (the count/list SQL builders);
+    - one per report, counting via queries/reports' report_dashboard_count
+      (normally the report's own unfiltered count; see that function's
+      docstring for the one exception);
     - hand-built cards (orgs-active, orgs-no-datasets, datasets-no-theme)
       from the totals queries.
 
@@ -68,12 +69,12 @@ def cards() -> dict:
     Memoised: computed once per process on first request; later requests
     serve the cached result (rebuild/restart contract in the module docstring).
     """
-    report_count_fns: list = []
-    for report in REPORTS:
-        stmt = report_stmts(report)
-        # Capture stmt per iteration — otherwise every lambda closes over
-        # the last statement's count.
-        report_count_fns.append(lambda stmt=stmt: stmt["count"].get(*stmt["params"])["n"])
+    # report_dashboard_count is normally the same as the report's own
+    # unfiltered count; datasets-duplicate-content groups its own list by
+    # content hash (for pagination), so its card needs a different query —
+    # see dashboard_count_sql in queries/reports.py. Capture key per
+    # iteration — otherwise every lambda closes over the last report's key.
+    report_count_fns: list = [(lambda key=report["key"]: report_dashboard_count(key)) for report in REPORTS]
 
     org_rows, last_pub_rows, total_datasets_row, links_stats, theme_count_rows, no_links_count_row, *report_counts = fetch_parallel(
         [
@@ -94,11 +95,17 @@ def cards() -> dict:
 
     cards = {}
     for report, count in zip(REPORTS, report_counts, strict=True):
+        # A report's kind normally doubles as its totals bucket (orgs /
+        # datasets / links). Reports whose kind is a display-only value name
+        # their bucket explicitly with percent_of (datasets-duplicate-content).
+        # duplicate-urls names neither → percent is None.
+        bucket = report.get("percent_of", report["kind"])
         cards[report["key"]] = {
-            "label": report["label"],
+            # dashboard_label when the card's metric isn't the page's unit
+            # (see dashboard_count_sql in queries/reports.py).
+            "label": report.get("dashboard_label", report["label"]),
             "count": count,
-            # duplicate-urls has no totals bucket → percent is None
-            "percent": ((count / totals[report["kind"]] * 100) if totals.get(report["kind"]) else None),
+            "percent": ((count / totals[bucket] * 100) if totals.get(bucket) else None),
             "href": f"/report/{report['key']}",
         }
 

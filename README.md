@@ -3,7 +3,7 @@
 A Django 6 web app that audits the quality of the data on
 [data.gov.uk](https://www.data.gov.uk): the catalogue's publisher and
 dataset inventory, data-quality issue reports (datasets with no links,
-duplicate titles, unparseable URLs, …), a browseable `/datasets` index
+duplicate content, unparseable URLs, …), a browseable `/datasets` index
 and a `/links` section with two reports — every resource link (`/links`)
 and the link-check errors report (`/links/errors`) — each with sidebar
 facets, LLM-generated reviews and suggestions, and a `/metadata`

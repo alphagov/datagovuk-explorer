@@ -11,8 +11,14 @@ from .core import Query, facet_where
 #
 # Regular reports differ only in their WHERE clause: `_dataset_report_sql` /
 # `_link_report_sql` build both statements from that one clause, so count
-# and list can't drift. The special reports (duplicate-titles, duplicate-urls)
+# and list can't drift. The special reports (duplicate-urls, duplicate-content)
 # keep hand-written SQL.
+#
+# There's deliberately no plain "duplicate titles" report: an exact title
+# match with different content is either a genuine duplicate (caught by
+# datasets-duplicate-content, which hashes title+notes+resource URLs) or a
+# dated/renamed series (caught by build_series.py) — a title-only report
+# would just re-surface both of those with less precision.
 #
 # Each report's SQL carries a {key} placeholder per facet, replaced by the
 # facet's filter_sql when a value is selected, or '' when not.
@@ -174,48 +180,93 @@ REPORTS = [
         ),
     },
     {
-        "key": "datasets-duplicate-titles",
-        "label": "Datasets with duplicate titles",
+        "key": "datasets-duplicate-content",
+        "label": "Datasets with duplicate content",
+        # The card counts redundant records, not datasets-with-a-duplicate
+        # (12,707 vs 10,859), so it gets its own label.
+        "dashboard_label": "Duplicate datasets",
+        # kind is "duplicate-content" (no such totals bucket), but the card's
+        # count is still a share of all datasets — name the bucket explicitly.
+        "percent_of": "datasets",
         "description": (
-            "Datasets that share an identical title with another dataset from the same "
-            "organisation"
+            "Datasets that share an identical title, description and link URLs "
         ),
-        "kind": "datasets",
+        "kind": "duplicate-content",
+        # content_hash (dataset_content_hash, built by scripts/build_db.py) is
+        # an md5 of the normalised title+notes+resource-URL-set — an exact
+        # match means byte-for-byte duplicate content, no self-join needed.
+        #
+        # count_sql/list_sql paginate by *group* (one row per duplicated
+        # hash) — the report page's own count must match those rows 1:1
+        # (test_every_report_count_matches_list).
+        #
+        # dashboard_count_sql is the dashboard card's number instead: how
+        # many *redundant* records exist — every member of a duplicate group
+        # except the one copy you'd keep, i.e. sum(size - 1) over groups.
+        # (Counting all members would instead answer "how many datasets have
+        # a duplicate", which is the less actionable number.) As of the last
+        # full build: 1,848 groups covering 12,707 records, of which 10,859
+        # are redundant. Note the sum must be over *groups* — summing
+        # (c - 1) over rows of a window-function count would be n(n-1).
+        #
+        # Publisher facet (?org=<slug>): a group can span more than one
+        # organisation (that's the interesting case — the same content
+        # published twice under different publishers), so filtering by org
+        # narrows to groups with a member in that org, not to that org's
+        # rows within the group — dataset_count/org_count stay whole-group
+        # totals. The {org} placeholder sits in HAVING (content_hash is the
+        # GROUP BY key, so a bare reference there is valid SQL) rather than
+        # WHERE, so it can't shrink a group's own aggregate before HAVING
+        # COUNT(*) > 1 sees it.
         "facets": [
             {
                 "key": "org",
                 "label": "Publisher",
-                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
-            FROM (
-              SELECT d.org_slug, d.org_display_name,
-                     COUNT(*) OVER (PARTITION BY d.org_slug, lower(trim(d.title))) AS c
-              FROM datasets d
-              WHERE d.title IS NOT NULL AND TRIM(d.title) != ''
-            ) sub
-            WHERE c > 1{facet_and}
-            GROUP BY org_slug, org_display_name
-            ORDER BY count DESC, LOWER(org_display_name)""",
-                "filter_sql": " AND org_slug = %s",
+                "counts_sql": """SELECT d.org_slug AS slug, d.org_display_name AS name,
+                     COUNT(DISTINCT h.content_hash) AS count
+            FROM dataset_content_hash h
+            JOIN datasets d ON d.id = h.dataset_id
+            WHERE h.content_hash IN (
+                SELECT content_hash FROM dataset_content_hash GROUP BY content_hash HAVING COUNT(*) > 1
+            ){facet_and}
+            GROUP BY d.org_slug, d.org_display_name
+            ORDER BY count DESC, LOWER(d.org_display_name)""",
+                "filter_sql": (
+                    " AND content_hash IN ("
+                    "SELECT hh.content_hash FROM dataset_content_hash hh "
+                    "JOIN datasets dd ON dd.id = hh.dataset_id WHERE dd.org_slug = %s)"
+                ),
             },
         ],
-        # Window-function COUNT(*) OVER per org/title pair — one pass over
-        # datasets, no self-join. {org} is the publisher facet filter placeholder.
         "count_sql": """SELECT COUNT(*) AS n FROM (
-               SELECT d.id, COUNT(*) OVER (PARTITION BY org_slug, lower(trim(title))) AS c
-               FROM datasets d
-               WHERE title IS NOT NULL AND TRIM(title) != ''{org}
-             ) WHERE c > 1""",
-        "list_sql": f"""SELECT {_DATASET_REPORT_COLS_D}
-              FROM datasets d
-              JOIN (
-                SELECT id FROM (
-                  SELECT d.id, COUNT(*) OVER (PARTITION BY org_slug, lower(trim(title))) AS c
-                  FROM datasets d
-                  WHERE title IS NOT NULL AND TRIM(title) != ''{{org}}
-                ) WHERE c > 1
-              ) dups ON dups.id = d.id
-              ORDER BY LOWER(d.org_display_name), LOWER(d.title), d.metadata_created, d.id
+               SELECT content_hash FROM dataset_content_hash
+               GROUP BY content_hash
+               HAVING COUNT(*) > 1{org}
+             ) sub""",
+        "dashboard_count_sql": """SELECT COALESCE(SUM(n - 1), 0) AS n FROM (
+               SELECT COUNT(*) AS n FROM dataset_content_hash
+               GROUP BY content_hash
+               HAVING COUNT(*) > 1
+             ) sub""",
+        # List: one row per duplicate-content group — a representative title
+        # (every member's title is identical by construction) with the
+        # dataset/org counts, sorted by most-duplicated.
+        "list_sql": """SELECT h.content_hash, MIN(d.title) AS title,
+                     COUNT(*) AS dataset_count, COUNT(DISTINCT d.org_slug) AS org_count
+              FROM dataset_content_hash h
+              JOIN datasets d ON d.id = h.dataset_id
+              GROUP BY h.content_hash
+              HAVING COUNT(*) > 1{org}
+              ORDER BY dataset_count DESC, title
               LIMIT %s OFFSET %s""",
+        # Detail: every dataset in one content-hash group (used when ?hash= is set)
+        "detail_sql": f"""SELECT {_DATASET_REPORT_COLS_D}
+                FROM dataset_content_hash h
+                JOIN datasets d ON d.id = h.dataset_id
+                WHERE h.content_hash = %s
+                ORDER BY LOWER(d.org_display_name), LOWER(d.title), d.metadata_created, d.id
+                LIMIT %s OFFSET %s""",
+        "detail_count_sql": "SELECT COUNT(*) AS n FROM dataset_content_hash WHERE content_hash = %s",
     },
     {
         "key": "links-no-url",
@@ -366,6 +417,23 @@ def report_unfiltered_count(key: str) -> int:
     report = next(r for r in REPORTS if r["key"] == key)
     stmt = report_stmts(report)
     return stmt["count"].get(*stmt["params"])["n"]
+
+
+@functools.cache
+def report_dashboard_count(key: str) -> int:
+    """The dashboard card's count for one report — memoised per report key.
+
+    Normally the same as report_unfiltered_count: one row per affected
+    item. A report whose list groups by something other than the affected
+    item itself (datasets-duplicate-content groups by content hash, so its
+    own count/list must agree on *groups* for pagination) instead defines
+    dashboard_count_sql for the card's own metric, and optionally
+    dashboard_label when that metric's unit differs from the page's.
+    """
+    report = next(r for r in REPORTS if r["key"] == key)
+    if "dashboard_count_sql" in report:
+        return Query(report["dashboard_count_sql"]).get()["n"]
+    return report_unfiltered_count(key)
 
 
 @functools.cache

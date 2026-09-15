@@ -82,6 +82,11 @@ build-db *args: migrate
 build-dataset-api:
     uv run --env-file .env python -m scripts.build_db dataset-api
 
+# Rebuild just the dataset_content_hash table (TRUNCATE + INSERT) — fast,
+# no full rebuild needed. Use when tweaking the duplicate-detection hash.
+build-dataset-content-hash:
+    uv run --env-file .env python -m scripts.build_db dataset-content-hash
+
 # One-shot fresh local database: create it if missing, apply the schema,
 # then populate it (offline — pass --skip-embeddings). The path for a
 # fresh checkout. db_name must be the database DATABASE_URL names (default

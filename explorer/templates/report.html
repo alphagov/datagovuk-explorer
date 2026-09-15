@@ -8,6 +8,8 @@
 {% block header_left %}
   {% if detail_url %}
     {{ back_link('/report/links-duplicate-urls', 'Duplicate URLs across datasets') }}
+  {% elif detail_hash %}
+    {{ back_link('/report/datasets-duplicate-content', 'Datasets with duplicate content') }}
   {% else %}
     {{ back_link('/', 'Dashboard') }}
   {% endif %}
@@ -26,6 +28,8 @@
 {% block header_right %}
   {% if current.kind == "duplicate-urls" %}
     {% set count_label, count_label_singular = 'URLs', 'URL' %}
+  {% elif current.kind == "duplicate-content" %}
+    {% set count_label, count_label_singular = 'duplicate sets', 'duplicate set' %}
   {% elif current.kind == "links" %}
     {% set count_label, count_label_singular = 'links', 'link' %}
   {% else %}
@@ -115,6 +119,30 @@
             <tr>
               <th scope="row" class="col-text">
                 <a href="?url={{ row.url | urlencode }}">{{ row.url }}</a>
+              </th>
+              <td class="col-num">{{ row.dataset_count | num }}</td>
+              <td class="col-num">{{ row.org_count | num }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {% elif current.kind == "duplicate-content" %}
+        <colgroup>
+          <col class="col-url" />
+          <col class="col-num" />
+          <col class="col-num" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="col-text">Title</th>
+            <th class="col-num">Datasets</th>
+            <th class="col-num">Publishers</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <th scope="row" class="col-text">
+                <a href="?hash={{ row.content_hash }}">{{ row.title }}</a>
               </th>
               <td class="col-num">{{ row.dataset_count | num }}</td>
               <td class="col-num">{{ row.org_count | num }}</td>

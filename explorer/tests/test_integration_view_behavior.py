@@ -13,9 +13,16 @@ import pytest
 from django.test import SimpleTestCase
 
 from explorer.queries.core import Query
+from explorer.queries.dashboard import cards
 from explorer.queries.datasets import datasets_facet_counts, datasets_stmts
 from explorer.queries.harvesters import harvest_source_rows, harvest_sources_stmts, harvested_total
-from explorer.queries.reports import REPORTS, report_facet_counts, report_stmts
+from explorer.queries.reports import (
+    REPORTS,
+    report_dashboard_count,
+    report_facet_counts,
+    report_stmts,
+    report_unfiltered_count,
+)
 from explorer.views.harvesters import HarvesterFilters, _matches
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
@@ -55,6 +62,65 @@ def test_report_facet_validation(client):
     assert_count(client.get("/report/datasets-no-description?org=__bogus__"), unfiltered, "datasets")
     assert_count(client.get(f"/report/datasets-no-description?org={top['slug']}"), filtered, "datasets")
     assert filtered == top["count"]
+
+
+def test_duplicate_content_report_list_and_detail(client):
+    """List page: one duplicate-content group — the three fixture datasets
+    that share a hash (d01, d05 from alpha, d09 from beta; see root
+    conftest.py). Detail page (?hash=): all three members, across orgs."""
+    report = _report("datasets-duplicate-content")
+    n = _report_count(report)
+    assert n == 1  # exactly one duplicate-hash group in the fixture
+
+    assert_count(client.get("/report/datasets-duplicate-content"), n, "duplicate set")
+
+
+def test_duplicate_content_org_facet_keeps_whole_group_stats(client):
+    """Filtering by publisher narrows to groups with a member in that org
+    (d01/d05 are alpha, d09 is beta), but the row still shows the whole
+    group's totals (3 datasets, 2 publishers), not just that org's side."""
+    report = _report("datasets-duplicate-content")
+    sql, params = report_facet_counts(report, {})["org"]
+    options = Query(sql).all(*params)
+    assert {o["slug"] for o in options} == {"alpha", "beta"}
+    assert all(o["count"] == 1 for o in options)  # one group, either side
+
+    filtered = _report_count(report, {"org": "alpha"})
+    assert filtered == 1
+
+    out = report_stmts(report, {"org": "alpha"})
+    row = out["list"].all(*out["params"], 10, 0)[0]
+    assert row["dataset_count"] == 3  # whole group, not just alpha's two
+    assert row["org_count"] == 2
+
+    assert client.get("/report/datasets-duplicate-content?org=alpha").status_code == 200
+
+
+def test_duplicate_content_dashboard_count_is_redundant_records(client):
+    """The dashboard card counts *redundant* records — every member of a
+    duplicate group except the one you'd keep — so the fixture's 3-member
+    group counts 2. Not the groups (1) and not all members (3), which are
+    what the report page's own count and list rows use."""
+    assert report_unfiltered_count("datasets-duplicate-content") == 1  # groups
+    assert report_dashboard_count("datasets-duplicate-content") == 2  # 3 - 1
+
+    cards.cache_clear()
+    card = cards()["cards"]["datasets-duplicate-content"]
+    assert card["count"] == 2
+    # the card's unit differs from the page's, so it carries its own label
+    assert card["label"] == "Duplicate datasets"
+    # share of all datasets (16 in the fixture), via percent_of — the
+    # "duplicate-content" kind itself is not a totals bucket
+    assert card["percent"] == 2 / 16 * 100
+
+    html = client.get(
+        "/report/datasets-duplicate-content",
+        {"hash": "hash-shared-d01-d05-d09"},
+    ).content.decode()
+    assert "Air quality data" in html  # d01
+    assert "Coastal erosion observations" in html  # d05
+    assert "Bus timetables" in html  # d09
+    _html_case.assertInHTML("3 datasets", html)
 
 
 def test_datasets_bogus_filters_fall_back(client):

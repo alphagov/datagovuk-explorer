@@ -148,17 +148,7 @@ data.gov, data.gov.au) would contextualise the scores — "UK datasets
 average 3.2/5 for findability vs. 3.8 in the EU portal". This is a
 large scope expansion but the review pipeline is model-agnostic and
 could point at any CKAN instance.
-
-### Duplicate dataset detection
-
-Beyond duplicate titles (which the report already covers), detect
-near-duplicate datasets: same data published under different names by
-the same or different orgs. The embedding vectors already exist for
-semantic similarity — a clustering pass over the embeddings could
-surface groups of datasets that are suspiciously similar. Combined with
-resource URL overlap (the duplicate-URLs report), this could identify
-datasets that should be merged or deduplicated.
-
+  
 ---
 
 ## Technical improvements

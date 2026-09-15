@@ -41,8 +41,8 @@
         <a class="dashboard-group-link" href="/datasets">Datasets</a>
         <span class="dashboard-group-count">{{ total_datasets | num }}</span>
       </h2>
+      {{ dashboard_card("datasets-duplicate-content") }}
       {{ dashboard_card("datasets-no-links") }}
-      {{ dashboard_card("datasets-duplicate-titles") }}
       {{ dashboard_card("datasets-withdrawn") }}
       {{ dashboard_card("datasets-no-description") }}
       {{ dashboard_card("datasets-short-title") }}
