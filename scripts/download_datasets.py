@@ -269,6 +269,11 @@ def process_batch(
             continue
 
         try:
+            # Wipe stale files so the build only sees what CKAN returns now.
+            if force and dir_path.is_dir():
+                for stale in dir_path.glob("*.json"):
+                    stale.unlink()
+
             datasets = fetch_datasets(rate_limit, client, org_name, per_org, SORT)
 
             if not datasets:

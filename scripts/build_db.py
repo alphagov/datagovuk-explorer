@@ -706,13 +706,16 @@ ON CONFLICT (id) DO UPDATE SET
     harvest_source_id = EXCLUDED.harvest_source_id
 """
 
-# One row per coverage period — bulk-loaded per batch like links (the
-# tables are truncated at build start and no dataset id repeats in the
-# file set, so a plain INSERT cannot conflict on (dataset_id, position)).
+# One row per coverage period — bulk-loaded per batch like links.
+# Upsert: a dataset can appear under multiple orgs in the download set.
 INSERT_PERIOD_SQL = """
 INSERT INTO temporal_periods
     (dataset_id, position, from_year, to_year, source)
 VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (dataset_id, position) DO UPDATE SET
+    from_year = EXCLUDED.from_year,
+    to_year   = EXCLUDED.to_year,
+    source    = EXCLUDED.source
 """
 
 INSERT_JSON_SQL = """
