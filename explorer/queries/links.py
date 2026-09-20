@@ -228,7 +228,8 @@ LINKS_STATS = Query(
          COUNT(*) AS total,
          COUNT(DISTINCT org_slug) AS orgs,
          SUM(CASE WHEN host IS NULL THEN 1 ELSE 0 END) AS no_url,
-         SUM(CASE WHEN host = 'data.gov.uk' OR host LIKE '%%.data.gov.uk' THEN 1 ELSE 0 END) AS internal
+         SUM(CASE WHEN host = 'data.gov.uk' OR host LIKE '%%.data.gov.uk' THEN 1 ELSE 0 END) AS internal,
+         SUM(CASE WHEN format_norm IS NULL OR format_norm = '' THEN 1 ELSE 0 END) AS no_format
        FROM links""",
 )
 

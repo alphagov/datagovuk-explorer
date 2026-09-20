@@ -295,53 +295,12 @@ REPORTS = [
         "detail_count_sql": "SELECT COUNT(*) AS n FROM dataset_content_hash WHERE content_hash = %s",
     },
     {
-        "key": "links-no-url",
-        "label": "Links with no URL",
-        "description": "",
-        "kind": "links",
-        # Columns the WHERE clause guarantees to be empty — hidden so the
-        # table doesn't show a column of dashes (shared links table).
-        "hidden_cols": ["url"],
-        # Publisher facet (?org=<slug>) — same pattern as datasets-no-links.
-        "facets": [
-            {
-                "key": "org",
-                "label": "Publisher",
-                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
-            FROM links WHERE (url IS NULL OR url = ''){facet_and}
-            GROUP BY org_slug, org_display_name
-            ORDER BY count DESC, LOWER(org_display_name)""",
-                "filter_sql": " AND org_slug = %s",
-            },
-        ],
-        **_link_report_sql("(url IS NULL OR url = ''){org}"),
-    },
-    {
-        "key": "links-no-format",
-        "label": "Links with no format",
-        "description": "",
-        "kind": "links",
-        "hidden_cols": ["format"],
-        "facets": [
-            {
-                "key": "org",
-                "label": "Publisher",
-                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
-            FROM links WHERE (format_norm IS NULL OR format_norm = ''){facet_and}
-            GROUP BY org_slug, org_display_name
-            ORDER BY count DESC, LOWER(org_display_name)""",
-                "filter_sql": " AND org_slug = %s",
-            },
-        ],
-        **_link_report_sql("(format_norm IS NULL OR format_norm = ''){org}"),
-    },
-    {
         "key": "links-no-name",
         "label": "Links with no name",
         "description": "",
         "kind": "links",
         "hidden_cols": ["name", "description"],
-        # Publisher facet (?org=<slug>) — same pattern as links-no-url.
+        # Publisher facet (?org=<slug>).
         "facets": [
             {
                 "key": "org",

@@ -138,6 +138,24 @@ def cards() -> dict:
         "href": "/datasets?links=0",
     }
 
+    # links-no-url card
+    no_url_count = links_stats.get("no_url") or 0
+    cards["links-no-url"] = {
+        "label": "Links with no URL",
+        "count": no_url_count,
+        "percent": (no_url_count / totals["links"] * 100) if totals["links"] else None,
+        "href": "/links/status?domain=__none__",
+    }
+
+    # links-no-format card
+    no_format_count = links_stats.get("no_format") or 0
+    cards["links-no-format"] = {
+        "label": "Links with no format",
+        "count": no_format_count,
+        "percent": (no_format_count / totals["links"] * 100) if totals["links"] else None,
+        "href": "/links?format=__none__",
+    }
+
     # links-broken card
     broken_count = broken_links_row.get("errors") or 0
     cards["links-broken"] = {
@@ -166,7 +184,7 @@ def cards() -> dict:
         group_keys.setdefault(report["kind"], []).append(report["key"])
     group_keys.setdefault("orgs", []).extend([active["key"], "orgs-no-datasets"])
     group_keys.setdefault("datasets", []).extend(["datasets-no-links", "datasets-no-theme"])
-    group_keys.setdefault("links", []).append("links-broken")
+    group_keys.setdefault("links", []).extend(["links-no-url", "links-no-format", "links-broken"])
     group_has_items = {kind: any(cards[key]["count"] > 0 for key in keys) for kind, keys in group_keys.items()}
 
     return {
