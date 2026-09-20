@@ -483,6 +483,24 @@ WHERE link_id IN (
 )
 """
 
+# Catches anything that slips past the blank/malformed marks but can't be
+# HTTP-checked: typo schemes (htts://, hhttps://, ttp://), non-HTTP schemes
+# (ftp://, file://), wrong case (Https://), and http-prefixed-but-malformed
+# (http:/foo, https:///foo). Condition mirrors _LOAD_SQL's LIKE filter plus
+# the is_checkable_url netloc requirement.
+_MARK_UNCHECKABLE_SQL = """
+UPDATE link_check_results
+SET checked_at  = %s,
+    method      = 'SKIPPED',
+    ok          = false,
+    http_status = NULL,
+    final_url   = NULL,
+    error       = 'url:malformed'
+WHERE checked_at IS NULL
+  AND url IS NOT NULL AND url != ''
+  AND NOT (url LIKE 'http%%' AND url ~* '^https?://[^/]')
+"""
+
 
 def _populate_link_check_results(db: Db) -> int:
     """Insert a pending row for every link not yet in link_check_results. Returns count inserted."""
@@ -504,6 +522,14 @@ def _mark_malformed_urls(db: Db) -> int:
     now = datetime.now(tz=UTC).isoformat()
     with db.conn.cursor() as cur:
         cur.execute(_MARK_MALFORMED_SQL, (now,))
+        return cur.rowcount
+
+
+def _mark_uncheckable_urls(db: Db) -> int:
+    """Mark non-HTTP/non-checkable URLs (typo schemes, ftp://, etc.) as url:malformed."""
+    now = datetime.now(tz=UTC).isoformat()
+    with db.conn.cursor() as cur:
+        cur.execute(_MARK_UNCHECKABLE_SQL, (now,))
         return cur.rowcount
 
 
@@ -674,6 +700,10 @@ async def _main(
         n_malformed = _mark_malformed_urls(db)
         if n_malformed:
             print(f"  Marked {n_malformed} malformed URL(s) as url:malformed", flush=True)
+
+        n_uncheckable = _mark_uncheckable_urls(db)
+        if n_uncheckable:
+            print(f"  Marked {n_uncheckable} uncheckable URL(s) as url:malformed", flush=True)
 
         print("Loading URLs…", flush=True)
         urls = load_urls(db, force=force, limit=limit, only_host=only_host)
