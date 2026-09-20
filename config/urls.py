@@ -65,6 +65,12 @@ urlpatterns += [
     path("suggestions", views.suggestions, name="suggestions"),
 ]
 
+# --- check-progress -----------------------------------------------
+urlpatterns += [
+    path("check-progress", views.check_progress, name="check-progress"),
+    path("check-progress/data", views.check_progress_data, name="check-progress-data"),
+]
+
 # --- search -------------------------------------------------------
 urlpatterns += [
     path("search", views.search, name="search"),

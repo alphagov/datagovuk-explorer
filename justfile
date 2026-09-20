@@ -233,3 +233,9 @@ ingest-reviews:
 # checker output lands; TRUNCATE + reload, like ingest-reviews)
 ingest-link-errors:
     uv run --env-file .env python -m scripts.ingest_link_errors
+
+# Check every URL in the links table (HEAD → GET → Playwright fallback).
+# Writes results to link_check_results; safe to interrupt and rerun.
+# View live progress at /check-progress while the checker is running.
+check-links *args:
+    uv run --env-file .env python -m scripts.check_links {{args}}

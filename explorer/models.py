@@ -375,6 +375,31 @@ class Review(models.Model):
         return self.title or str(self.dataset)
 
 
+class LinkCheckResult(models.Model):
+    """One row per distinct URL checked by scripts/check_links.py.
+
+    Keyed by URL (not link_id) so multiple links sharing the same URL are
+    checked once. method is HEAD | GET | PLAYWRIGHT | SKIPPED | ERROR.
+    error uses a short prefix (ssl: dns: timeout: connect: http:NNN
+    playwright:) so failures are queryable without a separate column.
+    """
+
+    url = models.TextField(primary_key=True)
+    checked_at = models.TextField()
+    method = models.TextField(blank=True, null=True)
+    ok = models.BooleanField(blank=True, null=True)
+    http_status = models.IntegerField(blank=True, null=True)
+    final_url = models.TextField(blank=True, null=True)
+    error = models.TextField(blank=True, null=True)
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "link_check_results"
+
+    def __str__(self):
+        return self.url
+
+
 class LinkError(models.Model):
     """One row per link-check result from data/errors-current.csv, loaded by
     scripts/ingest_link_errors.py (TRUNCATE + reload).

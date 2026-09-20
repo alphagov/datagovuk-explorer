@@ -5,6 +5,7 @@ rest are the per-page modules. Collected here so config/urls.py can address
 every view as views.<name>.
 """
 
+from .check_progress import check_progress, check_progress_data
 from .core import _page_param, health, not_found, paginate
 from .dashboard import dashboard
 from .search import publisher_suggest, search, search_datasets, search_publishers
@@ -23,6 +24,8 @@ from .suggestions import suggestions
 
 __all__ = [
     "_page_param",
+    "check_progress",
+    "check_progress_data",
     "dashboard",
     "publisher_suggest",
     "dataset",

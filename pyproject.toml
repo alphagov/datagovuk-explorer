@@ -12,6 +12,7 @@ dependencies = [
   "django>=6.1",
   "gunicorn>=23.0",
   "httpx>=0.28",
+  "playwright>=1.49",
   "jinja2>=3.1",
   "psycopg[binary]>=3.3.4",
   "python-dotenv>=1.2.2",
@@ -145,6 +146,7 @@ lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
 # _translate, …) — the private members ARE the units under test.
 # Complexity rules (C901 + PLR0911-17) are on; the per-file exceptions
 # below mark functions whose signature or branching is their interface.
+lint.per-file-ignores."scripts/check_links.py" = [ "C901", "FBT001", "FBT003", "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004" ]
 lint.per-file-ignores."scripts/download_datasets.py" = [ "PLR0913" ]
 lint.per-file-ignores."scripts/embed_only.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."scripts/review_suggest.py" = [ "PLR0913" ]

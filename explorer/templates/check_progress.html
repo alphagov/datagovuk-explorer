@@ -1,0 +1,167 @@
+{% extends "_layout.html" %}
+
+{% block styles %}
+  <link rel="stylesheet" href="{{ static('css/components/content-layout.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/table.css') }}" />
+  <style>
+    .progress-page { padding: 1.5rem 0; }
+    .progress-summary {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: var(--surface-raised, #f8f8f8);
+      border-radius: 6px;
+    }
+    .progress-summary__item { display: flex; flex-direction: column; gap: 0.25rem; }
+    .progress-summary__value { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .progress-summary__label { font-size: 0.8125rem; color: var(--text-secondary, #666); }
+    .progress-bar-wrap {
+      height: 6px;
+      background: var(--border, #ddd);
+      border-radius: 3px;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+    .progress-bar { height: 100%; background: var(--accent, #005ea5); border-radius: 3px; transition: width 0.4s; }
+    .status { font-size: 0.8125rem; color: var(--text-secondary, #666); margin-bottom: 1rem; }
+    .status--done { color: var(--green, #00703c); font-weight: 600; }
+    tr.unchecked { opacity: 0.45; }
+  </style>
+{% endblock styles %}
+
+{% block content %}
+  <div class="content-layout content-layout--full">
+    <div class="progress-page">
+      <h1>Link-check progress</h1>
+
+      <div class="progress-summary" id="summary">
+        <div class="progress-summary__item">
+          <span class="progress-summary__value" id="s-total">—</span>
+          <span class="progress-summary__label">Total URLs</span>
+        </div>
+        <div class="progress-summary__item">
+          <span class="progress-summary__value" id="s-checked">—</span>
+          <span class="progress-summary__label">Checked</span>
+        </div>
+        <div class="progress-summary__item">
+          <span class="progress-summary__value" id="s-ok">—</span>
+          <span class="progress-summary__label">OK</span>
+        </div>
+        <div class="progress-summary__item">
+          <span class="progress-summary__value" id="s-broken">—</span>
+          <span class="progress-summary__label">Broken</span>
+        </div>
+        <div class="progress-summary__item">
+          <span class="progress-summary__value" id="s-pct">—</span>
+          <span class="progress-summary__label">Complete</span>
+        </div>
+      </div>
+
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+      </div>
+
+      <p class="status" id="status">Loading…</p>
+
+      <div class="table-wrap">
+        <table class="data-table" id="hosts-table">
+          <thead>
+            <tr>
+              <th>Host</th>
+              <th class="col-num">Total</th>
+              <th class="col-num">Checked</th>
+              <th class="col-num">OK</th>
+              <th class="col-num">Broken</th>
+              <th class="col-num">SSL</th>
+              <th class="col-num">DNS</th>
+              <th class="col-num">Timeout</th>
+              <th class="col-num">Connect</th>
+              <th class="col-num">HTTP</th>
+              <th class="col-num">Playwright</th>
+            </tr>
+          </thead>
+          <tbody id="hosts-body">
+            <tr>
+              <td colspan="11" style="text-align:center;color:var(--text-secondary,#666)">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var POLL_MS = 3000;
+      var timer = null;
+
+      function fmt(n) {
+        return (n == null) ? '—' : n.toLocaleString();
+      }
+
+      function render(data) {
+        var pct = data.total > 0 ? Math.round(data.checked * 100 / data.total) : 0;
+        document.getElementById('s-total').textContent = fmt(data.total);
+        document.getElementById('s-checked').textContent = fmt(data.checked);
+        document.getElementById('s-ok').textContent = fmt(data.ok);
+        document.getElementById('s-broken').textContent = fmt(data.broken);
+        document.getElementById('s-pct').textContent = pct + '%';
+        document.getElementById('progress-bar').style.width = pct + '%';
+
+        var statusEl = document.getElementById('status');
+        if (data.total > 0 && data.checked >= data.total) {
+          statusEl.textContent = 'Complete — all ' + fmt(data.total) + ' URLs checked.';
+          statusEl.className = 'status status--done';
+          if (timer) { clearInterval(timer); timer = null; }
+        } else {
+          statusEl.textContent = 'Polling every 3 s…';
+          statusEl.className = 'status';
+        }
+
+        var tbody = document.getElementById('hosts-body');
+        var checked = [];
+        var unchecked = [];
+        (data.hosts || []).forEach(function (h) {
+          if (h.checked > 0) checked.push(h); else unchecked.push(h);
+        });
+
+        var rows = checked.concat(unchecked).map(function (h) {
+          var e = h.errors || {};
+          var cls = h.checked === 0 ? ' class="unchecked"' : '';
+          return '<tr' + cls + '>' +
+            '<td class="col-text">' + escHtml(h.host || '(no host)') + '</td>' +
+            '<td class="col-num">' + fmt(h.total) + '</td>' +
+            '<td class="col-num">' + fmt(h.checked) + '</td>' +
+            '<td class="col-num">' + fmt(h.ok) + '</td>' +
+            '<td class="col-num">' + fmt(h.broken) + '</td>' +
+            '<td class="col-num">' + fmt(e.ssl) + '</td>' +
+            '<td class="col-num">' + fmt(e.dns) + '</td>' +
+            '<td class="col-num">' + fmt(e.timeout) + '</td>' +
+            '<td class="col-num">' + fmt(e.connect) + '</td>' +
+            '<td class="col-num">' + fmt(e.http) + '</td>' +
+            '<td class="col-num">' + fmt(e.playwright) + '</td>' +
+            '</tr>';
+        });
+        tbody.innerHTML = rows.join('') || '<tr><td colspan="11">No data yet.</td></tr>';
+      }
+
+      function escHtml(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+
+      function poll() {
+        fetch('/check-progress/data')
+          .then(function (r) { return r.json(); })
+          .then(render)
+          .catch(function (err) {
+            document.getElementById('status').textContent = 'Error fetching data: ' + err;
+          });
+      }
+
+      poll();
+      timer = setInterval(poll, POLL_MS);
+    })();
+  </script>
+{% endblock content %}
