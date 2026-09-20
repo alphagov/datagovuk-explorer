@@ -83,23 +83,33 @@ def _classify_connect_error(exc: httpx.ConnectError) -> str:
 
 
 class HostGate:
-    """Asyncio-based per-host adaptive rate limiter.
+    """Per-host rate limiter with dead-host detection.
 
-    Starts each host at start_ms (1 req/s). After SPEED_UP_AFTER consecutive
-    reachable responses (any 2xx-4xx except 429), the interval halves toward
-    floor_ms (4 req/s). Any unreachable response (timeout, connect error,
-    5xx, 429) resets the interval and streak back to start.
+    Rate logic:
+      - success (any 2xx–4xx except 429): count streak; every SPEED_UP_AFTER
+        consecutive successes steps the interval down by floor_ms toward floor_ms.
+      - 429: permanently lock acceleration; step interval up by floor_ms toward start_ms.
+      - 5xx / timeout / connect error: count toward DEAD_THRESHOLD; no rate change.
+
+    Dead-host logic:
+      - Once a host accumulates DEAD_THRESHOLD dead signals, is_dead() returns True
+        and record() returns True exactly once (the turn it crosses the threshold).
     """
 
     SPEED_UP_AFTER = 5
+    DEAD_THRESHOLD = 10
 
     def __init__(self, start_ms: int = 1000, floor_ms: int = 250) -> None:
         self._start = start_ms / 1000.0
         self._floor = floor_ms / 1000.0
+        self._step = floor_ms / 1000.0
         self._locks: dict[str, asyncio.Lock] = {}
         self._last: dict[str, float] = {}
         self._intervals: dict[str, float] = {}
         self._streak: dict[str, int] = {}
+        self._accelerating: dict[str, bool] = {}
+        self._dead_counts: dict[str, int] = {}
+        self._dead: set[str] = set()
 
     def _cur_interval(self, host: str) -> float:
         return self._intervals.get(host, self._start)
@@ -115,21 +125,43 @@ class HostGate:
                 await asyncio.sleep(wait)
             self._last[host] = time.monotonic()
 
-    def record(self, host: str, *, reachable: bool) -> None:
-        """Update per-host interval based on whether the server responded.
+    def record(self, host: str, *, status: int | None, error: str | None) -> bool:
+        """Update per-host state. Returns True if the host just crossed the dead threshold."""
+        err = error or ""
+        is_success = status is not None and status != 429 and status < 500
+        is_429 = status == 429
+        is_dead_signal = (
+            (status is not None and status >= 500)
+            or err.startswith("timeout:")
+            or err.startswith("connect:")
+            or err.startswith("dns:")
+            or err.startswith("ssl:")
+            or (err.startswith("playwright:") and err != "playwright:unavailable")
+        )
 
-        reachable=True (HTTP 2xx-4xx, excluding 429): count toward speed-up.
-        reachable=False (timeout, connect error, 5xx, 429): reset to start.
-        """
-        if reachable:
-            streak = self._streak.get(host, 0) + 1
-            self._streak[host] = streak
-            if streak >= self.SPEED_UP_AFTER:
-                self._intervals[host] = max(self._cur_interval(host) / 2, self._floor)
-                self._streak[host] = 0
-        else:
+        if is_success:
+            if self._accelerating.get(host, True):
+                streak = self._streak.get(host, 0) + 1
+                self._streak[host] = streak
+                if streak >= self.SPEED_UP_AFTER:
+                    self._intervals[host] = max(self._cur_interval(host) - self._step, self._floor)
+                    self._streak[host] = 0
+        elif is_429:
+            self._accelerating[host] = False
             self._streak[host] = 0
-            self._intervals[host] = self._start
+            self._intervals[host] = min(self._cur_interval(host) + self._step, self._start)
+        elif is_dead_signal:
+            self._streak[host] = 0
+            count = self._dead_counts.get(host, 0) + 1
+            self._dead_counts[host] = count
+            if count >= self.DEAD_THRESHOLD and host not in self._dead:
+                self._dead.add(host)
+                return True
+
+        return False
+
+    def is_dead(self, host: str) -> bool:
+        return host in self._dead
 
 
 # ---------------------------------------------------------------------------
@@ -420,8 +452,6 @@ def write_result(db: Db, result: dict[str, Any]) -> None:
     )
 
 
-DEAD_HOST_THRESHOLD = 10
-
 _DEAD_HOST_SQL = """
 INSERT INTO link_check_results (url, checked_at, method, ok, http_status, final_url, error)
 SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL::integer, NULL::text, 'timeout:dead host'
@@ -441,14 +471,6 @@ def _bulk_mark_dead_host(db: Db, host: str) -> int:
     with db.conn.cursor() as cur:
         cur.execute(_DEAD_HOST_SQL, (now, host))
         return cur.rowcount
-
-
-def _is_timeout(result: dict[str, Any]) -> bool:
-    error = result.get("error") or ""
-    return error.startswith("timeout:") or (
-        result.get("method") == "PLAYWRIGHT"
-        and ("timeout" in error.lower() or "timed out" in error.lower())
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -482,14 +504,12 @@ async def _process_url(
     timeout_ms: int,
     queue: asyncio.Queue,
     counter: list[int],
-    dead_hosts: set[str],
-    timeout_counts: dict[str, int],
     db: Db,
 ) -> None:
     host = urlparse(url).hostname or ""
 
     async with worker_sem:
-        if host in dead_hosts:
+        if gate.is_dead(host):
             counter[0] += 1
             return
 
@@ -502,16 +522,10 @@ async def _process_url(
                 pw_sem=pw_sem,
                 timeout_ms=timeout_ms,
             )
-            status = result.get("http_status")
-            reachable = status is not None and 200 <= status < 500 and status != 429
-            gate.record(host, reachable=reachable)
-
-            if _is_timeout(result):
-                timeout_counts[host] = timeout_counts.get(host, 0) + 1
-                if timeout_counts[host] == DEAD_HOST_THRESHOLD:
-                    dead_hosts.add(host)
-                    n = _bulk_mark_dead_host(db, host)
-                    print(f"  Dead host {host}: marked {n} remaining URL(s) as timed-out", flush=True)
+            newly_dead = gate.record(host, status=result.get("http_status"), error=result.get("error"))
+            if newly_dead:
+                n = _bulk_mark_dead_host(db, host)
+                print(f"  Dead host {host}: marked {n} remaining URL(s) as timed-out", flush=True)
         except Exception as exc:  # noqa: BLE001
             result = _make_result(url, method="ERROR", ok=False, error=f"connect:{exc}")
         await queue.put(result)
@@ -671,9 +685,6 @@ async def _run_workers(
     workers: int,
     pw_pages: int,
 ) -> None:
-    dead_hosts: set[str] = set()
-    timeout_counts: dict[str, int] = {}
-
     writer_task = asyncio.create_task(writer(queue, db))
     logger_task = asyncio.create_task(_log_progress(counter, total, worker_sem, pw_sem, workers, pw_pages, queue))
 
@@ -689,8 +700,6 @@ async def _run_workers(
                 timeout_ms=timeout_ms,
                 queue=queue,
                 counter=counter,
-                dead_hosts=dead_hosts,
-                timeout_counts=timeout_counts,
                 db=db,
             ),
         )

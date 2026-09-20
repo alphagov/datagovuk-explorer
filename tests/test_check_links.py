@@ -10,6 +10,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
+import pytest
 
 os.environ.setdefault("DATABASE_URL", "postgresql://localhost:5432/test-db")
 
@@ -211,6 +212,118 @@ def test_playwright_error_broken():
 
 
 # ---------------------------------------------------------------------------
+# HostGate
+# ---------------------------------------------------------------------------
+
+
+def test_host_gate_accelerates():
+    # start=1000ms, floor=250ms, step=250ms → levels: 1000, 750, 500, 250
+    gate = cl.HostGate(start_ms=1000, floor_ms=250)
+    host = "example.com"
+    for _ in range(5):
+        gate.record(host, status=200, error=None)
+    assert gate._cur_interval(host) == pytest.approx(0.750)
+    for _ in range(5):
+        gate.record(host, status=200, error=None)
+    assert gate._cur_interval(host) == pytest.approx(0.500)
+    for _ in range(5):
+        gate.record(host, status=200, error=None)
+    assert gate._cur_interval(host) == pytest.approx(0.250)
+    # Already at floor — more successes don't go lower
+    for _ in range(5):
+        gate.record(host, status=200, error=None)
+    assert gate._cur_interval(host) == pytest.approx(0.250)
+
+
+def test_host_gate_429_locks_and_steps_back():
+    gate = cl.HostGate(start_ms=1000, floor_ms=250)
+    host = "example.com"
+    # Accelerate to floor
+    for _ in range(15):
+        gate.record(host, status=200, error=None)
+    assert gate._cur_interval(host) == pytest.approx(0.250)
+    assert gate._accelerating.get(host, True) is True
+
+    # 429: lock acceleration, step up by 250ms
+    gate.record(host, status=429, error=None)
+    assert gate._accelerating[host] is False
+    assert gate._cur_interval(host) == pytest.approx(0.500)
+
+    # Successes after lock: no speed-up
+    for _ in range(15):
+        gate.record(host, status=200, error=None)
+    assert gate._cur_interval(host) == pytest.approx(0.500)
+
+    # Further 429s keep stepping back, capped at start
+    gate.record(host, status=429, error=None)
+    assert gate._cur_interval(host) == pytest.approx(0.750)
+    gate.record(host, status=429, error=None)
+    assert gate._cur_interval(host) == pytest.approx(1.000)
+    gate.record(host, status=429, error=None)
+    assert gate._cur_interval(host) == pytest.approx(1.000)
+
+
+def test_host_gate_errors_dont_affect_rate():
+    gate = cl.HostGate(start_ms=1000, floor_ms=250)
+    host = "example.com"
+    for _ in range(15):
+        gate.record(host, status=200, error=None)
+    assert gate._cur_interval(host) == pytest.approx(0.250)
+
+    # Errors don't change rate or lock acceleration
+    gate.record(host, status=None, error="timeout:15s")
+    gate.record(host, status=503, error=None)
+    gate.record(host, status=None, error="connect:refused")
+    assert gate._cur_interval(host) == pytest.approx(0.250)
+    assert gate._accelerating.get(host, True) is True
+
+
+def test_host_gate_dead_host_on_timeouts():
+    gate = cl.HostGate(start_ms=1000, floor_ms=250)
+    host = "dead.example.com"
+    for _ in range(9):
+        assert gate.record(host, status=None, error="timeout:15s") is False
+    assert not gate.is_dead(host)
+    assert gate.record(host, status=None, error="timeout:15s") is True
+    assert gate.is_dead(host)
+    # Only fires once
+    assert gate.record(host, status=None, error="timeout:15s") is False
+
+
+def test_host_gate_dead_host_on_5xx():
+    gate = cl.HostGate(start_ms=1000, floor_ms=250)
+    host = "example.com"
+    for _ in range(9):
+        gate.record(host, status=503, error=None)
+    assert not gate.is_dead(host)
+    assert gate.record(host, status=503, error=None) is True
+    assert gate.is_dead(host)
+
+
+def test_host_gate_dead_host_on_connect_error():
+    gate = cl.HostGate(start_ms=1000, floor_ms=250)
+    host = "example.com"
+    for _ in range(10):
+        gate.record(host, status=None, error="connect:refused")
+    assert gate.is_dead(host)
+
+
+def test_host_gate_dead_host_mixed_signals():
+    gate = cl.HostGate(start_ms=1000, floor_ms=250)
+    host = "example.com"
+    # Mix of dead signals: 3 timeouts + 4 5xx + 3 connect errors = 10
+    for _ in range(3):
+        gate.record(host, status=None, error="timeout:15s")
+    for _ in range(4):
+        gate.record(host, status=503, error=None)
+    for _ in range(2):
+        gate.record(host, status=None, error="connect:refused")
+    assert not gate.is_dead(host)
+    assert gate.record(host, status=None, error="dns:getaddrinfo failed") is True
+    assert gate.is_dead(host)
+
+
+# ---------------------------------------------------------------------------
 # load_urls / write_result — mock Db
 # ---------------------------------------------------------------------------
 
@@ -239,11 +352,8 @@ def test_load_urls_filters_non_http():
 def test_load_urls_respects_limit():
     rows = [{"url": f"http://example.com/{i}"} for i in range(10)]
     db = _mock_db(rows)
-    cl.load_urls(db, limit=3)
-    # limit is applied via SQL, so mock returns all — just check that LIMIT
-    # appears in the prepared SQL
-    sql_arg = db.prepare.call_args[0][0]
-    assert "LIMIT 3" in sql_arg
+    urls = cl.load_urls(db, limit=3)
+    assert len(urls) == 3
 
 
 def test_load_urls_force_omits_join():
