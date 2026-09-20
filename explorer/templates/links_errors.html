@@ -10,10 +10,9 @@
 {% endblock header_right %}
 
 {% block facets %}
-  {{ facet_group("to_delete") }}
+  {{ facet_group("status") }}
   {{ facet_group("category") }}
   {{ facet_group("domain", search=true) }}
-  {{ facet_group("status") }}
   {{ facet_group("harvested") }}
   {{ facet_group("publisher", search=true) }}
 {% endblock facets %}
@@ -28,7 +27,6 @@
           <th class="col-text">{{ sort_link("dataset", "Dataset", sort, dir, facet_qs) }}</th>
           <th class="col-text">{{ sort_link("publisher", "Publisher", sort, dir, facet_qs) }}</th>
           <th class="col-text">Harvested</th>
-          <th class="col-text">{{ sort_link("to_delete", "To delete", sort, dir, facet_qs) }}</th>
         </tr>
       </thead>
       <tbody>
@@ -57,7 +55,6 @@
               {%- endif -%}
             </td>
             <td class="col-text">{{ harvested_state_badge(e) }}</td>
-            <td class="col-text">{{ "Yes" if e.to_delete else "No" }}</td>
           </tr>
         {% endfor %}
       </tbody>

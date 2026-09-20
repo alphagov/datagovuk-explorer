@@ -13,4 +13,6 @@ def check_progress(request):
 
 
 def check_progress_data(request):
-    return JsonResponse(get_check_progress())
+    response = JsonResponse(get_check_progress())
+    response["Cache-Control"] = "no-store"
+    return response

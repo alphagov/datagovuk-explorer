@@ -14,8 +14,10 @@ import asyncio
 import re
 import sys
 import time
+from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, datetime
+from itertools import chain, zip_longest
 from typing import Any
 from urllib.parse import urlparse
 
@@ -81,17 +83,26 @@ def _classify_connect_error(exc: httpx.ConnectError) -> str:
 
 
 class HostGate:
-    """Asyncio-based per-host rate limiter.
+    """Asyncio-based per-host adaptive rate limiter.
 
-    Every outbound request (HEAD, GET, or Playwright navigation) must call
-    acquire(host) before firing; successive requests to the same host are
-    separated by at least interval_ms milliseconds.
+    Starts each host at start_ms (1 req/s). After SPEED_UP_AFTER consecutive
+    reachable responses (any 2xx-4xx except 429), the interval halves toward
+    floor_ms (4 req/s). Any unreachable response (timeout, connect error,
+    5xx, 429) resets the interval and streak back to start.
     """
 
-    def __init__(self, interval_ms: int) -> None:
-        self._interval = interval_ms / 1000.0
+    SPEED_UP_AFTER = 5
+
+    def __init__(self, start_ms: int = 1000, floor_ms: int = 250) -> None:
+        self._start = start_ms / 1000.0
+        self._floor = floor_ms / 1000.0
         self._locks: dict[str, asyncio.Lock] = {}
         self._last: dict[str, float] = {}
+        self._intervals: dict[str, float] = {}
+        self._streak: dict[str, int] = {}
+
+    def _cur_interval(self, host: str) -> float:
+        return self._intervals.get(host, self._start)
 
     async def acquire(self, host: str) -> None:
         if host not in self._locks:
@@ -99,14 +110,26 @@ class HostGate:
             self._last[host] = 0.0
         async with self._locks[host]:
             now = time.monotonic()
-            wait = self._last[host] + self._interval - now
+            wait = self._last[host] + self._cur_interval(host) - now
             if wait > 0:
                 await asyncio.sleep(wait)
             self._last[host] = time.monotonic()
 
-    def delay(self, host: str, extra_seconds: float) -> None:
-        """Push the next allowed request for host forward by extra_seconds (429 backoff)."""
-        self._last[host] = time.monotonic() + extra_seconds
+    def record(self, host: str, *, reachable: bool) -> None:
+        """Update per-host interval based on whether the server responded.
+
+        reachable=True (HTTP 2xx-4xx, excluding 429): count toward speed-up.
+        reachable=False (timeout, connect error, 5xx, 429): reset to start.
+        """
+        if reachable:
+            streak = self._streak.get(host, 0) + 1
+            self._streak[host] = streak
+            if streak >= self.SPEED_UP_AFTER:
+                self._intervals[host] = max(self._cur_interval(host) / 2, self._floor)
+                self._streak[host] = 0
+        else:
+            self._streak[host] = 0
+            self._intervals[host] = self._start
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +368,15 @@ ORDER BY l.url
 """
 
 
+def _interleave_by_host(urls: list[str]) -> list[str]:
+    """Round-robin interleave URLs across hosts, shuffled within each host group."""
+    by_host: dict[str, list[str]] = defaultdict(list)
+    for url in urls:
+        by_host[urlparse(url).hostname or ""].append(url)
+    groups = list(by_host.values())
+    return [u for u in chain.from_iterable(zip_longest(*groups)) if u is not None]
+
+
 def load_urls(
     db: Db,
     *,
@@ -367,11 +399,12 @@ def load_urls(
     template = _LOAD_FORCE_SQL if force else _LOAD_SQL
     sql = template.format(extra=extra)
 
-    if limit:
-        sql += f" LIMIT {limit}"
-
     rows = db.prepare(sql).all(*params)
-    return [r["url"] for r in rows if is_checkable_url(r["url"])]
+    urls = [r["url"] for r in rows if is_checkable_url(r["url"])]
+    urls = _interleave_by_host(urls)
+    if limit:
+        urls = urls[:limit]
+    return urls
 
 
 def write_result(db: Db, result: dict[str, Any]) -> None:
@@ -384,6 +417,37 @@ def write_result(db: Db, result: dict[str, Any]) -> None:
         result["http_status"],
         result["final_url"],
         result["error"],
+    )
+
+
+DEAD_HOST_THRESHOLD = 10
+
+_DEAD_HOST_SQL = """
+INSERT INTO link_check_results (url, checked_at, method, ok, http_status, final_url, error)
+SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL::integer, NULL::text, 'timeout:dead host'
+FROM links l
+LEFT JOIN link_check_results lcr ON l.url = lcr.url
+WHERE lcr.url IS NULL
+  AND l.url IS NOT NULL AND l.url != ''
+  AND l.url LIKE 'http%%'
+  AND split_part(l.url, '/', 3) = %s
+ON CONFLICT (url) DO NOTHING
+"""
+
+
+def _bulk_mark_dead_host(db: Db, host: str) -> int:
+    """Mark all remaining unchecked URLs for host as timed-out. Returns count marked."""
+    now = datetime.now(tz=UTC).isoformat()
+    with db.conn.cursor() as cur:
+        cur.execute(_DEAD_HOST_SQL, (now, host))
+        return cur.rowcount
+
+
+def _is_timeout(result: dict[str, Any]) -> bool:
+    error = result.get("error") or ""
+    return error.startswith("timeout:") or (
+        result.get("method") == "PLAYWRIGHT"
+        and ("timeout" in error.lower() or "timed out" in error.lower())
     )
 
 
@@ -416,11 +480,19 @@ async def _process_url(
     pw_sem: asyncio.Semaphore,
     worker_sem: asyncio.Semaphore,
     timeout_ms: int,
-    bypass_hosts: frozenset[str],
     queue: asyncio.Queue,
     counter: list[int],
+    dead_hosts: set[str],
+    timeout_counts: dict[str, int],
+    db: Db,
 ) -> None:
+    host = urlparse(url).hostname or ""
+
     async with worker_sem:
+        if host in dead_hosts:
+            counter[0] += 1
+            return
+
         try:
             result = await check_url(
                 url,
@@ -429,12 +501,17 @@ async def _process_url(
                 gate=gate,
                 pw_sem=pw_sem,
                 timeout_ms=timeout_ms,
-                bypass_hosts=bypass_hosts,
             )
-            # Respect Retry-After for 429 responses
-            if result.get("http_status") == 429:
-                host = urlparse(url).hostname or ""
-                gate.delay(host, 30.0)
+            status = result.get("http_status")
+            reachable = status is not None and 200 <= status < 500 and status != 429
+            gate.record(host, reachable=reachable)
+
+            if _is_timeout(result):
+                timeout_counts[host] = timeout_counts.get(host, 0) + 1
+                if timeout_counts[host] == DEAD_HOST_THRESHOLD:
+                    dead_hosts.add(host)
+                    n = _bulk_mark_dead_host(db, host)
+                    print(f"  Dead host {host}: marked {n} remaining URL(s) as timed-out", flush=True)
         except Exception as exc:  # noqa: BLE001
             result = _make_result(url, method="ERROR", ok=False, error=f"connect:{exc}")
         await queue.put(result)
@@ -446,12 +523,32 @@ async def _process_url(
 # ---------------------------------------------------------------------------
 
 
-async def _log_progress(counter: list[int], total: int, interval: int = 30) -> None:
+async def _log_progress(
+    counter: list[int],
+    total: int,
+    worker_sem: asyncio.Semaphore,
+    pw_sem: asyncio.Semaphore,
+    workers: int,
+    pw_pages: int,
+    queue: asyncio.Queue,
+    interval: int = 30,
+) -> None:
+    last_n = 0
     while True:
         await asyncio.sleep(interval)
         n = counter[0]
+        rate = (n - last_n) / interval
+        last_n = n
         pct = n * 100 // total if total else 0
-        print(f"  {n}/{total} ({pct}%) checked", flush=True)
+        w_used = workers - worker_sem._value
+        pw_used = pw_pages - pw_sem._value
+        q_depth = queue.qsize()
+        print(
+            f"  {n}/{total} ({pct}%) | {rate:.1f}/s"
+            f" | workers {w_used}/{workers} | playwright {pw_used}/{pw_pages}"
+            f" | queue {q_depth}",
+            flush=True,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -463,10 +560,11 @@ async def _log_progress(counter: list[int], total: int, interval: int = 30) -> N
 def main(
     limit: int = typer.Option(0, help="Only check the first N unchecked URLs (0 = all)"),
     only_host: str = typer.Option("", help="Restrict to URLs on this host or its subdomains"),
-    workers: int = typer.Option(100, help="URLs in flight at once"),
-    pw_pages: int = typer.Option(40, help="Max concurrent Playwright pages"),
+    workers: int = typer.Option(200, help="URLs in flight at once"),
+    pw_pages: int = typer.Option(70, help="Max concurrent Playwright pages"),
     timeout_ms: int = typer.Option(15_000, help="HTTP timeout per request (ms)"),
-    interval_ms: int = typer.Option(500, help="Gap between requests per host (ms)"),
+    start_ms: int = typer.Option(1_000, help="Starting gap per host in ms (1 req/s); speeds up toward --floor-ms"),
+    floor_ms: int = typer.Option(250, help="Minimum gap per host in ms (4 req/s)"),
     force: bool = typer.Option(False, help="Recheck URLs already in link_check_results"),
 ) -> None:
     asyncio.run(
@@ -476,7 +574,8 @@ def main(
             workers=workers,
             pw_pages=pw_pages,
             timeout_ms=timeout_ms,
-            interval_ms=interval_ms,
+            start_ms=start_ms,
+            floor_ms=floor_ms,
             force=force,
         ),
     )
@@ -489,7 +588,8 @@ async def _main(
     workers: int,
     pw_pages: int,
     timeout_ms: int,
-    interval_ms: int,
+    start_ms: int,
+    floor_ms: int,
     force: bool,
 ) -> None:
     db = connect(database_url())
@@ -504,7 +604,7 @@ async def _main(
         if not _HAS_PLAYWRIGHT:
             print("  playwright not installed — Playwright fallback disabled", flush=True)
 
-        gate = HostGate(interval_ms)
+        gate = HostGate(start_ms, floor_ms)
         worker_sem = asyncio.Semaphore(workers)
         pw_sem = asyncio.Semaphore(pw_pages)
         queue: asyncio.Queue[dict | None] = asyncio.Queue()
@@ -520,22 +620,34 @@ async def _main(
                 return await client.request(method, url)
 
             if _HAS_PLAYWRIGHT:
-                async with _async_playwright() as pw:
-                    browser = await pw.chromium.launch(headless=True)
-                    pw_fn = await make_pw_fn(browser, timeout_ms)
+                try:
+                    async with _async_playwright() as pw:
+                        browser = await pw.chromium.launch(headless=True)
+                        pw_fn = await make_pw_fn(browser, timeout_ms)
+                        await _run_workers(
+                            urls, fetch_fn=fetch_fn, pw_fn=pw_fn,
+                            gate=gate, pw_sem=pw_sem, worker_sem=worker_sem,
+                            timeout_ms=timeout_ms, queue=queue, db=db,
+                            counter=counter, total=total,
+                            workers=workers, pw_pages=pw_pages,
+                        )
+                        await browser.close()
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  Playwright browser unavailable ({exc}) — falling back to HTTP only", flush=True)
                     await _run_workers(
-                        urls, fetch_fn=fetch_fn, pw_fn=pw_fn,
+                        urls, fetch_fn=fetch_fn, pw_fn=None,
                         gate=gate, pw_sem=pw_sem, worker_sem=worker_sem,
                         timeout_ms=timeout_ms, queue=queue, db=db,
                         counter=counter, total=total,
+                        workers=workers, pw_pages=pw_pages,
                     )
-                    await browser.close()
             else:
                 await _run_workers(
                     urls, fetch_fn=fetch_fn, pw_fn=None,
                     gate=gate, pw_sem=pw_sem, worker_sem=worker_sem,
                     timeout_ms=timeout_ms, queue=queue, db=db,
                     counter=counter, total=total,
+                    workers=workers, pw_pages=pw_pages,
                 )
 
         print(f"Done: {counter[0]}/{total} URL(s) checked.", flush=True)
@@ -556,10 +668,14 @@ async def _run_workers(
     db: Db,
     counter: list[int],
     total: int,
+    workers: int,
+    pw_pages: int,
 ) -> None:
-    bypass: frozenset[str] = frozenset()
+    dead_hosts: set[str] = set()
+    timeout_counts: dict[str, int] = {}
+
     writer_task = asyncio.create_task(writer(queue, db))
-    logger_task = asyncio.create_task(_log_progress(counter, total))
+    logger_task = asyncio.create_task(_log_progress(counter, total, worker_sem, pw_sem, workers, pw_pages, queue))
 
     tasks = [
         asyncio.create_task(
@@ -571,9 +687,11 @@ async def _run_workers(
                 pw_sem=pw_sem,
                 worker_sem=worker_sem,
                 timeout_ms=timeout_ms,
-                bypass_hosts=bypass,
                 queue=queue,
                 counter=counter,
+                dead_hosts=dead_hosts,
+                timeout_counts=timeout_counts,
+                db=db,
             ),
         )
         for url in urls

@@ -152,7 +152,7 @@
       }
 
       function poll() {
-        fetch('/check-progress/data')
+        fetch('/check-progress/data', { cache: 'no-store' })
           .then(function (r) { return r.json(); })
           .then(render)
           .catch(function (err) {

@@ -6,15 +6,15 @@ _SQL = """
 SELECT
     l.host,
     COUNT(DISTINCT l.url)                                         AS total,
-    COUNT(lcr.url)                                                AS checked,
-    COUNT(lcr.url) FILTER (WHERE lcr.ok)                         AS ok,
-    COUNT(lcr.url) FILTER (WHERE lcr.ok = false)                 AS broken,
-    COUNT(lcr.url) FILTER (WHERE lcr.error LIKE 'ssl:%%')        AS err_ssl,
-    COUNT(lcr.url) FILTER (WHERE lcr.error LIKE 'dns:%%')        AS err_dns,
-    COUNT(lcr.url) FILTER (WHERE lcr.error LIKE 'timeout:%%')    AS err_timeout,
-    COUNT(lcr.url) FILTER (WHERE lcr.error LIKE 'connect:%%')    AS err_connect,
-    COUNT(lcr.url) FILTER (WHERE lcr.error LIKE 'http:%%')       AS err_http,
-    COUNT(lcr.url) FILTER (WHERE lcr.error LIKE 'playwright:%%') AS err_playwright
+    COUNT(DISTINCT lcr.url)                                                AS checked,
+    COUNT(DISTINCT lcr.url) FILTER (WHERE lcr.ok)                         AS ok,
+    COUNT(DISTINCT lcr.url) FILTER (WHERE lcr.ok = false)                 AS broken,
+    COUNT(DISTINCT lcr.url) FILTER (WHERE lcr.error LIKE 'ssl:%%')        AS err_ssl,
+    COUNT(DISTINCT lcr.url) FILTER (WHERE lcr.error LIKE 'dns:%%')        AS err_dns,
+    COUNT(DISTINCT lcr.url) FILTER (WHERE lcr.error LIKE 'timeout:%%')    AS err_timeout,
+    COUNT(DISTINCT lcr.url) FILTER (WHERE lcr.error LIKE 'connect:%%')    AS err_connect,
+    COUNT(DISTINCT lcr.url) FILTER (WHERE lcr.error LIKE 'http:%%')       AS err_http,
+    COUNT(DISTINCT lcr.url) FILTER (WHERE lcr.error LIKE 'playwright:%%') AS err_playwright
 FROM links l
 LEFT JOIN link_check_results lcr ON l.url = lcr.url
 GROUP BY l.host

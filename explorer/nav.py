@@ -27,7 +27,7 @@ SECTIONS = {
     ],
     "links": [
         {"key": "links", "label": "Links", "url": "/links"},
-        {"key": "errors", "label": "Errors", "url": "/links/errors"},
+        {"key": "errors", "label": "Status", "url": "/links/status"},
     ],
 }
 
