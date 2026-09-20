@@ -25,10 +25,10 @@
         <span class="card__count">{{ org.total_resources | num }}</span>
         <span class="card__label">Links</span>
       </a>
-      <div class="card">
-        <span class="card__count">{{ org.total_views | num }}</span>
-        <span class="card__label">Views</span>
-      </div>
+      <a href="/links/status?publisher={{ org.slug }}&status=error" class="card">
+        <span class="card__count">{{ org.broken_links | num }}</span>
+        <span class="card__label">Broken links</span>
+      </a>
     </div>
 
     <section class="section">
@@ -44,6 +44,10 @@
         {% if org.created %}
           <dt>Created</dt>
           <dd>{{ org.created | date_short }}</dd>
+        {% endif %}
+        {% if org.total_views %}
+          <dt>Views</dt>
+          <dd>{{ org.total_views | num }}</dd>
         {% endif %}
         {% if org.last_published %}
           <dt>Last published</dt>

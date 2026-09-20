@@ -17,6 +17,7 @@ import re
 
 from explorer.queries.core import fetch_parallel
 from explorer.queries.datasets import DATASET_TOTAL, DATASETS_NO_LINKS_COUNT, THEME_COUNTS
+from explorer.queries.link_errors import link_errors_stats
 from explorer.queries.links import LINKS_STATS
 from explorer.queries.organisations import LAST_PUBLISHED_BY_ORG, ORGS
 from explorer.queries.reports import REPORTS, report_dashboard_count
@@ -76,7 +77,7 @@ def cards() -> dict:
     # iteration — otherwise every lambda closes over the last report's key.
     report_count_fns: list = [(lambda key=report["key"]: report_dashboard_count(key)) for report in REPORTS]
 
-    org_rows, last_pub_rows, total_datasets_row, links_stats, theme_count_rows, no_links_count_row, *report_counts = fetch_parallel(
+    org_rows, last_pub_rows, total_datasets_row, links_stats, theme_count_rows, no_links_count_row, broken_links_row, *report_counts = fetch_parallel(
         [
             ORGS.all,
             LAST_PUBLISHED_BY_ORG.all,
@@ -84,6 +85,7 @@ def cards() -> dict:
             LINKS_STATS.get,
             THEME_COUNTS.all,
             DATASETS_NO_LINKS_COUNT.get,
+            link_errors_stats,
             *report_count_fns,
         ],
     )
@@ -136,6 +138,15 @@ def cards() -> dict:
         "href": "/datasets?links=0",
     }
 
+    # links-broken card
+    broken_count = broken_links_row.get("errors") or 0
+    cards["links-broken"] = {
+        "label": "Broken links",
+        "count": broken_count,
+        "percent": (broken_count / totals["links"] * 100) if totals["links"] else None,
+        "href": "/links/status?status=error",
+    }
+
     # datasets-no-theme card
     no_theme_count = next(
         (r["count"] for r in theme_count_rows if r["theme"] == "__none__"),
@@ -155,6 +166,7 @@ def cards() -> dict:
         group_keys.setdefault(report["kind"], []).append(report["key"])
     group_keys.setdefault("orgs", []).extend([active["key"], "orgs-no-datasets"])
     group_keys.setdefault("datasets", []).extend(["datasets-no-links", "datasets-no-theme"])
+    group_keys.setdefault("links", []).append("links-broken")
     group_has_items = {kind: any(cards[key]["count"] > 0 for key in keys) for kind, keys in group_keys.items()}
 
     return {

@@ -55,9 +55,9 @@
         <a class="dashboard-group-link" href="/links">Links</a>
         <span class="dashboard-group-count">{{ total_links | num }}</span>
       </h2>
+      {{ dashboard_card("links-broken") }}
       {{ dashboard_card("links-no-url") }}
       {{ dashboard_card("links-no-name") }}
-      {{ dashboard_card("links-bad-url") }}
       {{ dashboard_card("links-no-format") }}
       {{ dashboard_card("links-duplicate-urls") }}
     </div>

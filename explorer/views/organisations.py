@@ -66,9 +66,9 @@ def _page_row(r: dict) -> dict:
         "dataset_count": r["package_count"] or 0,
         "resource_count": r["total_resources"] or 0,
         "views": r["total_views"] or 0,
+        "link_health": r["link_health"],
         "type": r["type"],
         "state": r["state"],
-        "approval_status": r["approval_status"],
         "created": format_date(r["created"]),
         "last_published": format_date(r["last_published"]),
     }

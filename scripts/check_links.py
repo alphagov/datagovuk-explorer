@@ -366,37 +366,40 @@ async def make_pw_fn(browser: Any, timeout_ms: int) -> Callable:
 # Database helpers
 # ---------------------------------------------------------------------------
 
-_UPSERT_SQL = """
-INSERT INTO link_check_results (url, checked_at, method, ok, http_status, final_url, error)
-VALUES (?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (url) DO UPDATE SET
-    checked_at  = EXCLUDED.checked_at,
-    method      = EXCLUDED.method,
-    ok          = EXCLUDED.ok,
-    http_status = EXCLUDED.http_status,
-    final_url   = EXCLUDED.final_url,
-    error       = EXCLUDED.error
+_POPULATE_SQL = """
+INSERT INTO link_check_results (link_id, url)
+SELECT id, url FROM links
+ON CONFLICT (link_id) DO NOTHING
+"""
+
+_UPDATE_BY_URL_SQL = """
+UPDATE link_check_results
+SET checked_at  = ?,
+    method      = ?,
+    ok          = ?,
+    http_status = ?,
+    final_url   = ?,
+    error       = ?
+WHERE url = ?
 """
 
 _LOAD_SQL = """
-SELECT DISTINCT l.url
-FROM links l
-LEFT JOIN link_check_results lcr ON l.url = lcr.url
-WHERE l.url IS NOT NULL
-  AND l.url != ''
-  AND l.url LIKE 'http%%'
+SELECT DISTINCT url
+FROM link_check_results
+WHERE url IS NOT NULL
+  AND url LIKE 'http%%'
+  AND checked_at IS NULL
   {extra}
-ORDER BY l.url
+ORDER BY url
 """
 
 _LOAD_FORCE_SQL = """
-SELECT DISTINCT l.url
-FROM links l
-WHERE l.url IS NOT NULL
-  AND l.url != ''
-  AND l.url LIKE 'http%%'
+SELECT DISTINCT url
+FROM link_check_results
+WHERE url IS NOT NULL
+  AND url LIKE 'http%%'
   {extra}
-ORDER BY l.url
+ORDER BY url
 """
 
 
@@ -416,15 +419,12 @@ def load_urls(
     limit: int | None = None,
     only_host: str | None = None,
 ) -> list[str]:
-    """Return unchecked (or all, with --force) valid URLs from the links table."""
+    """Return unchecked (or all, with --force) http URLs from link_check_results."""
     clauses = []
     params: list[Any] = []
 
-    if not force:
-        clauses.append("AND lcr.url IS NULL")
-
     if only_host:
-        clauses.append("AND (l.host = ? OR l.host LIKE ?)")
+        clauses.append("AND (split_part(url, '/', 3) = ? OR split_part(url, '/', 3) LIKE ?)")
         params.extend([only_host, f"%.{only_host}"])
 
     extra = "\n  ".join(clauses)
@@ -440,28 +440,83 @@ def load_urls(
 
 
 def write_result(db: Db, result: dict[str, Any]) -> None:
-    stmt = db.prepare(_UPSERT_SQL)
+    stmt = db.prepare(_UPDATE_BY_URL_SQL)
     stmt.run(
-        result["url"],
         result["checked_at"],
         result["method"],
         result["ok"],
         result["http_status"],
         result["final_url"],
         result["error"],
+        result["url"],
     )
 
 
+_POPULATE_SQL = """
+INSERT INTO link_check_results (link_id, url)
+SELECT id, url FROM links
+ON CONFLICT (link_id) DO NOTHING
+"""
+
+_MARK_BLANK_SQL = """
+UPDATE link_check_results
+SET checked_at  = %s,
+    method      = 'SKIPPED',
+    ok          = false,
+    http_status = NULL,
+    final_url   = NULL,
+    error       = 'url:blank'
+WHERE url IS NULL OR url = ''
+"""
+
+_MARK_MALFORMED_SQL = """
+UPDATE link_check_results
+SET checked_at  = %s,
+    method      = 'SKIPPED',
+    ok          = false,
+    http_status = NULL,
+    final_url   = NULL,
+    error       = 'url:malformed'
+WHERE link_id IN (
+    SELECT id FROM links
+    WHERE host IS NULL AND url IS NOT NULL AND url != ''
+)
+"""
+
+
+def _populate_link_check_results(db: Db) -> int:
+    """Insert a pending row for every link not yet in link_check_results. Returns count inserted."""
+    with db.conn.cursor() as cur:
+        cur.execute(_POPULATE_SQL)
+        return cur.rowcount
+
+
+def _mark_blank_url_links(db: Db) -> int:
+    """Mark links with no URL as url:blank. Returns count marked."""
+    now = datetime.now(tz=UTC).isoformat()
+    with db.conn.cursor() as cur:
+        cur.execute(_MARK_BLANK_SQL, (now,))
+        return cur.rowcount
+
+
+def _mark_malformed_urls(db: Db) -> int:
+    """Mark links with unparseable URLs (host IS NULL) as url:malformed. Returns count marked."""
+    now = datetime.now(tz=UTC).isoformat()
+    with db.conn.cursor() as cur:
+        cur.execute(_MARK_MALFORMED_SQL, (now,))
+        return cur.rowcount
+
+
 _DEAD_HOST_SQL = """
-INSERT INTO link_check_results (url, checked_at, method, ok, http_status, final_url, error)
-SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL::integer, NULL::text, 'timeout:dead host'
-FROM links l
-LEFT JOIN link_check_results lcr ON l.url = lcr.url
-WHERE lcr.url IS NULL
-  AND l.url IS NOT NULL AND l.url != ''
-  AND l.url LIKE 'http%%'
-  AND split_part(l.url, '/', 3) = %s
-ON CONFLICT (url) DO NOTHING
+UPDATE link_check_results
+SET checked_at  = %s,
+    method      = 'SKIPPED',
+    ok          = false,
+    http_status = NULL,
+    final_url   = NULL,
+    error       = 'timeout:dead host'
+WHERE link_id IN (SELECT id FROM links WHERE host = %s)
+  AND checked_at IS NULL
 """
 
 
@@ -608,6 +663,18 @@ async def _main(
 ) -> None:
     db = connect(database_url())
     try:
+        n_new = _populate_link_check_results(db)
+        if n_new:
+            print(f"  Added {n_new} new pending row(s) to link_check_results", flush=True)
+
+        n_blank = _mark_blank_url_links(db)
+        if n_blank:
+            print(f"  Marked {n_blank} blank URL link(s) as url:blank", flush=True)
+
+        n_malformed = _mark_malformed_urls(db)
+        if n_malformed:
+            print(f"  Marked {n_malformed} malformed URL(s) as url:malformed", flush=True)
+
         print("Loading URLs…", flush=True)
         urls = load_urls(db, force=force, limit=limit, only_host=only_host)
         total = len(urls)

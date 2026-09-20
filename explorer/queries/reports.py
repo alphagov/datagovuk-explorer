@@ -317,24 +317,6 @@ REPORTS = [
         **_link_report_sql("(url IS NULL OR url = ''){org}"),
     },
     {
-        "key": "links-bad-url",
-        "label": "Links with broken URLs",
-        "description": "",
-        "kind": "links",
-        "facets": [
-            {
-                "key": "org",
-                "label": "Publisher",
-                "counts_sql": """SELECT org_slug AS slug, org_display_name AS name, COUNT(*) AS count
-            FROM links WHERE (url IS NOT NULL AND url != '') AND host IS NULL{facet_and}
-            GROUP BY org_slug, org_display_name
-            ORDER BY count DESC, LOWER(org_display_name)""",
-                "filter_sql": " AND org_slug = %s",
-            },
-        ],
-        **_link_report_sql("(url IS NOT NULL AND url != '') AND host IS NULL{org}"),
-    },
-    {
         "key": "links-no-format",
         "label": "Links with no format",
         "description": "",

@@ -18,8 +18,8 @@
           <th class="col-text">{{ sort_link("name", "Publisher", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("dataset_count", "Datasets", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("resource_count", "Links", sort, dir, facet_qs) }}</th>
+          <th class="col-num">{{ sort_link("link_health", "Health", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("views", "Views", sort, dir, facet_qs) }}</th>
-          <th class="col-text">{{ sort_link("approval_status", "Approved", sort, dir, facet_qs) }}</th>
           <th class="col-date">{{ sort_link("created", "Created", sort, dir, facet_qs) }}</th>
           <th class="col-date">{{ sort_link("last_published", "Last published", sort, dir, facet_qs) }}</th>
         </tr>
@@ -32,10 +32,8 @@
             </th>
             <td class="col-num">{{ org.dataset_count | num }}</td>
             <td class="col-num">{{ org.resource_count | num }}</td>
+            <td class="col-num">{% if org.link_health is not none %}{{ org.link_health }}%{% else %}—{% endif %}</td>
             <td class="col-num">{{ org.views | num }}</td>
-            <td class="col-text">
-              <span class="badge badge-{{ org.approval_status }}">{{ org.approval_status }}</span>
-            </td>
             <td class="col-date">{{ org.created }}</td>
             <td class="col-date">{{ org.last_published }}</td>
           </tr>

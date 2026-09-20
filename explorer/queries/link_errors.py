@@ -19,7 +19,7 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 # datasets/organisations are LEFT-JOINed for harvest state and display name.
 _LINK_ERRORS_FROM = (
     "link_check_results lcr"
-    " JOIN links l ON l.url = lcr.url"
+    " JOIN links l ON l.id = lcr.link_id"
     " LEFT JOIN datasets d ON d.id = l.dataset_id"
     " LEFT JOIN organisations o ON o.slug = l.org_slug"
 )
@@ -39,6 +39,8 @@ CATEGORY_LABELS = {
     "DNS_ERROR": "DNS error",
     "TIMEOUT": "Timeout",
     "CONNECTION_ERROR": "Connection error",
+    "INVALID_URL": "Invalid URL",
+    "NO_URL": "No URL",
     "OTHER_ERROR": "Other error",
 }
 
@@ -57,6 +59,8 @@ _CATEGORY_EXPR = (
     "   OR lcr.error ILIKE '%%ERR_EMPTY_RESPONSE%%' OR lcr.error ILIKE '%%ERR_CONNECTION%%'"
     "   OR lcr.error ILIKE '%%ERR_HTTP2%%')) THEN 'CONNECTION_ERROR'"
     " WHEN lcr.error LIKE 'playwright:%%' AND lcr.error ILIKE '%%ERR_TOO_MANY_REDIRECTS%%' THEN 'OTHER_CLIENT_ERROR'"
+    " WHEN lcr.error = 'url:blank' THEN 'NO_URL'"
+    " WHEN lcr.error LIKE 'url:%%' THEN 'INVALID_URL'"
     " ELSE 'OTHER_ERROR'"
     " END"
 )
@@ -87,6 +91,10 @@ LINK_ERRORS_SORT_DEFAULT = ("url", "asc")
 # --- Per-facet clause builders ---------------------------------------------
 # Same (filters, exclude) shape as datasets.py; one dict feeds both the
 # list/count WHERE and the facet pools (each omits its own group).
+
+
+def _checked_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    return ["lcr.checked_at IS NOT NULL"], []
 
 
 def _category_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
@@ -149,6 +157,7 @@ def _publisher_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
 
 
 _CLAUSES = {
+    "_checked": _checked_clause,
     "category": _category_clause,
     "status": _status_clause,
     "domain": _domain_clause,
@@ -291,6 +300,16 @@ def link_errors_facet_counts(filters: dict) -> dict:
     }
 
 
+# --- Per-org broken link count (publisher detail page) --------------------
+
+ORG_BROKEN_LINKS = Query(
+    "SELECT COUNT(*) AS n"
+    " FROM link_check_results lcr"
+    " JOIN links l ON l.id = lcr.link_id"
+    " WHERE l.org_slug = %s AND lcr.ok = false AND lcr.checked_at IS NOT NULL",
+)
+
+
 # --- Whole-table stats (the report header) --------------------------------
 
 LINK_ERRORS_STATS = Query(
@@ -299,7 +318,7 @@ LINK_ERRORS_STATS = Query(
     "  COUNT(*) FILTER (WHERE NOT lcr.ok) AS errors,"
     "  COUNT(*) FILTER (WHERE lcr.ok) AS resolved"
     " FROM link_check_results lcr"
-    " JOIN links l ON l.url = lcr.url",
+    " WHERE lcr.checked_at IS NOT NULL",
 )
 
 

@@ -277,6 +277,7 @@ ORG_SORT = {
     "dataset_count": "COALESCE(o.package_count, 0)",
     "resource_count": "COALESCE(a.total_resources, 0)",
     "views": "COALESCE(a.total_views, 0)",
+    "link_health": "COALESCE(lh.link_health, -1)",
     "type": "LOWER(COALESCE(o.type, ''))",
     "approval_status": "LOWER(COALESCE(o.approval_status, ''))",
     "created": "COALESCE(o.created, '')",
@@ -286,13 +287,28 @@ ORG_SORT = {
 # The order /organisations starts in — shared by parse_sort and preserve_params.
 ORG_SORT_DEFAULT = ("views", "desc")
 
+# Per-org link health — % of checked resource links that are OK (integer 0-100,
+# NULL when no links have been checked for this org). Uses INNER JOIN so only
+# checked links contribute; multiple links to the same URL each count once.
+_LINK_HEALTH_AGG = (
+    " LEFT JOIN ("
+    "  SELECT l.org_slug,"
+    "    CAST(ROUND(COUNT(*) FILTER (WHERE lcr.ok) * 100.0 / NULLIF(COUNT(*), 0), 0) AS INTEGER)"
+    "    AS link_health"
+    "  FROM links l"
+    "  JOIN link_check_results lcr ON l.url = lcr.url"
+    "  GROUP BY l.org_slug"
+    " ) lh ON lh.org_slug = o.slug"
+)
+
 # The list select — ORGS' columns plus the aggregate columns.
 _ORG_LIST_SELECT = (
     "SELECT o.slug, o.name, o.display_name, o.package_count, o.type, o.state,"
     "       o.approval_status, o.created, o.title,"
     "       COALESCE(a.total_resources, 0) AS total_resources,"
     "       COALESCE(a.total_views, 0) AS total_views,"
-    "       a.last_published"
+    "       a.last_published,"
+    "       lh.link_health"
     " FROM organisations o"
 )
 
@@ -308,5 +324,5 @@ def organisations_stmts(filters: dict, sort: str, dir_: str) -> dict:
     return {
         "params": params,
         "count": Query(f"SELECT COUNT(*) AS n FROM organisations o {_ORG_AGG}{where}"),
-        "list": Query(f"{_ORG_LIST_SELECT} {_ORG_AGG}{where} ORDER BY {order_sql} LIMIT %s OFFSET %s"),
+        "list": Query(f"{_ORG_LIST_SELECT} {_ORG_AGG}{_LINK_HEALTH_AGG}{where} ORDER BY {order_sql} LIMIT %s OFFSET %s"),
     }

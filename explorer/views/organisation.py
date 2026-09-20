@@ -12,6 +12,7 @@ from explorer.queries.datasets import (
     YEARLY_BY_ORG,
 )
 from explorer.queries.harvesters import HARVESTERS_BY_ORG
+from explorer.queries.link_errors import ORG_BROKEN_LINKS
 from explorer.queries.organisations import ORG
 
 _CHART_START_YEAR = 2010
@@ -53,6 +54,7 @@ def organisation(request, slug):
     dataset_count = DATASET_COUNT.get(slug)["count"]
     harvested_count = ORG_HARVESTED_COUNT.get(slug)["n"]
     stats = ORG_STATS.get(slug) or {}
+    broken_links = (ORG_BROKEN_LINKS.get(slug) or {}).get("n") or 0
 
     harvesters = HARVESTERS_BY_ORG.all(slug)
     for h in harvesters:
@@ -82,6 +84,7 @@ def organisation(request, slug):
                 "manual_count": dataset_count - harvested_count,
                 "total_resources": stats.get("total_resources") or 0,
                 "total_views": stats.get("total_views") or 0,
+                "broken_links": broken_links,
                 "last_published": stats.get("last_published"),
             },
             "harvesters": harvesters,

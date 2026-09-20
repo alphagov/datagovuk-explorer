@@ -376,16 +376,24 @@ class Review(models.Model):
 
 
 class LinkCheckResult(models.Model):
-    """One row per distinct URL checked by scripts/check_links.py.
+    """One row per link, keyed by link_id.
 
-    Keyed by URL (not link_id) so multiple links sharing the same URL are
-    checked once. method is HEAD | GET | PLAYWRIGHT | SKIPPED | ERROR.
-    error uses a short prefix (ssl: dns: timeout: connect: http:NNN
-    playwright:) so failures are queryable without a separate column.
+    url is copied from links.url and indexed so check_links can bulk-update
+    all rows for a given URL in one UPDATE WHERE url = ?.  checked_at is NULL
+    for pending (not yet checked) rows; set once the link is processed.
+    method is HEAD | GET | PLAYWRIGHT | SKIPPED | ERROR.
+    error uses a short prefix (ssl: dns: timeout: connect: url: playwright:)
+    so failures are queryable without a separate column.
     """
 
-    url = models.TextField(primary_key=True)
-    checked_at = models.TextField()
+    link = models.OneToOneField(
+        Link,
+        db_column="link_id",
+        on_delete=models.CASCADE,
+        primary_key=True,
+    )
+    url = models.TextField(blank=True, null=True)
+    checked_at = models.TextField(blank=True, null=True)
     method = models.TextField(blank=True, null=True)
     ok = models.BooleanField(blank=True, null=True)
     http_status = models.IntegerField(blank=True, null=True)
@@ -395,9 +403,10 @@ class LinkCheckResult(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "link_check_results"
+        indexes = [models.Index(fields=["url"], name="link_check_results_url_idx")]
 
     def __str__(self):
-        return self.url
+        return self.url or f"link:{self.link_id}"
 
 
 class LinkError(models.Model):

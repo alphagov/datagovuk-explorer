@@ -94,7 +94,7 @@
 
   <script>
     (function () {
-      var POLL_MS = 3000;
+      var POLL_MS = 1000;
       var timer = null;
 
       function fmt(n) {
@@ -116,7 +116,7 @@
           statusEl.className = 'status status--done';
           if (timer) { clearInterval(timer); timer = null; }
         } else {
-          statusEl.textContent = 'Polling every 3 s…';
+          statusEl.textContent = 'Polling every 1 s…';
           statusEl.className = 'status';
         }
 
