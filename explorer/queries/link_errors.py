@@ -12,7 +12,7 @@ import functools
 
 from explorer.sort import order_by
 
-from .core import Query, cached_unfiltered, facet_where, fetch_parallel
+from .core import Query, cached_unfiltered, facet_where
 
 # The shared join behind every statement. link_check_results is keyed by
 # URL; links provides the per-resource context (dataset, org, host).
@@ -280,23 +280,15 @@ def link_errors_facet_counts(filters: dict) -> dict:
     """
     entry = _link_errors_facet_counts(filters)
     p = entry["params"]
-    categories, statuses, domains, no_url, harvested, publishers = fetch_parallel(
-        [
-            lambda: entry["categories"].all(*p["categories"]),
-            lambda: entry["statuses"].all(*p["statuses"]),
-            lambda: entry["domains"].all(*p["domains"]),
-            lambda: (entry["no_url"].get(*p["no_url"]) or {}).get("n", 0),
-            lambda: entry["harvested"].all(*p["harvested"]),
-            lambda: entry["publishers"].all(*p["publishers"]),
-        ],
-    )
+    # Sequential (not fetch_parallel): link_check_results is large enough that
+    # concurrent queries exhaust /dev/shm on Railway's Postgres container.
     return {
-        "categories": categories,
-        "statuses": statuses,
-        "domains": domains,
-        "no_url": no_url,
-        "harvested": {row["value"]: row["count"] for row in harvested},
-        "publishers": publishers,
+        "categories": entry["categories"].all(*p["categories"]),
+        "statuses": entry["statuses"].all(*p["statuses"]),
+        "domains": entry["domains"].all(*p["domains"]),
+        "no_url": (entry["no_url"].get(*p["no_url"]) or {}).get("n", 0),
+        "harvested": {row["value"]: row["count"] for row in entry["harvested"].all(*p["harvested"])},
+        "publishers": entry["publishers"].all(*p["publishers"]),
     }
 
 
