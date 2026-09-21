@@ -65,6 +65,13 @@ DUPLICATE_URL_SORT = {
 }
 DUPLICATE_URL_SORT_DEFAULT = ("dataset_count", "desc")
 
+SUSPICIOUS_REDIRECT_SORT = {
+    "link_count": "link_count",
+    "org_count": "org_count",
+    "final_url": "LOWER(final_url)",
+}
+SUSPICIOUS_REDIRECT_SORT_DEFAULT = ("link_count", "desc")
+
 # Prefixed variants for the special reports' aliased queries (d./datasets./
 # l. table aliases — the bare column names would be ambiguous with their
 # joins).
@@ -347,6 +354,76 @@ REPORTS = [
                 LIMIT %s OFFSET %s""",
         "detail_count_sql": "SELECT COUNT(*) AS n FROM links WHERE url = %s",
     },
+    {
+        "key": "links-suspicious-redirects",
+        "label": "Suspicious redirects",
+        "description": "Links where 5 or more distinct URLs all redirect to the same destination — a likely sign of a catch-all redirect for content that no longer exists.",
+        "kind": "suspicious-redirects",
+        "percent_of": "links",
+        "facets": [
+            {
+                "key": "org",
+                "label": "Publisher",
+                "counts_sql": """SELECT l.org_slug AS slug, l.org_display_name AS name,
+                         COUNT(DISTINCT lcr.final_url) AS count
+                    FROM link_check_results lcr
+                    JOIN links l ON l.id = lcr.link_id
+                    WHERE lcr.final_url IS NOT NULL
+                      AND lcr.final_url != lcr.url
+                      AND lcr.checked_at IS NOT NULL
+                      AND lcr.final_url IN (
+                        SELECT final_url FROM link_check_results
+                        WHERE final_url IS NOT NULL AND final_url != url AND checked_at IS NOT NULL
+                        GROUP BY final_url HAVING COUNT(DISTINCT url) >= 5
+                      ){facet_and}
+                    GROUP BY l.org_slug, l.org_display_name
+                    ORDER BY count DESC, LOWER(l.org_display_name)""",
+                "filter_sql": " AND bool_or(l.org_slug = %s)",
+            },
+        ],
+        "count_sql": """SELECT COUNT(*) AS n FROM (
+            SELECT lcr.final_url
+            FROM link_check_results lcr
+            JOIN links l ON l.id = lcr.link_id
+            WHERE lcr.final_url IS NOT NULL
+              AND lcr.final_url != lcr.url
+              AND lcr.checked_at IS NOT NULL
+            GROUP BY lcr.final_url
+            HAVING COUNT(DISTINCT lcr.url) >= 5{org}
+        ) sub""",
+        "dashboard_count_sql": """SELECT COUNT(*) AS n
+            FROM link_check_results
+            WHERE final_url IS NOT NULL
+              AND final_url != url
+              AND checked_at IS NOT NULL
+              AND final_url IN (
+                SELECT final_url FROM link_check_results
+                WHERE final_url IS NOT NULL AND final_url != url AND checked_at IS NOT NULL
+                GROUP BY final_url HAVING COUNT(DISTINCT url) >= 5
+              )""",
+        "list_sql": """SELECT lcr.final_url,
+                       COUNT(*) AS link_count,
+                       COUNT(DISTINCT l.org_slug) AS org_count
+                FROM link_check_results lcr
+                JOIN links l ON l.id = lcr.link_id
+                WHERE lcr.final_url IS NOT NULL
+                  AND lcr.final_url != lcr.url
+                  AND lcr.checked_at IS NOT NULL
+                GROUP BY lcr.final_url
+                HAVING COUNT(DISTINCT lcr.url) >= 5{org}
+                ORDER BY {order_by}
+                LIMIT %s OFFSET %s""",
+        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}
+                FROM link_check_results lcr
+                JOIN links l ON l.id = lcr.link_id
+                WHERE lcr.final_url = %s
+                ORDER BY {{order_by}}
+                LIMIT %s OFFSET %s""",
+        "detail_count_sql": """SELECT COUNT(*) AS n
+                FROM link_check_results lcr
+                JOIN links l ON l.id = lcr.link_id
+                WHERE lcr.final_url = %s""",
+    },
 ]
 
 # Each report's SQL carries a {key} placeholder per facet, replaced by the
@@ -459,6 +536,10 @@ def report_stmts(
             s = sort if sort in DUPLICATE_URL_SORT else DUPLICATE_URL_SORT_DEFAULT[0]
             d = dir_ if dir_ in ("asc", "desc") else DUPLICATE_URL_SORT_DEFAULT[1]
             list_sql = list_sql.replace("{order_by}", _order_by_sql(DUPLICATE_URL_SORT, s, d, "url"))
+        elif kind == "suspicious-redirects":
+            s = sort if sort in SUSPICIOUS_REDIRECT_SORT else SUSPICIOUS_REDIRECT_SORT_DEFAULT[0]
+            d = dir_ if dir_ in ("asc", "desc") else SUSPICIOUS_REDIRECT_SORT_DEFAULT[1]
+            list_sql = list_sql.replace("{order_by}", _order_by_sql(SUSPICIOUS_REDIRECT_SORT, s, d, "final_url"))
 
     entry = {
         "params": params,

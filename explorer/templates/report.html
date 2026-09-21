@@ -6,7 +6,9 @@
 {% endblock styles %}
 
 {% block header_left %}
-  {% if detail_url %}
+  {% if detail_url and current.key == "links-suspicious-redirects" %}
+    {{ back_link('/report/links-suspicious-redirects', 'Suspicious redirects') }}
+  {% elif detail_url %}
     {{ back_link('/report/links-duplicate-urls', 'Duplicate URLs across datasets') }}
   {% elif detail_hash %}
     {{ back_link('/report/datasets-duplicate-content', 'Datasets with duplicate content') }}
@@ -32,6 +34,8 @@
     {% set count_label, count_label_singular = 'duplicate sets', 'duplicate set' %}
   {% elif current.kind == "links" %}
     {% set count_label, count_label_singular = 'links', 'link' %}
+  {% elif current.kind == "suspicious-redirects" %}
+    {% set count_label, count_label_singular = 'redirect destinations', 'redirect destination' %}
   {% else %}
     {% set count_label, count_label_singular = 'datasets', 'dataset' %}
   {% endif %}
@@ -121,6 +125,30 @@
                 <a href="?url={{ row.url | urlencode }}">{{ row.url }}</a>
               </th>
               <td class="col-num">{{ row.dataset_count | num }}</td>
+              <td class="col-num">{{ row.org_count | num }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {% elif current.kind == "suspicious-redirects" %}
+        <colgroup>
+          <col class="col-url" />
+          <col class="col-num" />
+          <col class="col-num" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="col-text">{{ sort_link("final_url", "Final URL", sort, dir, facet_qs) }}</th>
+            <th class="col-num">{{ sort_link("link_count", "Links", sort, dir, facet_qs) }}</th>
+            <th class="col-num">{{ sort_link("org_count", "Publishers", sort, dir, facet_qs) }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <th scope="row" class="col-text">
+                <a href="?url={{ row.final_url | urlencode }}">{{ row.final_url }}</a>
+              </th>
+              <td class="col-num">{{ row.link_count | num }}</td>
               <td class="col-num">{{ row.org_count | num }}</td>
             </tr>
           {% endfor %}

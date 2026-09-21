@@ -27,6 +27,8 @@ from explorer.queries.reports import (
     LINK_REPORT_SORT,
     LINK_REPORT_SORT_DEFAULT,
     REPORTS,
+    SUSPICIOUS_REDIRECT_SORT,
+    SUSPICIOUS_REDIRECT_SORT_DEFAULT,
     report_facet_counts,
     report_stmts,
     report_unfiltered_count,
@@ -51,6 +53,7 @@ _REPORT_SORT = {
     "links": (LINK_REPORT_SORT, LINK_REPORT_SORT_DEFAULT),
     "duplicate-content": (DUPLICATE_CONTENT_SORT, DUPLICATE_CONTENT_SORT_DEFAULT),
     "duplicate-urls": (DUPLICATE_URL_SORT, DUPLICATE_URL_SORT_DEFAULT),
+    "suspicious-redirects": (SUSPICIOUS_REDIRECT_SORT, SUSPICIOUS_REDIRECT_SORT_DEFAULT),
 }
 _NO_SORT = ({}, ("name", "asc"))
 
@@ -87,6 +90,49 @@ def _duplicate_url_report(request, report, url):
                 "kind": "links",
                 "count": total,
                 "hidden_cols": {"url"},
+            },
+            "detail_url": url,
+            "pills": [],
+            "sort": sort,
+            "dir": dir_,
+            "facet_qs": facet_qs,
+            "pager_base": pager_base,
+            "rows": rows,
+            **pagination,
+        },
+    )
+
+
+def _suspicious_redirect_detail(request, report, url):
+    """Suspicious-redirects detail mode (?url=<encoded-url>) — every link that
+    redirects to this shared destination."""
+    sort, dir_ = parse_sort(request, LINK_REPORT_SORT, *LINK_REPORT_SORT_DEFAULT)
+    order_sql = _order_by_sql(LINK_REPORT_SORT, sort, dir_, "LOWER(dataset_title), id")
+    list_stmt = Query(report["detail_sql"].replace("{order_by}", order_sql))
+
+    count_stmt = Query(report["detail_count_sql"])
+    total = count_stmt.get(url)["n"]
+
+    pagination = paginate(request, total)
+    rows = list_stmt.all(url, pagination["page_size"], pagination["offset"])
+
+    base_params = facets.preserve_params(sort, dir_, [("url", url)], defaults=LINK_REPORT_SORT_DEFAULT)
+    facet_qs = facets.facet_qs(base_params, include_sort=False)
+    pager_base = facets.pager_base(base_params)
+
+    return render(
+        request,
+        "report.html",
+        {
+            "title": "Suspicious redirect — data.gov.uk Explorer",
+            "nav_key": "dashboard",
+            "current": {
+                "key": report["key"],
+                "label": report["label"],
+                "description": report["description"],
+                "kind": "links",
+                "count": total,
+                "hidden_cols": set(),
             },
             "detail_url": url,
             "pills": [],
@@ -245,6 +291,10 @@ def report(request, key):
     # Duplicate URLs detail mode: ?url=<encoded-url>
     if report["kind"] == "duplicate-urls" and url is not None:
         return _duplicate_url_report(request, report, url)
+
+    # Suspicious redirects detail mode: ?url=<encoded-url>
+    if report["kind"] == "suspicious-redirects" and url is not None:
+        return _suspicious_redirect_detail(request, report, url)
 
     # Duplicate content detail mode: ?hash=<md5>
     if report["kind"] == "duplicate-content" and content_hash is not None:
