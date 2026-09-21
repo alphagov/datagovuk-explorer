@@ -363,24 +363,34 @@ async def make_pw_fn(browser: Any, timeout_ms: int) -> Callable:
 # Database helpers
 # ---------------------------------------------------------------------------
 
-_SYNC_IDS_SQL = """
-UPDATE link_check_results lcr
-SET link_id = l.id
-FROM links l
-WHERE l.url = lcr.url
-  AND l.url IS NOT NULL
-  AND lcr.link_id <> l.id
+_POPULATE_SQL = """
+INSERT INTO link_check_results (link_id, url)
+SELECT id, url FROM links
+ON CONFLICT (link_id) DO NOTHING
+"""
+
+_CARRY_OVER_SQL = """
+UPDATE link_check_results AS target
+SET checked_at  = source.checked_at,
+    method      = source.method,
+    ok          = source.ok,
+    http_status = source.http_status,
+    final_url   = source.final_url,
+    error       = source.error
+FROM (
+    SELECT DISTINCT ON (url)
+           url, checked_at, method, ok, http_status, final_url, error
+    FROM link_check_results
+    WHERE checked_at IS NOT NULL
+    ORDER BY url, checked_at DESC
+) source
+WHERE source.url = target.url
+  AND target.checked_at IS NULL
 """
 
 _DELETE_ORPHANS_SQL = """
 DELETE FROM link_check_results
 WHERE link_id NOT IN (SELECT id FROM links)
-"""
-
-_POPULATE_SQL = """
-INSERT INTO link_check_results (link_id, url)
-SELECT id, url FROM links
-ON CONFLICT (link_id) DO NOTHING
 """
 
 _UPDATE_BY_URL_SQL = """
@@ -463,12 +473,6 @@ def write_result(db: Db, result: dict[str, Any]) -> None:
     )
 
 
-_POPULATE_SQL = """
-INSERT INTO link_check_results (link_id, url)
-SELECT id, url FROM links
-ON CONFLICT (link_id) DO NOTHING
-"""
-
 _MARK_BLANK_SQL = """
 UPDATE link_check_results
 SET checked_at  = %s,
@@ -513,25 +517,29 @@ WHERE checked_at IS NULL
 """
 
 
-def sync_link_ids(db: Db) -> tuple[int, int]:
-    """Re-align link_check_results with the current links table by URL.
-
-    After a full rebuild, link_id values are stale (SERIAL reset). This
-    re-syncs rows whose URL still exists in links, then deletes true orphans
-    (blank-URL rows and removed links). Returns (n_synced, n_deleted).
-    """
-    with db.conn.cursor() as cur:
-        cur.execute(_SYNC_IDS_SQL)
-        n_synced = cur.rowcount
-        cur.execute(_DELETE_ORPHANS_SQL)
-        n_deleted = cur.rowcount
-    return n_synced, n_deleted
-
-
 def _populate_link_check_results(db: Db) -> int:
     """Insert a pending row for every link not yet in link_check_results. Returns count inserted."""
     with db.conn.cursor() as cur:
         cur.execute(_POPULATE_SQL)
+        return cur.rowcount
+
+
+def _carry_over_check_results(db: Db) -> int:
+    """Copy check results from old (orphaned) rows to new rows by URL match.
+
+    After a rebuild, old rows have stale link_ids but valid check data.
+    New rows (from populate) have correct link_ids but NULL checked_at.
+    This copies the most recent result for each URL to fill in the gaps.
+    """
+    with db.conn.cursor() as cur:
+        cur.execute(_CARRY_OVER_SQL)
+        return cur.rowcount
+
+
+def _delete_orphan_rows(db: Db) -> int:
+    """Delete link_check_results rows whose link_id is no longer in links."""
+    with db.conn.cursor() as cur:
+        cur.execute(_DELETE_ORPHANS_SQL)
         return cur.rowcount
 
 
@@ -715,15 +723,17 @@ async def _main(
 ) -> None:
     db = connect(database_url())
     try:
-        n_synced, n_deleted = sync_link_ids(db)
-        if n_synced:
-            print(f"  Re-synced {n_synced} link_id(s) by URL match", flush=True)
-        if n_deleted:
-            print(f"  Deleted {n_deleted} orphaned row(s) from link_check_results", flush=True)
-
         n_new = _populate_link_check_results(db)
         if n_new:
             print(f"  Added {n_new} new pending row(s) to link_check_results", flush=True)
+
+        n_carried = _carry_over_check_results(db)
+        if n_carried:
+            print(f"  Carried over {n_carried} check result(s) by URL match", flush=True)
+
+        n_deleted = _delete_orphan_rows(db)
+        if n_deleted:
+            print(f"  Deleted {n_deleted} orphaned row(s) from link_check_results", flush=True)
 
         n_blank = _mark_blank_url_links(db)
         if n_blank:
