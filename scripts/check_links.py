@@ -33,10 +33,7 @@ except ImportError:
 
 from scripts.db import Db, connect, database_url
 
-BROWSER_UA = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-)
+BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 BROWSER_HEADERS = {"User-Agent": BROWSER_UA, "Accept": "*/*"}
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]")
@@ -762,6 +759,7 @@ async def _main(
             headers=BROWSER_HEADERS,
             verify=True,
         ) as client:
+
             async def fetch_fn(method: str, url: str) -> httpx.Response:
                 return await client.request(method, url)
 
@@ -771,29 +769,53 @@ async def _main(
                         browser = await pw.chromium.launch(headless=True)
                         pw_fn = await make_pw_fn(browser, timeout_ms)
                         await _run_workers(
-                            urls, fetch_fn=fetch_fn, pw_fn=pw_fn,
-                            gate=gate, pw_sem=pw_sem, worker_sem=worker_sem,
-                            timeout_ms=timeout_ms, queue=queue, db=db,
-                            counter=counter, total=total,
-                            workers=workers, pw_pages=pw_pages,
+                            urls,
+                            fetch_fn=fetch_fn,
+                            pw_fn=pw_fn,
+                            gate=gate,
+                            pw_sem=pw_sem,
+                            worker_sem=worker_sem,
+                            timeout_ms=timeout_ms,
+                            queue=queue,
+                            db=db,
+                            counter=counter,
+                            total=total,
+                            workers=workers,
+                            pw_pages=pw_pages,
                         )
                         await browser.close()
                 except Exception as exc:  # noqa: BLE001
                     print(f"  Playwright browser unavailable ({exc}) — falling back to HTTP only", flush=True)
                     await _run_workers(
-                        urls, fetch_fn=fetch_fn, pw_fn=None,
-                        gate=gate, pw_sem=pw_sem, worker_sem=worker_sem,
-                        timeout_ms=timeout_ms, queue=queue, db=db,
-                        counter=counter, total=total,
-                        workers=workers, pw_pages=pw_pages,
+                        urls,
+                        fetch_fn=fetch_fn,
+                        pw_fn=None,
+                        gate=gate,
+                        pw_sem=pw_sem,
+                        worker_sem=worker_sem,
+                        timeout_ms=timeout_ms,
+                        queue=queue,
+                        db=db,
+                        counter=counter,
+                        total=total,
+                        workers=workers,
+                        pw_pages=pw_pages,
                     )
             else:
                 await _run_workers(
-                    urls, fetch_fn=fetch_fn, pw_fn=None,
-                    gate=gate, pw_sem=pw_sem, worker_sem=worker_sem,
-                    timeout_ms=timeout_ms, queue=queue, db=db,
-                    counter=counter, total=total,
-                    workers=workers, pw_pages=pw_pages,
+                    urls,
+                    fetch_fn=fetch_fn,
+                    pw_fn=None,
+                    gate=gate,
+                    pw_sem=pw_sem,
+                    worker_sem=worker_sem,
+                    timeout_ms=timeout_ms,
+                    queue=queue,
+                    db=db,
+                    counter=counter,
+                    total=total,
+                    workers=workers,
+                    pw_pages=pw_pages,
                 )
 
         print(f"Done: {counter[0]}/{total} URL(s) checked.", flush=True)
