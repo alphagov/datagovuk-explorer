@@ -11,9 +11,13 @@ Full pipeline run: fetch organisations → fetch harvest sources → download da
 | download-datasets | 58,264 datasets, 21 batches, 0 errors | 13m 02s |
 | build-db | 58,264 datasets, 232,849 resource links, 0 files skipped | 2m 56s |
 | ingest-reviews | 918 inserted, 108 skipped (dataset not in local DB) | 1s |
+| build-series | 3,996 series (680 template, 3,316 timeseries) | 4s |
 | embed-only | 58,264 datasets embedded, HNSW index rebuilt | 9m 30s |
+| dump-db | explorer-2026-09-18.dump | 27s |
+| restore-db | Railway Postgres restored | 4m 27s |
+| deploy | Code shipped, health: 200 | ~2m |
 
-**Total wall-clock time: ~31 minutes** (fetch + download + build + ingest + embeddings).
+**Total wall-clock time: ~40 minutes** (fetch through deploy).
 
 Dataset count (58,264) now matches data.gov.uk's search total.
 
@@ -63,4 +67,11 @@ just build-db --skip-embeddings                              # succeeded, but 67
 # fixed download_datasets.py to wipe org dirs before re-fetching with --force
 just build-db --skip-embeddings                              # 58,264 — matches data.gov.uk
 just ingest-reviews
+just build-series
+just embed-only                                              # llama-server on :8080
+just dump-db
+just tunnel                                                  # in separate terminal
+just restore-db db/backups/explorer-2026-09-18.dump <railway-url>
+just deploy
+just deploy-check                                            # health: 200
 ```
