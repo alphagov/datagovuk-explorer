@@ -389,7 +389,7 @@ class LinkCheckResult(models.Model):
     link = models.OneToOneField(
         Link,
         db_column="link_id",
-        on_delete=models.CASCADE,
+        on_delete=models.DO_NOTHING,
         primary_key=True,
     )
     url = models.TextField(blank=True, null=True)

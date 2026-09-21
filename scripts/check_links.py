@@ -366,6 +366,20 @@ async def make_pw_fn(browser: Any, timeout_ms: int) -> Callable:
 # Database helpers
 # ---------------------------------------------------------------------------
 
+_SYNC_IDS_SQL = """
+UPDATE link_check_results lcr
+SET link_id = l.id
+FROM links l
+WHERE l.url = lcr.url
+  AND l.url IS NOT NULL
+  AND lcr.link_id <> l.id
+"""
+
+_DELETE_ORPHANS_SQL = """
+DELETE FROM link_check_results
+WHERE link_id NOT IN (SELECT id FROM links)
+"""
+
 _POPULATE_SQL = """
 INSERT INTO link_check_results (link_id, url)
 SELECT id, url FROM links
@@ -500,6 +514,21 @@ WHERE checked_at IS NULL
   AND url IS NOT NULL AND url != ''
   AND NOT (url LIKE 'http%%' AND url ~* '^https?://[^/]')
 """
+
+
+def sync_link_ids(db: Db) -> tuple[int, int]:
+    """Re-align link_check_results with the current links table by URL.
+
+    After a full rebuild, link_id values are stale (SERIAL reset). This
+    re-syncs rows whose URL still exists in links, then deletes true orphans
+    (blank-URL rows and removed links). Returns (n_synced, n_deleted).
+    """
+    with db.conn.cursor() as cur:
+        cur.execute(_SYNC_IDS_SQL)
+        n_synced = cur.rowcount
+        cur.execute(_DELETE_ORPHANS_SQL)
+        n_deleted = cur.rowcount
+    return n_synced, n_deleted
 
 
 def _populate_link_check_results(db: Db) -> int:
@@ -689,6 +718,12 @@ async def _main(
 ) -> None:
     db = connect(database_url())
     try:
+        n_synced, n_deleted = sync_link_ids(db)
+        if n_synced:
+            print(f"  Re-synced {n_synced} link_id(s) by URL match", flush=True)
+        if n_deleted:
+            print(f"  Deleted {n_deleted} orphaned row(s) from link_check_results", flush=True)
+
         n_new = _populate_link_check_results(db)
         if n_new:
             print(f"  Added {n_new} new pending row(s) to link_check_results", flush=True)

@@ -1,4 +1,3 @@
-import django.db.models.deletion
 from django.db import migrations, models
 
 # When upgrading from the old url-keyed schema, migrate existing check results
@@ -77,7 +76,7 @@ class Migration(migrations.Migration):
                             "link",
                             models.OneToOneField(
                                 db_column="link_id",
-                                on_delete=django.db.models.deletion.CASCADE,
+                                on_delete=models.DO_NOTHING,
                                 primary_key=True,
                                 serialize=False,
                                 to="explorer.link",
@@ -91,7 +90,12 @@ class Migration(migrations.Migration):
                         ("final_url", models.TextField(blank=True, null=True)),
                         ("error", models.TextField(blank=True, null=True)),
                     ],
-                    options={"db_table": "link_check_results"},
+                    options={
+                        "db_table": "link_check_results",
+                        "indexes": [
+                            models.Index(fields=["url"], name="link_check_results_url_idx"),
+                        ],
+                    },
                 ),
             ],
         ),
