@@ -74,21 +74,7 @@ def main() -> None:
         out_path = DOWNLOADS_DIR / "organisations.json"
         DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
         write_json(orgs, out_path)
-        print(f"Wrote {len(orgs)} organisations to {out_path}\n")
-
-        for org in orgs:
-            name = org.get("display_name") or org["name"]
-            desc = (org.get("description") or "(no description)")[:120].replace(
-                "\n",
-                " ",
-            )
-            count = org.get("package_count")
-            if count is None:
-                count = "?"  # 0 is a real count, not a missing one
-            print(f"  {name}")
-            print(f"    Datasets: {count}")
-            print(f"    {desc}")
-            print()
+        print(f"Wrote {len(orgs)} organisations to {out_path}")
     except (httpx.HTTPError, RuntimeError, ValueError, OSError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
