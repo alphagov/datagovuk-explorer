@@ -32,7 +32,7 @@
             </th>
             <td class="col-num">{{ org.dataset_count | num }}</td>
             <td class="col-num">{{ org.resource_count | num }}</td>
-            <td class="col-num">{% if org.link_health is not none %}{{ org.link_health }}%{% else %}—{% endif %}</td>
+            <td class="col-num">{% if org.link_health is not none %}<span{% if org.link_health < 80 %} style="color: red"{% endif %}>{{ org.link_health }}%</span>{% else %}—{% endif %}</td>
             <td class="col-num">{{ org.views | num }}</td>
             <td class="col-date">{{ org.created }}</td>
             <td class="col-date">{{ org.last_published }}</td>
