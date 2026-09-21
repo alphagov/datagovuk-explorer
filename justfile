@@ -229,11 +229,6 @@ review-suggest *args:
 ingest-reviews:
     uv run --env-file .env python -m scripts.ingest_reviews
 
-# Load data/errors-current.csv into the link_errors table (run after a new
-# checker output lands; TRUNCATE + reload, like ingest-reviews)
-ingest-link-errors:
-    uv run --env-file .env python -m scripts.ingest_link_errors
-
 # Check every URL in the links table (HEAD → GET → Playwright fallback).
 # Writes results to link_check_results; safe to interrupt and rerun.
 # View live progress at /check-progress while the checker is running.

@@ -25,8 +25,7 @@ scripts/   Standalone pipeline: fetch/download datasets, build the DB,
            errors
 explorer/static/  Static assets (collected into staticfiles/ for prod)
 tests/     pytest suite — app tests against the live DB + offline unit tests
-data/      Pipeline inputs (tracked): reviews JSONL, views CSV, the link
-           checker output errors-current.csv (commit it once ingested)
+data/      Pipeline inputs (tracked): reviews JSONL, views CSV
 db/        Local backups (gitignored)
 llm/       Embedding model (gitignored) — fetch with `just download-llm`
 ```

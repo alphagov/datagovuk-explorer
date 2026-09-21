@@ -68,12 +68,9 @@ the build ~3 minutes — easily within a cron job or Railway cron service.
 
 ### Link checking
 
-The app currently ingests link-check results from an external CSV
-(`data/errors-current.csv`). Running its own lightweight checker — HEAD
-requests with a timeout, categorising by HTTP status — would make the
-data self-contained and fresher. Could run as a separate pipeline step,
-checking a batch of URLs per run and accumulating results. The link
-errors table already has the right schema.
+Done — `just check-links` runs the in-project checker (HEAD → GET →
+Playwright fallback) and writes results directly into
+`link_check_results`. View live progress at `/check-progress`.
 
 ### Quality change alerts
 
