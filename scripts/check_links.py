@@ -94,9 +94,9 @@ class HostGate:
     """
 
     SPEED_UP_AFTER = 5
-    DEAD_THRESHOLD = 10
 
-    def __init__(self, start_ms: int = 1000, floor_ms: int = 250) -> None:
+    def __init__(self, start_ms: int = 1000, floor_ms: int = 250, dead_threshold: int = 10) -> None:
+        self._dead_threshold = dead_threshold
         self._start = start_ms / 1000.0
         self._floor = floor_ms / 1000.0
         self._step = floor_ms / 1000.0
@@ -151,7 +151,7 @@ class HostGate:
             self._streak[host] = 0
             count = self._dead_counts.get(host, 0) + 1
             self._dead_counts[host] = count
-            if count >= self.DEAD_THRESHOLD and host not in self._dead:
+            if self._dead_threshold and count >= self._dead_threshold and host not in self._dead:
                 self._dead.add(host)
                 return True
 
@@ -694,6 +694,7 @@ def main(
     timeout_ms: int = typer.Option(15_000, help="HTTP timeout per request (ms)"),
     start_ms: int = typer.Option(1_000, help="Starting gap per host in ms (1 req/s); speeds up toward --floor-ms"),
     floor_ms: int = typer.Option(250, help="Minimum gap per host in ms (4 req/s)"),
+    dead_threshold: int = typer.Option(10, help="Mark host dead after N consecutive failures (0 = disable)"),
     force: bool = typer.Option(False, help="Recheck URLs already in link_check_results"),
 ) -> None:
     asyncio.run(
@@ -705,6 +706,7 @@ def main(
             timeout_ms=timeout_ms,
             start_ms=start_ms,
             floor_ms=floor_ms,
+            dead_threshold=dead_threshold,
             force=force,
         ),
     )
@@ -719,6 +721,7 @@ async def _main(
     timeout_ms: int,
     start_ms: int,
     floor_ms: int,
+    dead_threshold: int,
     force: bool,
 ) -> None:
     db = connect(database_url())
@@ -757,7 +760,7 @@ async def _main(
         if not _HAS_PLAYWRIGHT:
             print("  playwright not installed — Playwright fallback disabled", flush=True)
 
-        gate = HostGate(start_ms, floor_ms)
+        gate = HostGate(start_ms, floor_ms, dead_threshold)
         worker_sem = asyncio.Semaphore(workers)
         pw_sem = asyncio.Semaphore(pw_pages)
         queue: asyncio.Queue[dict | None] = asyncio.Queue()
@@ -771,6 +774,15 @@ async def _main(
         ) as client:
 
             async def fetch_fn(method: str, url: str) -> httpx.Response:
+                if method == "GET":
+                    # Stream GET requests: read headers only, skip the body.
+                    # Prevents memory bloat on large file downloads.
+                    resp = await client.send(
+                        client.build_request("GET", url),
+                        stream=True,
+                    )
+                    await resp.aclose()
+                    return resp
                 return await client.request(method, url)
 
             if _HAS_PLAYWRIGHT:
