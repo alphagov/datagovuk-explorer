@@ -715,6 +715,8 @@ def test_cli():
         "LLM_MODEL": "",
         "LOCAL_BASE_URL": "",
         "LOCAL_MODEL": "",
+        "ANTHROPIC_AUTH_TOKEN": "",
+        "ANTHROPIC_API_KEY": "",
     }
 
     # --limit 0 -> exit 1
