@@ -356,11 +356,11 @@ def test_load_urls_respects_limit():
     assert len(urls) == 3
 
 
-def test_load_urls_force_omits_join():
+def test_load_urls_force_omits_checked_filter():
     db = _mock_db([{"url": "http://example.com/a"}])
     cl.load_urls(db, force=True)
     sql_arg = db.prepare.call_args[0][0]
-    assert "lcr.url IS NULL" not in sql_arg
+    assert "NOT EXISTS" not in sql_arg
     assert "link_check_results" not in sql_arg
 
 
@@ -368,7 +368,7 @@ def test_load_urls_only_host():
     db = _mock_db([{"url": "http://data.gov.uk/a"}])
     cl.load_urls(db, only_host="data.gov.uk")
     sql_arg = db.prepare.call_args[0][0]
-    assert "l.host" in sql_arg
+    assert "split_part" in sql_arg
     params = db.prepare.return_value.all.call_args[0]
     assert "data.gov.uk" in params
     assert "%.data.gov.uk" in params

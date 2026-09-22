@@ -1,58 +1,47 @@
 from django.db import migrations, models
 
-# When upgrading from the old url-keyed schema, migrate existing check results
-# by joining link_check_results on url back to links, taking one result per
-# link (DISTINCT ON l.id) so shared-URL links each get their own row.
 _UP = """
 DO $$
 BEGIN
-    IF NOT EXISTS (
+    IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'link_check_results' AND column_name = 'link_id'
     ) THEN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_name = 'link_check_results'
-        ) THEN
-            -- Upgrade: old url-keyed table exists — save, recreate, repopulate.
-            CREATE TABLE link_check_results_old AS SELECT * FROM link_check_results;
-            DROP TABLE link_check_results;
-            CREATE TABLE link_check_results (
-                link_id     INTEGER PRIMARY KEY REFERENCES links(id) ON DELETE CASCADE,
-                url         TEXT,
-                checked_at  TEXT,
-                method      TEXT,
-                ok          BOOLEAN,
-                http_status INTEGER,
-                final_url   TEXT,
-                error       TEXT
-            );
-            INSERT INTO link_check_results
-                (link_id, url, checked_at, method, ok, http_status, final_url, error)
-            SELECT DISTINCT ON (l.id)
-                l.id, l.url, old.checked_at, old.method, old.ok,
-                old.http_status, old.final_url, old.error
-            FROM links l
-            JOIN link_check_results_old old ON old.url = l.url
-            ORDER BY l.id;
-            DROP TABLE link_check_results_old;
-        ELSE
-            -- Fresh install.
-            CREATE TABLE link_check_results (
-                link_id     INTEGER PRIMARY KEY REFERENCES links(id) ON DELETE CASCADE,
-                url         TEXT,
-                checked_at  TEXT,
-                method      TEXT,
-                ok          BOOLEAN,
-                http_status INTEGER,
-                final_url   TEXT,
-                error       TEXT
-            );
-        END IF;
+        -- Upgrade from link_id-keyed table: keep the most recent result per URL.
+        CREATE TABLE link_check_results_new (
+            url         TEXT PRIMARY KEY,
+            checked_at  TEXT,
+            method      TEXT,
+            ok          BOOLEAN,
+            http_status INTEGER,
+            final_url   TEXT,
+            error       TEXT
+        );
+        INSERT INTO link_check_results_new
+            (url, checked_at, method, ok, http_status, final_url, error)
+        SELECT DISTINCT ON (url)
+            url, checked_at, method, ok, http_status, final_url, error
+        FROM link_check_results
+        WHERE url IS NOT NULL AND url != ''
+        ORDER BY url, checked_at DESC NULLS LAST;
+        DROP TABLE link_check_results;
+        ALTER TABLE link_check_results_new RENAME TO link_check_results;
+    ELSIF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'link_check_results'
+    ) THEN
+        -- Fresh install.
+        CREATE TABLE link_check_results (
+            url         TEXT PRIMARY KEY,
+            checked_at  TEXT,
+            method      TEXT,
+            ok          BOOLEAN,
+            http_status INTEGER,
+            final_url   TEXT,
+            error       TEXT
+        );
     END IF;
 END $$;
-
-CREATE INDEX IF NOT EXISTS link_check_results_url_idx ON link_check_results (url);
 """
 
 _DOWN = """
@@ -73,16 +62,9 @@ class Migration(migrations.Migration):
                     name="LinkCheckResult",
                     fields=[
                         (
-                            "link",
-                            models.OneToOneField(
-                                db_column="link_id",
-                                on_delete=models.DO_NOTHING,
-                                primary_key=True,
-                                serialize=False,
-                                to="explorer.link",
-                            ),
+                            "url",
+                            models.TextField(primary_key=True, serialize=False),
                         ),
-                        ("url", models.TextField(blank=True, null=True)),
                         ("checked_at", models.TextField(blank=True, null=True)),
                         ("method", models.TextField(blank=True, null=True)),
                         ("ok", models.BooleanField(blank=True, null=True)),
@@ -92,9 +74,6 @@ class Migration(migrations.Migration):
                     ],
                     options={
                         "db_table": "link_check_results",
-                        "indexes": [
-                            models.Index(fields=["url"], name="link_check_results_url_idx"),
-                        ],
                     },
                 ),
             ],

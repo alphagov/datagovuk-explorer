@@ -1,6 +1,6 @@
 """/links/status query layer — statements per (filters, sort, dir),
 self-excluding SQL sidebar facet pools and memoised whole-table stats,
-all read from `link_check_results` joined with `links`.
+all read from `links` LEFT JOINed to `link_check_results` on url.
 
 One row per link occurrence: if N resources point to the same URL, N rows
 appear. Harvest state, org slug and harvest source title come from the
@@ -14,12 +14,12 @@ from explorer.sort import order_by
 
 from .core import Query, cached_unfiltered, facet_where
 
-# The shared join behind every statement. link_check_results is keyed by
-# URL; links provides the per-resource context (dataset, org, host).
-# datasets/organisations are LEFT-JOINed for harvest state and display name.
+# The shared join behind every statement. links is the primary table;
+# link_check_results is LEFT-JOINed on url (one status row per unique URL,
+# fanned out to every resource sharing that URL).
 _LINK_ERRORS_FROM = (
-    "link_check_results lcr"
-    " JOIN links l ON l.id = lcr.link_id"
+    "links l"
+    " LEFT JOIN link_check_results lcr ON l.url = lcr.url"
     " LEFT JOIN datasets d ON d.id = l.dataset_id"
     " LEFT JOIN organisations o ON o.slug = l.org_slug"
 )
@@ -59,7 +59,7 @@ _CATEGORY_EXPR = (
     "   OR lcr.error ILIKE '%%ERR_EMPTY_RESPONSE%%' OR lcr.error ILIKE '%%ERR_CONNECTION%%'"
     "   OR lcr.error ILIKE '%%ERR_HTTP2%%')) THEN 'CONNECTION_ERROR'"
     " WHEN lcr.error LIKE 'playwright:%%' AND lcr.error ILIKE '%%ERR_TOO_MANY_REDIRECTS%%' THEN 'OTHER_CLIENT_ERROR'"
-    " WHEN lcr.error = 'url:blank' THEN 'NO_URL'"
+    " WHEN l.url IS NULL OR l.url = '' THEN 'NO_URL'"
     " WHEN lcr.error LIKE 'url:%%' THEN 'INVALID_URL'"
     " ELSE 'OTHER_ERROR'"
     " END"
@@ -94,7 +94,7 @@ LINK_ERRORS_SORT_DEFAULT = ("url", "asc")
 
 
 def _checked_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
-    return ["lcr.checked_at IS NOT NULL"], []
+    return ["(lcr.checked_at IS NOT NULL OR l.url IS NULL OR l.url = '')"], []
 
 
 def _category_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
@@ -237,9 +237,9 @@ def _link_errors_facet_counts(filters: dict) -> dict:
             f" GROUP BY 1 ORDER BY count DESC, ({_CATEGORY_EXPR})",
         ),
         "statuses": Query(
-            "SELECT CASE WHEN lcr.ok THEN 'ok' ELSE 'error' END AS value, COUNT(*) AS count"
+            "SELECT CASE WHEN COALESCE(lcr.ok, false) THEN 'ok' ELSE 'error' END AS value, COUNT(*) AS count"
             f" FROM {_LINK_ERRORS_FROM}{status_frag}"
-            " GROUP BY lcr.ok ORDER BY lcr.ok DESC",
+            " GROUP BY COALESCE(lcr.ok, false) ORDER BY COALESCE(lcr.ok, false) DESC",
         ),
         "domains": Query(
             "SELECT l.host AS value, COUNT(*) AS count"
@@ -296,8 +296,8 @@ def link_errors_facet_counts(filters: dict) -> dict:
 
 ORG_BROKEN_LINKS = Query(
     "SELECT COUNT(*) AS n"
-    " FROM link_check_results lcr"
-    " JOIN links l ON l.id = lcr.link_id"
+    " FROM links l"
+    " JOIN link_check_results lcr ON l.url = lcr.url"
     " WHERE l.org_slug = %s AND lcr.ok = false AND lcr.checked_at IS NOT NULL",
 )
 
@@ -307,10 +307,11 @@ ORG_BROKEN_LINKS = Query(
 LINK_ERRORS_STATS = Query(
     "SELECT"
     "  COUNT(*) AS total,"
-    "  COUNT(*) FILTER (WHERE NOT lcr.ok) AS errors,"
+    "  COUNT(*) FILTER (WHERE lcr.ok = false OR l.url IS NULL OR l.url = '') AS errors,"
     "  COUNT(*) FILTER (WHERE lcr.ok) AS resolved"
-    " FROM link_check_results lcr"
-    " WHERE lcr.checked_at IS NOT NULL",
+    " FROM links l"
+    " LEFT JOIN link_check_results lcr ON l.url = lcr.url"
+    " WHERE lcr.checked_at IS NOT NULL OR l.url IS NULL OR l.url = ''",
 )
 
 

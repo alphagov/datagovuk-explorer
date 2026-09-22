@@ -366,8 +366,8 @@ REPORTS = [
                 "label": "Publisher",
                 "counts_sql": """SELECT l.org_slug AS slug, l.org_display_name AS name,
                          COUNT(DISTINCT lcr.final_url) AS count
-                    FROM link_check_results lcr
-                    JOIN links l ON l.id = lcr.link_id
+                    FROM links l
+                    JOIN link_check_results lcr ON l.url = lcr.url
                     WHERE lcr.final_url IS NOT NULL
                       AND lcr.final_url != lcr.url
                       AND lcr.checked_at IS NOT NULL
@@ -383,8 +383,8 @@ REPORTS = [
         ],
         "count_sql": """SELECT COUNT(*) AS n FROM (
             SELECT lcr.final_url
-            FROM link_check_results lcr
-            JOIN links l ON l.id = lcr.link_id
+            FROM links l
+            JOIN link_check_results lcr ON l.url = lcr.url
             WHERE lcr.final_url IS NOT NULL
               AND lcr.final_url != lcr.url
               AND lcr.checked_at IS NOT NULL
@@ -404,8 +404,8 @@ REPORTS = [
         "list_sql": """SELECT lcr.final_url,
                        COUNT(*) AS link_count,
                        COUNT(DISTINCT l.org_slug) AS org_count
-                FROM link_check_results lcr
-                JOIN links l ON l.id = lcr.link_id
+                FROM links l
+                JOIN link_check_results lcr ON l.url = lcr.url
                 WHERE lcr.final_url IS NOT NULL
                   AND lcr.final_url != lcr.url
                   AND lcr.checked_at IS NOT NULL
@@ -414,14 +414,14 @@ REPORTS = [
                 ORDER BY {order_by}
                 LIMIT %s OFFSET %s""",
         "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}
-                FROM link_check_results lcr
-                JOIN links l ON l.id = lcr.link_id
+                FROM links l
+                JOIN link_check_results lcr ON l.url = lcr.url
                 WHERE lcr.final_url = %s
                 ORDER BY {{order_by}}
                 LIMIT %s OFFSET %s""",
         "detail_count_sql": """SELECT COUNT(*) AS n
-                FROM link_check_results lcr
-                JOIN links l ON l.id = lcr.link_id
+                FROM links l
+                JOIN link_check_results lcr ON l.url = lcr.url
                 WHERE lcr.final_url = %s""",
     },
 ]

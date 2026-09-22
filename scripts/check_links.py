@@ -363,64 +363,41 @@ async def make_pw_fn(browser: Any, timeout_ms: int) -> Callable:
 # Database helpers
 # ---------------------------------------------------------------------------
 
-_POPULATE_SQL = """
-INSERT INTO link_check_results (link_id, url)
-SELECT id, url FROM links
-ON CONFLICT (link_id) DO NOTHING
-"""
-
-_CARRY_OVER_SQL = """
-UPDATE link_check_results AS target
-SET checked_at  = source.checked_at,
-    method      = source.method,
-    ok          = source.ok,
-    http_status = source.http_status,
-    final_url   = source.final_url,
-    error       = source.error
-FROM (
-    SELECT DISTINCT ON (url)
-           url, checked_at, method, ok, http_status, final_url, error
-    FROM link_check_results
-    WHERE checked_at IS NOT NULL
-    ORDER BY url, checked_at DESC
-) source
-WHERE source.url = target.url
-  AND target.checked_at IS NULL
-"""
-
-_DELETE_ORPHANS_SQL = """
-DELETE FROM link_check_results
-WHERE link_id NOT IN (SELECT id FROM links)
-"""
-
-_UPDATE_BY_URL_SQL = """
-UPDATE link_check_results
-SET checked_at  = ?,
-    method      = ?,
-    ok          = ?,
-    http_status = ?,
-    final_url   = ?,
-    error       = ?
-WHERE url = ?
+_UPSERT_RESULT_SQL = """
+INSERT INTO link_check_results
+    (url, checked_at, method, ok, http_status, final_url, error)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (url) DO UPDATE SET
+    checked_at  = EXCLUDED.checked_at,
+    method      = EXCLUDED.method,
+    ok          = EXCLUDED.ok,
+    http_status = EXCLUDED.http_status,
+    final_url   = EXCLUDED.final_url,
+    error       = EXCLUDED.error
 """
 
 _LOAD_SQL = """
-SELECT DISTINCT url
-FROM link_check_results
-WHERE url IS NOT NULL
-  AND url LIKE 'http%%'
-  AND checked_at IS NULL
+SELECT DISTINCT l.url
+FROM links l
+WHERE l.url IS NOT NULL
+  AND l.url LIKE 'http%%'
+  AND l.url ~* '^https?://[^/]'
+  AND NOT EXISTS (
+      SELECT 1 FROM link_check_results lcr
+      WHERE lcr.url = l.url AND lcr.checked_at IS NOT NULL
+  )
   {extra}
-ORDER BY url
+ORDER BY l.url
 """
 
 _LOAD_FORCE_SQL = """
-SELECT DISTINCT url
-FROM link_check_results
-WHERE url IS NOT NULL
-  AND url LIKE 'http%%'
+SELECT DISTINCT l.url
+FROM links l
+WHERE l.url IS NOT NULL
+  AND l.url LIKE 'http%%'
+  AND l.url ~* '^https?://[^/]'
   {extra}
-ORDER BY url
+ORDER BY l.url
 """
 
 
@@ -440,12 +417,12 @@ def load_urls(
     limit: int | None = None,
     only_host: str | None = None,
 ) -> list[str]:
-    """Return unchecked (or all, with --force) http URLs from link_check_results."""
+    """Return unchecked (or all, with --force) http URLs from links."""
     clauses = []
     params: list[Any] = []
 
     if only_host:
-        clauses.append("AND (split_part(url, '/', 3) = ? OR split_part(url, '/', 3) LIKE ?)")
+        clauses.append("AND (split_part(l.url, '/', 3) = ? OR split_part(l.url, '/', 3) LIKE ?)")
         params.extend([only_host, f"%.{only_host}"])
 
     extra = "\n  ".join(clauses)
@@ -461,94 +438,37 @@ def load_urls(
 
 
 def write_result(db: Db, result: dict[str, Any]) -> None:
-    stmt = db.prepare(_UPDATE_BY_URL_SQL)
+    stmt = db.prepare(_UPSERT_RESULT_SQL)
     stmt.run(
+        result["url"],
         result["checked_at"],
         result["method"],
         result["ok"],
         result["http_status"],
         result["final_url"],
         result["error"],
-        result["url"],
     )
 
 
-_MARK_BLANK_SQL = """
-UPDATE link_check_results
-SET checked_at  = %s,
-    method      = 'SKIPPED',
-    ok          = false,
-    http_status = NULL,
-    final_url   = NULL,
-    error       = 'url:blank'
-WHERE url IS NULL OR url = ''
-"""
-
 _MARK_MALFORMED_SQL = """
-UPDATE link_check_results
-SET checked_at  = %s,
-    method      = 'SKIPPED',
-    ok          = false,
-    http_status = NULL,
-    final_url   = NULL,
-    error       = 'url:malformed'
-WHERE link_id IN (
-    SELECT id FROM links
-    WHERE host IS NULL AND url IS NOT NULL AND url != ''
-)
+INSERT INTO link_check_results (url, checked_at, method, ok, http_status, final_url, error)
+SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL, NULL, 'url:malformed'
+FROM links l
+WHERE l.host IS NULL AND l.url IS NOT NULL AND l.url != ''
+ON CONFLICT (url) DO NOTHING
 """
 
-# Catches anything that slips past the blank/malformed marks but can't be
-# HTTP-checked: typo schemes (htts://, hhttps://, ttp://), non-HTTP schemes
-# (ftp://, file://), wrong case (Https://), and http-prefixed-but-malformed
-# (http:/foo, https:///foo). Condition mirrors _LOAD_SQL's LIKE filter plus
-# the is_checkable_url netloc requirement.
+# Catches anything that slips past the malformed mark but can't be HTTP-checked:
+# typo schemes (htts://, hhttps://, ttp://), non-HTTP schemes (ftp://, file://),
+# wrong case (Https://), and http-prefixed-but-malformed (http:/foo, https:///foo).
 _MARK_UNCHECKABLE_SQL = """
-UPDATE link_check_results
-SET checked_at  = %s,
-    method      = 'SKIPPED',
-    ok          = false,
-    http_status = NULL,
-    final_url   = NULL,
-    error       = 'url:malformed'
-WHERE checked_at IS NULL
-  AND url IS NOT NULL AND url != ''
-  AND NOT (url LIKE 'http%%' AND url ~* '^https?://[^/]')
+INSERT INTO link_check_results (url, checked_at, method, ok, http_status, final_url, error)
+SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL, NULL, 'url:malformed'
+FROM links l
+WHERE l.url IS NOT NULL AND l.url != ''
+  AND NOT (l.url LIKE 'http%%' AND l.url ~* '^https?://[^/]')
+ON CONFLICT (url) DO NOTHING
 """
-
-
-def _populate_link_check_results(db: Db) -> int:
-    """Insert a pending row for every link not yet in link_check_results. Returns count inserted."""
-    with db.conn.cursor() as cur:
-        cur.execute(_POPULATE_SQL)
-        return cur.rowcount
-
-
-def _carry_over_check_results(db: Db) -> int:
-    """Copy check results from old (orphaned) rows to new rows by URL match.
-
-    After a rebuild, old rows have stale link_ids but valid check data.
-    New rows (from populate) have correct link_ids but NULL checked_at.
-    This copies the most recent result for each URL to fill in the gaps.
-    """
-    with db.conn.cursor() as cur:
-        cur.execute(_CARRY_OVER_SQL)
-        return cur.rowcount
-
-
-def _delete_orphan_rows(db: Db) -> int:
-    """Delete link_check_results rows whose link_id is no longer in links."""
-    with db.conn.cursor() as cur:
-        cur.execute(_DELETE_ORPHANS_SQL)
-        return cur.rowcount
-
-
-def _mark_blank_url_links(db: Db) -> int:
-    """Mark links with no URL as url:blank. Returns count marked."""
-    now = datetime.now(tz=UTC).isoformat()
-    with db.conn.cursor() as cur:
-        cur.execute(_MARK_BLANK_SQL, (now,))
-        return cur.rowcount
 
 
 def _mark_malformed_urls(db: Db) -> int:
@@ -575,7 +495,7 @@ SET checked_at  = %s,
     http_status = NULL,
     final_url   = NULL,
     error       = 'timeout:dead host'
-WHERE link_id IN (SELECT id FROM links WHERE host = %s)
+WHERE url IN (SELECT DISTINCT url FROM links WHERE host = %s)
   AND checked_at IS NULL
 """
 
@@ -726,22 +646,6 @@ async def _main(
 ) -> None:
     db = connect(database_url())
     try:
-        n_new = _populate_link_check_results(db)
-        if n_new:
-            print(f"  Added {n_new} new pending row(s) to link_check_results", flush=True)
-
-        n_carried = _carry_over_check_results(db)
-        if n_carried:
-            print(f"  Carried over {n_carried} check result(s) by URL match", flush=True)
-
-        n_deleted = _delete_orphan_rows(db)
-        if n_deleted:
-            print(f"  Deleted {n_deleted} orphaned row(s) from link_check_results", flush=True)
-
-        n_blank = _mark_blank_url_links(db)
-        if n_blank:
-            print(f"  Marked {n_blank} blank URL link(s) as url:blank", flush=True)
-
         n_malformed = _mark_malformed_urls(db)
         if n_malformed:
             print(f"  Marked {n_malformed} malformed URL(s) as url:malformed", flush=True)

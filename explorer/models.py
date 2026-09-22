@@ -376,23 +376,15 @@ class Review(models.Model):
 
 
 class LinkCheckResult(models.Model):
-    """One row per link, keyed by link_id.
+    """One row per unique URL.
 
-    url is copied from links.url and indexed so check_links can bulk-update
-    all rows for a given URL in one UPDATE WHERE url = ?.  checked_at is NULL
-    for pending (not yet checked) rows; set once the link is processed.
+    checked_at is NULL for pending (not yet checked) rows; set once processed.
     method is HEAD | GET | PLAYWRIGHT | SKIPPED | ERROR.
     error uses a short prefix (ssl: dns: timeout: connect: url: playwright:)
     so failures are queryable without a separate column.
     """
 
-    link = models.OneToOneField(
-        Link,
-        db_column="link_id",
-        on_delete=models.DO_NOTHING,
-        primary_key=True,
-    )
-    url = models.TextField(blank=True, null=True)
+    url = models.TextField(primary_key=True)
     checked_at = models.TextField(blank=True, null=True)
     method = models.TextField(blank=True, null=True)
     ok = models.BooleanField(blank=True, null=True)
@@ -403,7 +395,6 @@ class LinkCheckResult(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "link_check_results"
-        indexes = [models.Index(fields=["url"], name="link_check_results_url_idx")]
 
     def __str__(self):
-        return self.url or f"link:{self.link_id}"
+        return self.url or ""
