@@ -127,10 +127,12 @@ lint.per-file-ignores."conftest.py" = [
   # The root conftest is the seeded fixture world: rows are long, explicit
   # keyword dicts (C408), assembled by one make_fixtures() (C901/PLR0913),
   # with deliberate lazy imports so Django isn't touched at collection time
-  # (PLC0415). Same spirit as the tests/*.py and explorer/tests/*.py
-  # ignores below — test data, not product code.
+  # (PLC0415). Boolean positional args (FBT003) are fine in the row
+  # factories (_check_result ok param). Same spirit as the tests/*.py and
+  # explorer/tests/*.py ignores below — test data, not product code.
   "C408",
   "C901",
+  "FBT003",
   "PLC0415",
   "PLR0913",
 ]

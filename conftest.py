@@ -6,7 +6,7 @@ tables already hold rows, and every ``@pytest.mark.django_db`` test rolls
 back, so the seed stays read-only and ``--reuse-db`` is safe.
 
 Row factories spell out only the fields a case needs; derived columns (link
-org/title/position/resource_id, link_error publisher) are filled at insert.
+org/title/position/resource_id) are filled at insert.
 The ``# fmt: off`` block is data — the formatter would destroy its shape.
 """
 
@@ -38,8 +38,6 @@ FIXTURE = {
     "metadata_section": "top",
     "metadata_name": "type",
     "metadata_value": "dataset",
-    "link_error_missing_package": "missing-pkg-1",
-    "link_error_org_missing": "ghost",
     "review_dataset_latest_overall": 5,
 }
 
@@ -87,18 +85,16 @@ def _link(dataset_id, url, host, **overrides):
     return row
 
 
-def _link_error(package_id, resource_url, http_status, category, *, to_delete, org="alpha", **overrides):
-    """One link_errors row; publisher id/name are derived on insert."""
-    row = {
-        "package_id": package_id,
-        "resource_url": resource_url,
+def _check_result(url, ok, *, method="HEAD", http_status=None, error=None, final_url=None):
+    """One link_check_results row — one per unique URL."""
+    return {
+        "url": url,
+        "ok": ok,
+        "method": method,
         "http_status": http_status,
-        "category": category,
-        "to_delete": to_delete,
-        "org_name": org,
+        "error": error,
+        "final_url": final_url,
     }
-    row.update(overrides)
-    return row
 
 
 def _dataset_json(row, org_display_name):
@@ -286,6 +282,9 @@ _LINKS = [
         description="Live warnings", format="JSON", year_created="2025"),
     _link("d10", "ftp://files.example.org/warnings.csv", "files.example.org", name="", description="",
         format=None, year_created="2025"),
+    # d11
+    _link("d11", "https://example.com/planning", "example.com", name="Planning data",
+        description="Applications index", year_created="2016"),
     # d13 / d14 / d15 / d16
     _link("d13", "https://api.example.com/geo", "api.example.com", name="Geography API",
         description="GeoJSON endpoint", format="JSON", year_created="2023"),
@@ -300,25 +299,39 @@ _LINKS = [
 ]
 
 # Manual datasets first, then harvested, then unknown states.
-_LINK_ERRORS = [
-    _link_error("d01", "https://example.com/shared.csv", 200, "OK", to_delete=False),
-    _link_error("d01", "https://example.com/shared.csv", 404, "NOT_FOUND", to_delete=True),
-    _link_error("d03", "https://data.gov.uk/dataset/coastal", 410, "GONE", to_delete=True),
-    _link_error("d03", "https://data.gov.uk/dataset/coastal", 403, "OTHER_CLIENT_ERROR", to_delete=True),
-    _link_error("d04", "https://other.org/flood", 500, "SERVER_ERROR", to_delete=True),
-    _link_error("d04", "https://other.org/flood", None, "DNS_ERROR", to_delete=True),
-    _link_error("d07", "https://example.com/shared.csv", None, "TIMEOUT", to_delete=True, org="beta"),
-    _link_error("d07", "https://example.com/shared.csv", None, "CONNECTION_ERROR", to_delete=True, org="beta"),
-    _link_error("d08", "https://beta.example.net/method.pdf", None, "CONNECTION_REFUSED", to_delete=True, org="beta"),
-    _link_error("d08", "https://beta.example.net/method.pdf", 418, "OTHER_ERROR", to_delete=True, org="beta"),
-    _link_error("missing-pkg-1", "not-a-url", 404, "NOT_FOUND", to_delete=True, org="ghost"),
-    _link_error("missing-pkg-2", "", None, "TIMEOUT", to_delete=True, org="ghost"),
-    _link_error("d09", "https://api.example.com/gtfs.zip", 404, "NOT_FOUND", to_delete=True, org="beta"),
-    _link_error("d09", "https://api.example.com/gtfs.zip", 200, "OK", to_delete=False, org="beta"),
-    _link_error("d10", "https://data.gov.uk/flood-warnings", 404, "NOT_FOUND", to_delete=True, org="beta"),
-    _link_error("d11", "https://example.com/planning", 500, "SERVER_ERROR", to_delete=True),
-    _link_error("d12", "https://example.com/bus.csv", 200, "OK", to_delete=False),
-    _link_error("d15", "https://example.com/risk.geojson", None, "DNS_ERROR", to_delete=True, org="beta"),
+_CATCHALL_REDIRECT = "https://example.com/moved"
+
+_LINK_CHECK_RESULTS = [
+    # OK — all 5 redirect to the same catch-all → feeds the suspicious-redirects report
+    _check_result("https://example.com/shared.csv", True, http_status=200, final_url=_CATCHALL_REDIRECT),
+    _check_result("https://shared.example.org/data.csv", True, http_status=200, final_url=_CATCHALL_REDIRECT),
+    _check_result("https://example.com/bus.csv", True, http_status=200, final_url=_CATCHALL_REDIRECT),
+    _check_result("https://example.com/erosion.csv", True, http_status=200, final_url=_CATCHALL_REDIRECT),
+    _check_result("https://api.example.com/geo", True, http_status=200, final_url=_CATCHALL_REDIRECT),
+    # NOT_FOUND
+    _check_result("https://api.example.com/gtfs.zip", False, http_status=404),
+    _check_result("https://data.gov.uk/flood-warnings", False, http_status=404),
+    _check_result("https://example.com/census.xlsx", False, http_status=404),
+    # GONE
+    _check_result("https://data.gov.uk/dataset/coastal", False, http_status=410),
+    # SERVER_ERROR
+    _check_result("http://other.org/flood", False, http_status=500),
+    _check_result("https://example.com/planning", False, http_status=503),
+    # DNS_ERROR
+    _check_result("https://example.com/risk.geojson", False, error="dns:Name or service not known"),
+    # TIMEOUT
+    _check_result("https://maps.example.net/1880", False, error="timeout:15.0s"),
+    # CONNECTION_ERROR
+    _check_result("https://beta.example.net/method.pdf", False, error="ssl:certificate verify failed"),
+    _check_result("https://example.com/old-school.csv", False, error="connect:Connection refused"),
+    # OTHER_CLIENT_ERROR
+    _check_result("http://sub.data.gov.uk/report.pdf", False, http_status=403),
+    # OTHER_ERROR
+    _check_result("https://data.gov.uk/traffic", False, method="PLAYWRIGHT", error="playwright:net::ERR_ABORTED"),
+    _check_result("https://example.com/method", False, method="ERROR", error="playwright:unavailable"),
+    # SKIPPED (malformed / uncheckable URLs — these would be marked by the checker)
+    _check_result("not a url", False, method="SKIPPED", error="url:malformed"),
+    _check_result("ftp://files.example.org/warnings.csv", False, method="SKIPPED", error="url:malformed"),
 ]
 
 _METADATA_KEYS = [
@@ -373,7 +386,7 @@ def make_fixtures():
         DatasetJson,
         HarvestSource,
         Link,
-        LinkError,
+        LinkCheckResult,
         MetadataKey,
         MetadataValue,
         Organisation,
@@ -466,24 +479,10 @@ def make_fixtures():
         )
     Link.objects.bulk_create(links)
 
-    LinkError.objects.bulk_create(
+    LinkCheckResult.objects.bulk_create(
         [
-            LinkError(
-                datagovuk_url=f"https://data.gov.uk/{row['package_id']}",
-                package_name=by_id.get(row["package_id"], {}).get("title", row["package_id"]),
-                org_id=f"uuid-{row['org_name']}",
-                package_metadata_created="2020-01-01T00:00:00",
-                package_metadata_modified="2024-01-01T00:00:00",
-                guid=f"err-{i:03d}",
-                resource_id=f"err-{i:03d}",
-                resource_created="2020-01-01T00:00:00",
-                resource_last_modified="2024-01-01T00:00:00",
-                resource_metadata_modified="2024-01-01T00:00:00",
-                error_detail=None,
-                checked_at="2026-01-01T00:00:00",
-                **row,
-            )
-            for i, row in enumerate(_LINK_ERRORS)
+            LinkCheckResult(checked_at="2026-01-01T00:00:00", **row)
+            for row in _LINK_CHECK_RESULTS
         ],
     )
 

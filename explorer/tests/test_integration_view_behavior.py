@@ -180,7 +180,7 @@ FACET_ROUTES = [
     "/datasets",
     "/organisations",
     "/links",
-    "/links/errors",
+    "/links/status",
     "/harvesters",
     "/reviews",
     f"/report/{REPORTS[0]['key']}",
@@ -210,6 +210,6 @@ def test_link_errors_resolved_rows_are_styled(client):
     """OK outcomes render with the distinct resolved treatment (the
     template's category == 'OK' branch; badge/pill markup itself is
     covered by the macro tests)."""
-    html = client.get("/links/errors?category=OK").content.decode()
+    html = client.get("/links/status?category=OK").content.decode()
     assert "link-errors-row--ok" in html
     assert "status--ok" in html

@@ -56,11 +56,11 @@ def _without(filters, key):
 # ---------------------------------------------------------------------------
 def test_fixture_world_loads():
     """The seed is present: datasets, their 1:1 dataset_json mirror, links,
-    link_errors and reviews."""
+    link_check_results and reviews."""
     assert DATASET_TOTAL.get()["n"] > 0
     assert Query("SELECT COUNT(*) AS n FROM dataset_json").get()["n"] == DATASET_TOTAL.get()["n"]
     assert Query("SELECT COUNT(*) AS n FROM links").get()["n"] > 0
-    assert Query("SELECT COUNT(*) AS n FROM link_errors").get()["n"] > 0
+    assert Query("SELECT COUNT(*) AS n FROM link_check_results").get()["n"] > 0
     assert latest_reviews(), "fixture reviews should be seeded"
 
 

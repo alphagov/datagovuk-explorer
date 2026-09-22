@@ -53,7 +53,7 @@ def test_key_pages_respond(client):
         "/",
         "/datasets",
         "/links",
-        "/links/errors",
+        "/links/status",
         "/organisations",
         "/harvesters",
         "/reviews",

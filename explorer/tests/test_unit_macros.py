@@ -104,14 +104,14 @@ def test_subnav_active_heading_and_sibling_links():
         {
             "tabs": [
                 {"key": "links", "label": "Links", "url": "/links"},
-                {"key": "errors", "label": "Errors", "url": "/links/errors"},
+                {"key": "errors", "label": "Errors", "url": "/links/status"},
             ],
         },
     )
     assert '<h1 class="nav-link nav-link--active" aria-current="page">Errors</h1>' in html
     assert '<a href="/links" class="nav-link">Links</a>' in html
     # the active report is a heading, not a self-link
-    assert 'href="/links/errors"' not in html
+    assert 'href="/links/status"' not in html
 
 
 # --- sort link -------------------------------------------------------------
