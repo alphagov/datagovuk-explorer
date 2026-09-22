@@ -1,52 +1,26 @@
+"""Replace link_errors with url-keyed link_check_results.
+
+Drops the old link_errors table (superseded by the link checker writing
+directly to link_check_results, keyed on URL) and creates the new
+url-keyed link_check_results table — one row per unique URL instead of
+one row per resource.
+"""
+
 from django.db import migrations, models
 
-_UP = """
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'link_check_results' AND column_name = 'link_id'
-    ) THEN
-        -- Upgrade from link_id-keyed table: keep the most recent result per URL.
-        CREATE TABLE link_check_results_new (
-            url         TEXT PRIMARY KEY,
-            checked_at  TEXT,
-            method      TEXT,
-            ok          BOOLEAN,
-            http_status INTEGER,
-            final_url   TEXT,
-            error       TEXT
-        );
-        INSERT INTO link_check_results_new
-            (url, checked_at, method, ok, http_status, final_url, error)
-        SELECT DISTINCT ON (url)
-            url, checked_at, method, ok, http_status, final_url, error
-        FROM link_check_results
-        WHERE url IS NOT NULL AND url != ''
-        ORDER BY url, checked_at DESC NULLS LAST;
-        DROP TABLE link_check_results;
-        ALTER TABLE link_check_results_new RENAME TO link_check_results;
-    ELSIF NOT EXISTS (
-        SELECT 1 FROM information_schema.tables
-        WHERE table_name = 'link_check_results'
-    ) THEN
-        -- Fresh install.
-        CREATE TABLE link_check_results (
-            url         TEXT PRIMARY KEY,
-            checked_at  TEXT,
-            method      TEXT,
-            ok          BOOLEAN,
-            http_status INTEGER,
-            final_url   TEXT,
-            error       TEXT
-        );
-    END IF;
-END $$;
+_CREATE = """\
+CREATE TABLE link_check_results (
+    url         TEXT PRIMARY KEY,
+    checked_at  TEXT,
+    method      TEXT,
+    ok          BOOLEAN,
+    http_status INTEGER,
+    final_url   TEXT,
+    error       TEXT
+);
 """
 
-_DOWN = """
-DROP TABLE IF EXISTS link_check_results;
-"""
+_DROP = "DROP TABLE IF EXISTS link_check_results;"
 
 
 class Migration(migrations.Migration):
@@ -55,8 +29,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.DeleteModel(name="LinkError"),
         migrations.SeparateDatabaseAndState(
-            database_operations=[migrations.RunSQL(_UP, _DOWN)],
+            database_operations=[migrations.RunSQL(_CREATE, _DROP)],
             state_operations=[
                 migrations.CreateModel(
                     name="LinkCheckResult",
