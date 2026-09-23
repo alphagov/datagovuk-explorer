@@ -183,15 +183,15 @@ deploy-check:
     curl -s -o /dev/null -w "health: %{http_code}\n" \
       "https://datagovuk-explorer-production.up.railway.app/health"
 
-# Fetch organisations from CKAN API. Writes downloads/organisations.json,
+# Get organisations from CKAN API. Writes downloads/organisations.json,
 # which build-db loads.
-fetch-organisations:
-    uv run python -m scripts.fetch_organisations
+get-organisations:
+    uv run python -m scripts.get_organisations
 
-# Fetch all harvest sources from CKAN API (walks orgs, per-org filter).
+# Get all harvest sources from CKAN API (walks orgs, per-org filter).
 # Writes downloads/harvest_sources.json, which build-db loads.
-fetch-harvest-sources:
-    uv run python -m scripts.fetch_harvest_sources
+get-harvest-sources:
+    uv run python -m scripts.get_harvest_sources
 
 # Audit for unused CSS with PurgeCSS (read-only: lists selectors that
 # appear in no template/JS, never rewrites files). Requires Node/npx —
@@ -209,12 +209,12 @@ unused-css:
                  badge-rejected badge-pending \
       | python3 -c 'import json,sys; [print(x["file"].split("/")[-1] + ": " + (", ".join(r.strip() for r in x["rejected"] if r.strip()) or "clean")) for x in json.load(sys.stdin)]'
 
-# Download datasets. Defaults to --continuous --per-org all (the full build).
+# Get datasets. Defaults to --continuous --per-org all (the full build).
 # The 1000/org default in the script silently truncates large publishers
 # (ONS, Natural England, etc.) and causes FK violations in ingest-reviews.
 # Pass explicit flags to override, e.g. --per-org 1000 for a quick sample.
-download-datasets *args:
-    uv run python -m scripts.download_datasets {{ if args == "" { "--continuous --per-org all" } else { args } }}
+get-datasets *args:
+    uv run python -m scripts.get_datasets {{ if args == "" { "--continuous --per-org all" } else { args } }}
 
 # Query datasets for one org
 query-datasets *args:

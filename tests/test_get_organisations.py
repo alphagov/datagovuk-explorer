@@ -1,6 +1,6 @@
-"""Unit tests for scripts/fetch_organisations.py (offline — no live API).
+"""Unit tests for scripts/get_organisations.py (offline — no live API).
 
-Covers the deterministic parts, mirroring tests/test_fetch_harvest_sources.py:
+Covers the deterministic parts, mirroring tests/test_get_harvest_sources.py:
 - get_organisations: the cheap names call, then paged all_fields fetches in
   chunks of PAGE_SIZE, with the right pagination params
 - error paths: HTTP error, success:false on the names call and on a page
@@ -8,7 +8,7 @@ Covers the deterministic parts, mirroring tests/test_fetch_harvest_sources.py:
 - main(): end-to-end happy path writes organisations.json, incl. the
   display_name/package_count fallbacks
 
-Run with: uv run python -m pytest tests/test_fetch_organisations.py
+Run with: uv run python -m pytest tests/test_get_organisations.py
 """
 
 import json
@@ -16,9 +16,9 @@ import json
 import httpx
 import pytest
 
-import scripts.fetch_organisations as fo
+import scripts.get_organisations
 
-PAGE_SIZE = fo.PAGE_SIZE
+PAGE_SIZE = scripts.get_organisations.PAGE_SIZE
 
 
 def make_org(i: int) -> dict:
@@ -52,7 +52,7 @@ def test_get_organisations_pages_with_all_fields():
         transport=httpx.MockTransport(handler),
         follow_redirects=True,
     ) as client:
-        result = fo.get_organisations(client)
+        result = scripts.get_organisations.get_organisations(client)
 
     assert result == orgs
     # paginated at PAGE_SIZE with offset stepping, all_fields requested
@@ -73,7 +73,7 @@ def test_get_organisations_empty_list_makes_no_page_calls():
         transport=httpx.MockTransport(handler),
         follow_redirects=True,
     ) as client:
-        assert fo.get_organisations(client) == []
+        assert scripts.get_organisations.get_organisations(client) == []
 
     assert len(calls) == 1  # the names call only
     assert "all_fields" not in calls[0]
@@ -94,7 +94,7 @@ def test_error_paths():
             follow_redirects=True,
         ) as client,
     ):
-        fo.get_organisations(client)
+        scripts.get_organisations.get_organisations(client)
 
     # HTTP error on a page (names call succeeds first)
     def names_ok_page_error(request):
@@ -112,7 +112,7 @@ def test_error_paths():
             follow_redirects=True,
         ) as client,
     ):
-        fo.get_organisations(client)
+        scripts.get_organisations.get_organisations(client)
 
     # success:false on a page
     def names_ok_page_bad_success(request):
@@ -130,13 +130,13 @@ def test_error_paths():
             follow_redirects=True,
         ) as client,
     ):
-        fo.get_organisations(client)
+        scripts.get_organisations.get_organisations(client)
 
 
 def test_write_json_roundtrip(tmp_path):
     orgs = [make_org(1), make_org(2)]
     path = tmp_path / "organisations.json"
-    fo.write_json(orgs, str(path))
+    scripts.get_organisations.write_json(orgs, str(path))
     loaded = json.loads(path.read_text())
     assert loaded == orgs
 
@@ -150,7 +150,7 @@ def test_main_writes_file(tmp_path, monkeypatch):
     ]
 
     downloads_dir = tmp_path / "downloads"
-    monkeypatch.setattr(fo, "DOWNLOADS_DIR", downloads_dir)
+    monkeypatch.setattr(scripts.get_organisations, "DOWNLOADS_DIR", downloads_dir)
 
     def handler(request: httpx.Request) -> httpx.Response:
         if "all_fields" in request.url.params:
@@ -160,7 +160,7 @@ def test_main_writes_file(tmp_path, monkeypatch):
             json={"success": True, "result": [o["name"] for o in orgs]},
         )
 
-    real_client = fo.httpx.Client
+    real_client = scripts.get_organisations.httpx.Client
 
     def fake_client(**kw):
         return real_client(
@@ -168,9 +168,9 @@ def test_main_writes_file(tmp_path, monkeypatch):
             follow_redirects=True,
         )
 
-    monkeypatch.setattr(fo.httpx, "Client", fake_client)
+    monkeypatch.setattr(scripts.get_organisations.httpx, "Client", fake_client)
 
-    fo.main()  # must not raise
+    scripts.get_organisations.main()  # must not raise
 
     out = downloads_dir / "organisations.json"
     assert out.exists()

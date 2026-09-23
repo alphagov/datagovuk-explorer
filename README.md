@@ -20,7 +20,7 @@ the Django models exist to own the schema via migrations.
 config/    Django project settings, URLconf, WSGI entry point
 explorer/  The app: models, migrations, raw-SQL query layer (queries/),
            views, middleware, Jinja2 backend, templates/, shared helpers
-scripts/   Standalone pipeline: fetch/download datasets, build the DB,
+scripts/   Standalone pipeline: get datasets, build the DB,
            build series, run LLM review/suggest, ingest reviews & link
            errors
 explorer/static/  Static assets (collected into staticfiles/ for prod)
@@ -52,9 +52,9 @@ plus the matching `postgresql-XX-pgvector` package.
 ```bash
 just setup                    # uv sync --dev
 cp .env.example .env          # then set DATABASE_URL (and secrets)
-just fetch-organisations      # downloads/organisations.json from the CKAN API
-just fetch-harvest-sources   # downloads/harvest_sources.json (walks publishers, per-publisher filter)
-just download-datasets        # downloads to downloads/ (default: --continuous --per-org all)
+just get-organisations        # downloads/organisations.json from the CKAN API
+just get-harvest-sources     # downloads/harvest_sources.json (walks publishers, per-publisher filter)
+just get-datasets             # downloads to downloads/ (default: --continuous --per-org all)
 just fresh-db                 # create DB if missing + apply schema + populate (offline build)
 just ingest-reviews           # load the LLM reviews into the reviews table
 just dev                      # runserver on :3000

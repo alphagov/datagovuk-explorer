@@ -37,7 +37,7 @@ One change is required: set `DEBUG=true`. The example ships with `DEBUG=false` (
 
 ### Fetching CKAN data
 
-Once the SSL issue was resolved (see below), `just fetch-organisations` and `just fetch-harvest-sources` ran successfully. `fetch-harvest-sources` takes a few minutes — it walks all publishers to fetch per-publisher harvest sources from the CKAN API.
+Once the SSL issue was resolved (see below), `just get-organisations` and `just get-harvest-sources` ran successfully. `get-harvest-sources` takes a few minutes — it walks all publishers to fetch per-publisher harvest sources from the CKAN API.
 
 ---
 
@@ -45,7 +45,7 @@ Once the SSL issue was resolved (see below), `just fetch-organisations` and `jus
 
 ### SSL certificate failure (Zscaler)
 
-**Symptom:** `just fetch-organisations` failed immediately:
+**Symptom:** `just get-organisations` failed immediately:
 
 ```
 Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
@@ -97,16 +97,16 @@ This resolved all SSL errors. The `SSL_CERT_FILE` line in `.env` is now redundan
 | Install deps | `just setup` (implicit — `uv run` triggers it) | ✓ 57 packages |
 | Create .env | `cp .env.example .env` | ✓ |
 | Fix SSL | `uv add truststore` + `scripts/__init__.py` | ✓ |
-| Fetch orgs | `just fetch-organisations` | ✓ 1043 orgs |
-| Fetch harvest sources | `just fetch-harvest-sources` | ✓ 515 sources |
-| Create DB + migrate | `just fresh-db` | ✓ (0 datasets — `download-datasets` not yet run) |
+| Get orgs | `just get-organisations` | ✓ 1043 orgs |
+| Get harvest sources | `just get-harvest-sources` | ✓ 515 sources |
+| Create DB + migrate | `just fresh-db` | ✓ (0 datasets — `get-datasets` not yet run) |
 
 ## Steps remaining
 
 **Total time from scratch: ~20 minutes** — the download dominates (~9 min), followed by `fresh-db` (~3 min). Everything else is negligible.
 
 ```bash
-just download-datasets --continuous --per-org all   # fetch ALL orgs AND all datasets per org
+just get-datasets --continuous --per-org all   # fetch ALL orgs AND all datasets per org
 just fresh-db                                       # re-run after full download to populate dataset tables
 just ingest-reviews                                 # load LLM reviews (data/dataset-reviews-suggestions.jsonl is tracked in git — 521 reviews)
 just dev                                            # runserver on :3000
@@ -115,6 +115,6 @@ just dev                                            # runserver on :3000
 ### Important ordering notes
 
 - **Always use `--per-org all` for a complete build.** The default caps at 1000 datasets per org. Large publishers (ONS, Natural England, BGS, Marine Environmental Data Information Network) have more than 1000 datasets each — without `--per-org all` their tail is silently dropped, causing `ingest-reviews` to fail with FK violations because some reviewed datasets are missing.
-- **`download-datasets` default only fetches 50 orgs** — always pass `--continuous` as well. It's resumable: safe to interrupt and re-run.
+- **`get-datasets` default only fetches 50 orgs** — always pass `--continuous` as well. It's resumable: safe to interrupt and re-run.
 - **`ingest-reviews` requires a complete dataset table** — the reviews JSONL has FK references to `datasets.id`. Running it against a partial download fails with `ForeignKeyViolation`. Run it only after `fresh-db` has ingested the full dataset download.
 - **`data/dataset-reviews-suggestions.jsonl` is tracked in git** — 521 pre-generated LLM reviews are committed. You don't need to run `review-suggest` to get started; that's only needed to regenerate or expand them.

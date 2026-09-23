@@ -1,4 +1,4 @@
-"""Unit tests for scripts/download_datasets.py (offline — no live API).
+"""Unit tests for scripts/get_datasets.py (offline — no live API).
 
 Covers the deterministic parts:
 - slugify + filename construction (slugify(title)-id[:8].json)
@@ -19,7 +19,7 @@ Covers the deterministic parts:
 The live-API happy path is verified separately by running the download
 against the real API and checking the filenames.
 
-Run with: uv run pytest tests/test_download_datasets.py
+Run with: uv run pytest tests/test_get_datasets.py
 """
 
 import io
@@ -34,7 +34,7 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-import scripts.download_datasets as dd
+import scripts.get_datasets
 
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
@@ -58,36 +58,36 @@ def make_dataset(i: int) -> dict:
 
 
 def test_iso_now():
-    assert ISO_RE.match(dd.iso_now()), dd.iso_now()
+    assert ISO_RE.match(scripts.get_datasets.iso_now()), scripts.get_datasets.iso_now()
 
 
 def test_slugify():
     # lowercase
-    assert dd.slugify("My Dataset") == "my-dataset"
+    assert scripts.get_datasets.slugify("My Dataset") == "my-dataset"
     # non-alphanumeric runs -> single dash
-    assert dd.slugify("Spend  over £25,000!") == "spend-over-25-000"
+    assert scripts.get_datasets.slugify("Spend  over £25,000!") == "spend-over-25-000"
     # punctuation-only title -> empty after trimming dashes
-    assert dd.slugify("!!! ...") == ""
+    assert scripts.get_datasets.slugify("!!! ...") == ""
     # trim leading/trailing dashes
-    assert dd.slugify("--leading and trailing--") == "leading-and-trailing"
+    assert scripts.get_datasets.slugify("--leading and trailing--") == "leading-and-trailing"
     # 80-char cap
-    assert len(dd.slugify("x" * 200)) == 80
+    assert len(scripts.get_datasets.slugify("x" * 200)) == 80
     # 'A'*100 + ' B' -> 100 a's, then the 80-char truncation cuts before the
     # '-b' suffix (verified: 80 a's)
-    assert dd.slugify("A" * 100 + " B") == "a" * 80
+    assert scripts.get_datasets.slugify("A" * 100 + " B") == "a" * 80
     # ASCII-only: fullwidth digits are NOT [a-z0-9]
-    assert dd.slugify("２０２０ data") == "data"
+    assert scripts.get_datasets.slugify("２０２０ data") == "data"
 
 
 def test_filename():
     ds = {"title": "My Dataset!", "id": "598c37fa-9d20-465a-988c-a6e31974493a"}
-    assert dd.slugify(ds["title"]) + "-" + ds["id"][:8] + ".json" == ("my-dataset-598c37fa.json")
+    assert scripts.get_datasets.slugify(ds["title"]) + "-" + ds["id"][:8] + ".json" == ("my-dataset-598c37fa.json")
     # the id8 suffix disambiguates two titles sharing an 80-char slug prefix
     title = "Long title " + "x" * 70
     a = {"title": title, "id": "11111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}
     b = {"title": title, "id": "22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}
-    fa = f"{dd.slugify(a['title'])}-{a['id'][:8]}.json"
-    fb = f"{dd.slugify(b['title'])}-{b['id'][:8]}.json"
+    fa = f"{scripts.get_datasets.slugify(a['title'])}-{a['id'][:8]}.json"
+    fb = f"{scripts.get_datasets.slugify(b['title'])}-{b['id'][:8]}.json"
     assert fa != fb
     assert len(fa) == len(fb)
 
@@ -96,17 +96,17 @@ def test_no_datasets_round_trip():
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / "no-datasets.json"
         # missing file -> {}
-        assert dd.load_no_datasets(str(p)) == {}
+        assert scripts.get_datasets.load_no_datasets(str(p)) == {}
         # invalid JSON -> {}
         p.write_text("{oops", encoding="utf-8")
-        assert dd.load_no_datasets(str(p)) == {}
+        assert scripts.get_datasets.load_no_datasets(str(p)) == {}
         # non-object JSON -> {} (treated as empty)
         p.write_text("[1,2]", encoding="utf-8")
-        assert dd.load_no_datasets(str(p)) == {}
+        assert scripts.get_datasets.load_no_datasets(str(p)) == {}
         # round-trip with indent-2 formatting
         m = {"org-a": "2026-08-01T11:32:58.493Z", "org-b": "2026-08-01T11:32:59.607Z"}
-        dd.save_no_datasets(m, str(p))
-        assert dd.load_no_datasets(str(p)) == m
+        scripts.get_datasets.save_no_datasets(m, str(p))
+        assert scripts.get_datasets.load_no_datasets(str(p)) == m
         text = p.read_text(encoding="utf-8")
         assert '"org-a": "2026-08-01T11:32:58.493Z"' in text  # indent 2
 
@@ -119,11 +119,11 @@ def test_has_saved_datasets():
         Path("downloads/full-org", "b.json").write_text("{}", encoding="utf-8")
         Path("downloads/full-org", ".DS_Store").write_text("x", encoding="utf-8")
         # missing org dir -> False
-        assert dd.has_saved_datasets("missing-org") is False
+        assert scripts.get_datasets.has_saved_datasets("missing-org") is False
         # dir with no .json files -> False
-        assert dd.has_saved_datasets("empty-org") is False
+        assert scripts.get_datasets.has_saved_datasets("empty-org") is False
         # dir with .json files -> True (non-.json files ignored)
-        assert dd.has_saved_datasets("full-org") is True
+        assert scripts.get_datasets.has_saved_datasets("full-org") is True
 
 
 def test_select_batch_single_org():
@@ -134,16 +134,16 @@ def test_select_batch_single_org():
     no = {"ons": "2026-08-01T11:32:58.493Z"}  # marked empty earlier
 
     # single org found -> [org], and its empty marker is cleared
-    batch = dd.select_batch(orgs, no, 50, 0, org_slug="defra")
+    batch = scripts.get_datasets.select_batch(orgs, no, 50, 0, org_slug="defra")
     assert [o["name"] for o in batch] == ["defra"]
     assert "ons" in no  # untouched
-    batch = dd.select_batch(orgs, no, 50, 0, org_slug="ons")
+    batch = scripts.get_datasets.select_batch(orgs, no, 50, 0, org_slug="ons")
     assert [o["name"] for o in batch] == ["ons"]
     assert "ons" not in no  # cleared, even if previously marked empty
 
     # not found -> OrgNotFoundError with a helpful hint
-    with pytest.raises(dd.OrgNotFoundError, match='Publisher not found: "zzz"') as exc:
-        dd.select_batch(orgs, no, 50, 0, org_slug="zzz")
+    with pytest.raises(scripts.get_datasets.OrgNotFoundError, match='Publisher not found: "zzz"') as exc:
+        scripts.get_datasets.select_batch(orgs, no, 50, 0, org_slug="zzz")
     assert "Check organisations.json" in exc.value.hint
 
 
@@ -154,7 +154,7 @@ def test_select_batch_force():
     with tempfile.TemporaryDirectory() as d, chdir(d):
         Path("downloads").mkdir(parents=True)  # the no-datasets file needs the dir to exist
         # contiguous slice from offset; markers in the slice cleared + persisted
-        batch = dd.select_batch(orgs, no, 4, 2, force=True)
+        batch = scripts.get_datasets.select_batch(orgs, no, 4, 2, force=True)
         assert [o["name"] for o in batch] == ["org-2", "org-3", "org-4", "org-5"]
         assert "org-3" not in no  # marker cleared in the passed dict
         saved = json.loads(
@@ -163,10 +163,10 @@ def test_select_batch_force():
         assert "org-3" not in saved
         assert "org-7" in saved
         # cursor overrides offset (continuous + force)
-        batch = dd.select_batch(orgs, {}, 3, 0, force=True, cursor=6)
+        batch = scripts.get_datasets.select_batch(orgs, {}, 3, 0, force=True, cursor=6)
         assert [o["name"] for o in batch] == ["org-6", "org-7", "org-8"]
         # slice past the end -> shorter batch (no error)
-        batch = dd.select_batch(orgs, {}, 5, 8, force=True)
+        batch = scripts.get_datasets.select_batch(orgs, {}, 5, 8, force=True)
         assert [o["name"] for o in batch] == ["org-8", "org-9"]
 
 
@@ -177,15 +177,15 @@ def test_select_batch_next():
         Path("downloads/org-3").mkdir(parents=True)  # has saved data -> skip
         Path("downloads/org-3", "x.json").write_text("{}", encoding="utf-8")
         Path("downloads/org-8").mkdir(parents=True)  # empty dir -> NOT skipped
-        batch = dd.select_batch(orgs, no, 3, 0)
+        batch = scripts.get_datasets.select_batch(orgs, no, 3, 0)
         assert [o["name"] for o in batch] == ["org-0", "org-2", "org-4"]
         # offset is IGNORED in next-batch mode — the walk always starts at the
         # top of the list (same batch for offset 0 and 4). offset only matters
         # in --force mode.
-        batch = dd.select_batch(orgs, no, 3, 4)
+        batch = scripts.get_datasets.select_batch(orgs, no, 3, 4)
         assert [o["name"] for o in batch] == ["org-0", "org-2", "org-4"]
         # org-count cap
-        batch = dd.select_batch(orgs, no, 2, 0)
+        batch = scripts.get_datasets.select_batch(orgs, no, 2, 0)
         assert [o["name"] for o in batch] == ["org-0", "org-2"]
 
 
@@ -205,13 +205,15 @@ def test_fetch_datasets():
         )
 
     def check():
-        limiter = dd.create_rate_limiter(4)
+        limiter = scripts.get_datasets.create_rate_limiter(4)
         with httpx.Client(
             transport=httpx.MockTransport(handler),
             follow_redirects=True,
         ) as client:
             # 'all' (inf): 1000 + 1000 + 500 pages, short page breaks the loop
-            results = dd.fetch_datasets(limiter, client, "ons", float("inf"), dd.SORT)
+            results = scripts.get_datasets.fetch_datasets(
+                limiter, client, "ons", float("inf"), scripts.get_datasets.SORT,
+            )
         assert len(results) == total
         # pagination params: rows=1000, starts 0/1000/2000, sort ':' -> ' '
         assert [p["rows"] for p in captured] == ["1000", "1000", "1000"]
@@ -226,7 +228,7 @@ def test_fetch_datasets():
             follow_redirects=True,
         ) as client:
             # finite limit 1500: page of 1000 then page of 500, loop ends on offset
-            results = dd.fetch_datasets(limiter, client, "ons", 1500.0, dd.SORT)
+            results = scripts.get_datasets.fetch_datasets(limiter, client, "ons", 1500.0, scripts.get_datasets.SORT)
         assert len(results) == 1500
         assert [p["rows"] for p in captured] == ["1000", "500"]
 
@@ -240,7 +242,7 @@ def test_fetch_datasets():
                 follow_redirects=True,
             ) as client,
         ):
-            dd.fetch_datasets(limiter, client, "ons", 10.0, dd.SORT)
+            scripts.get_datasets.fetch_datasets(limiter, client, "ons", 10.0, scripts.get_datasets.SORT)
 
         # success:false -> RuntimeError
         def bad_success(request):
@@ -253,7 +255,7 @@ def test_fetch_datasets():
                 follow_redirects=True,
             ) as client,
         ):
-            dd.fetch_datasets(limiter, client, "ons", 10.0, dd.SORT)
+            scripts.get_datasets.fetch_datasets(limiter, client, "ons", 10.0, scripts.get_datasets.SORT)
 
     check()
 
@@ -276,12 +278,12 @@ def test_process_batch():
     ]
 
     def run_batch(*, force: bool, no: dict | None = None):
-        limiter = dd.create_rate_limiter(4)
+        limiter = scripts.get_datasets.create_rate_limiter(4)
         with httpx.Client(
             transport=httpx.MockTransport(handler),
             follow_redirects=True,
         ) as client:
-            return dd.process_batch(
+            return scripts.get_datasets.process_batch(
                 batch,
                 1000.0,
                 limiter,
@@ -339,12 +341,12 @@ def test_process_batch():
         # --- display_name missing: omitted from _organisation (JSON
         # serialisation drops a missing key), not written as null ---
         def run_single():
-            limiter = dd.create_rate_limiter(4)
+            limiter = scripts.get_datasets.create_rate_limiter(4)
             with httpx.Client(
                 transport=httpx.MockTransport(handler),
                 follow_redirects=True,
             ) as client:
-                dd.process_batch(
+                scripts.get_datasets.process_batch(
                     [{"name": "org-with-data"}],
                     10.0,
                     limiter,
@@ -369,12 +371,12 @@ def test_process_batch():
         )
 
     def run_with_error():
-        limiter = dd.create_rate_limiter(4)
+        limiter = scripts.get_datasets.create_rate_limiter(4)
         with httpx.Client(
             transport=httpx.MockTransport(error_handler),
             follow_redirects=True,
         ) as client:
-            return dd.process_batch(
+            return scripts.get_datasets.process_batch(
                 [{"name": "bad-org"}, {"name": "good-org"}],
                 10.0,
                 limiter,
@@ -400,13 +402,13 @@ def test_cli():
     runner = CliRunner()
 
     # --continuous + --org -> error, exit 1 (before any file/network access)
-    res = runner.invoke(dd.app, ["--continuous", "--org", "x"])
+    res = runner.invoke(scripts.get_datasets.app, ["--continuous", "--org", "x"])
     assert res.exit_code == 1, res.output
     assert "--continuous cannot be combined with --org" in res.stderr
 
     # missing organisations.json -> exit 1
     with tempfile.TemporaryDirectory() as d, chdir(d):
-        res = runner.invoke(dd.app, ["--orgs", "5"])
+        res = runner.invoke(scripts.get_datasets.app, ["--orgs", "5"])
         assert res.exit_code == 1, res.output
         assert "No organisations.json found." in res.stderr
 
@@ -418,7 +420,7 @@ def test_cli():
             encoding="utf-8",
         )
         with chdir(d):
-            res = runner.invoke(dd.app, ["--org", "zzz"])
+            res = runner.invoke(scripts.get_datasets.app, ["--org", "zzz"])
         assert res.exit_code == 1, res.output
         assert 'Publisher not found: "zzz"' in res.stderr
         assert "Check organisations.json" in res.stderr
@@ -431,12 +433,12 @@ def test_cli():
             encoding="utf-8",
         )
         with chdir(d):
-            res = runner.invoke(dd.app, ["--per-org", "bogus"])
+            res = runner.invoke(scripts.get_datasets.app, ["--per-org", "bogus"])
             assert res.exit_code != 0, res.output
-            res = runner.invoke(dd.app, ["--per-org", "0"])
+            res = runner.invoke(scripts.get_datasets.app, ["--per-org", "0"])
             assert res.exit_code != 0, res.output
             # 'all' parses fine — reach the --org lookup (fail-fast, no network)
-            res = runner.invoke(dd.app, ["--per-org", "all", "--org", "nope"])
+            res = runner.invoke(scripts.get_datasets.app, ["--per-org", "all", "--org", "nope"])
             assert res.exit_code == 1, res.output
             assert 'Publisher not found: "nope"' in res.stderr
 
@@ -448,7 +450,7 @@ def test_cli():
             encoding="utf-8",
         )
         with chdir(d):
-            res = runner.invoke(dd.app, ["--orgs", "0"])
+            res = runner.invoke(scripts.get_datasets.app, ["--orgs", "0"])
             assert res.exit_code != 0, res.output
-            res = runner.invoke(dd.app, ["--offset", "-1"])
+            res = runner.invoke(scripts.get_datasets.app, ["--offset", "-1"])
             assert res.exit_code != 0, res.output

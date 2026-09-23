@@ -1,14 +1,14 @@
 # Fetch Data Run Report — 2026-09-14
 
-Full pipeline run: fetch organisations → fetch harvest sources → download datasets → build DB → ingest reviews.
+Full pipeline run: get organisations → get harvest sources → get datasets → build DB → ingest reviews.
 
 ## Summary
 
 | Step | Result |
 |---|---|
-| fetch-organisations | 1,043 organisations |
-| fetch-harvest-sources | 515 harvest sources |
-| download-datasets | 67,527 datasets, 21 batches, 0 errors |
+| get-organisations | 1,043 organisations |
+| get-harvest-sources | 515 harvest sources |
+| get-datasets | 67,527 datasets, 21 batches, 0 errors |
 | build-db | 67,544 datasets, 304,408 resource links, 0 files skipped |
 | ingest-reviews | 996 inserted, 30 skipped (dataset not in local DB) |
 
@@ -16,9 +16,9 @@ Note: dataset count differs slightly between download (67,527 files) and build (
 
 ## Issues encountered
 
-### 1. `download-datasets` silently no-ops on a machine with existing data
+### 1. `get-datasets` silently no-ops on a machine with existing data
 
-**What happened:** Running `just download-datasets` (or `just download-datasets --continuous --per-org all`) on a machine that already has a populated `downloads/` directory exits immediately with "0 datasets saved across 0 batch(es)." No warning is printed. The script's `select_batch` function skips any org that already has files in `downloads/<org-name>/`, so without `--force` the entire run is a no-op.
+**What happened:** Running `just get-datasets` (or `just get-datasets --continuous --per-org all`) on a machine that already has a populated `downloads/` directory exits immediately with "0 datasets saved across 0 batch(es)." No warning is printed. The script's `select_batch` function skips any org that already has files in `downloads/<org-name>/`, so without `--force` the entire run is a no-op.
 
 **Impact:** A user following the README "full run" steps to refresh data would get silently stale data.
 
@@ -54,9 +54,9 @@ The `fresh-db` recipe also calls `build-db` and would have inherited the same br
 ## Commands used
 
 ```bash
-just fetch-organisations
-just fetch-harvest-sources
-just download-datasets --continuous --force --per-org all   # --force required to refresh
+just get-organisations
+just get-harvest-sources
+just get-datasets --continuous --force --per-org all   # --force required to refresh
 just build-db --skip-embeddings
 just ingest-reviews
 ```

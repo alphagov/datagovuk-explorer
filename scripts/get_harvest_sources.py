@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch all harvest sources from data.gov.uk (CKAN API).
+"""Get all harvest sources from data.gov.uk (CKAN API).
 
 The unfiltered harvest_source_list endpoint caps at 100 sources, but it
 accepts an organization_id filter, so this script walks every organisation
@@ -32,7 +32,7 @@ def load_organisation_ids() -> list[str]:
     path = DOWNLOADS_DIR / "organisations.json"
     if not path.exists():
         raise RuntimeError(
-            f"{path} not found — run `just fetch-organisations` first"
+            f"{path} not found — run `just get-organisations` first"
         )
     orgs = json.loads(path.read_text(encoding="utf-8"))
     return [org["id"] for org in orgs]

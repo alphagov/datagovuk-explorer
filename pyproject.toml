@@ -8,7 +8,7 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "click>=8.1",             # scripts/download_datasets.py raises click.BadParameter directly
+  "click>=8.1",             # scripts/get_datasets.py raises click.BadParameter directly
   "django>=6.1",
   "gunicorn>=23.0",
   "httpx>=0.28",
@@ -149,7 +149,7 @@ lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
 # Complexity rules (C901 + PLR0911-17) are on; the per-file exceptions
 # below mark functions whose signature or branching is their interface.
 lint.per-file-ignores."scripts/check_links.py" = [ "C901", "FBT001", "FBT003", "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004" ]
-lint.per-file-ignores."scripts/download_datasets.py" = [ "PLR0913" ]
+lint.per-file-ignores."scripts/get_datasets.py" = [ "PLR0913" ]
 lint.per-file-ignores."scripts/embed_only.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."scripts/review_suggest.py" = [ "PLR0913" ]
 lint.per-file-ignores."tests/*.py" = [ "PLR2004", "SLF001" ]
@@ -158,7 +158,7 @@ lint.per-file-ignores."tests/*.py" = [ "PLR2004", "SLF001" ]
 lint.per-file-ignores."tests/test_build_*.py" = [ "RUF001", "RUF003" ]
 # The long process_batch test stays as-is — test length is not a
 # product-quality signal.
-lint.per-file-ignores."tests/test_download_datasets.py" = [ "PLR0915", "RUF001", "RUF003" ]
+lint.per-file-ignores."tests/test_get_datasets.py" = [ "PLR0915", "RUF001", "RUF003" ]
 lint.isort.combine-as-imports = true
 lint.isort.force-single-line = false
 

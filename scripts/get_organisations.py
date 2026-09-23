@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch and display all organisations/publishers from data.gov.uk (CKAN API).
+"""Get all organisations/publishers from data.gov.uk (CKAN API).
 
 Prints a summary to stdout, writes the full data to
 downloads/organisations.json (the gitignored API cache, alongside the

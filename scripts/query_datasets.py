@@ -220,7 +220,7 @@ def print_orgs() -> None:
     orgs = load_orgs()
     if orgs is None:
         print(
-            "No organisations.json found. Run fetch-organisations.py first.",
+            "No organisations.json found. Run get-organisations.py first.",
             file=sys.stderr,
         )
         raise typer.Exit(1)

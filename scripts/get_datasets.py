@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download batches of datasets from data.gov.uk and save each to
+"""Get batches of datasets from data.gov.uk and save each to
 downloads/<org-name>/<slug>-<id8>.json.
 
 By default this walks organisations.json and picks the first N orgs that
@@ -13,7 +13,7 @@ once and let it work through the whole list. Data files are written and
 no-datasets.json updated as it goes, so interrupting it is safe — just run
 it again (with or without --continuous) to resume.
 
-Usage: python scripts/download_datasets.py [options]
+Usage: python scripts/get_datasets.py [options]
 
 Options:
   --orgs <n>        Number of organisations to process per batch (default: 50)
@@ -26,12 +26,12 @@ Options:
   --help, -h        Show this help
 
 Examples:
-  python scripts/download_datasets.py                               # next 50 orgs without data
-  python scripts/download_datasets.py --continuous                  # fetch everything, batch by batch
-  python scripts/download_datasets.py --continuous --force --per-org all
-  python scripts/download_datasets.py --orgs 50 --per-org 20
-  python scripts/download_datasets.py --org environment-agency
-  python scripts/download_datasets.py --force
+  python scripts/get_datasets.py                               # next 50 orgs without data
+  python scripts/get_datasets.py --continuous                  # fetch everything, batch by batch
+  python scripts/get_datasets.py --continuous --force --per-org all
+  python scripts/get_datasets.py --orgs 50 --per-org 20
+  python scripts/get_datasets.py --org environment-agency
+  python scripts/get_datasets.py --force
 
 Rate limit: 4 requests per second (scripts/rate_limit.py).
 """
@@ -69,7 +69,7 @@ class OrgNotFoundError(RuntimeError):
 
     def __init__(self, slug: str):
         super().__init__(f'Publisher not found: "{slug}"')
-        self.hint = "Check organisations.json or run fetch-organisations.py."
+        self.hint = "Check organisations.json or run get-organisations.py."
 
 
 # ---------------------------------------------------------------------------
@@ -524,7 +524,7 @@ def main(
     orgs = load_orgs()
     if orgs is None:
         print(
-            "No organisations.json found. Run fetch-organisations.py first.",
+            "No organisations.json found. Run get-organisations.py first.",
             file=sys.stderr,
         )
         raise typer.Exit(1)

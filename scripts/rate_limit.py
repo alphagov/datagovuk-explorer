@@ -1,6 +1,6 @@
 """Shared sliding-window rate limiter for the data.gov.uk CKAN API.
 
-Used by fetch_organisations.py, query_datasets.py and download_datasets.py
+Used by get_organisations.py, query_datasets.py and get_datasets.py
 — all three hit https://www.data.gov.uk/api/3/action, which allows 4
 requests per second. Each script creates exactly one limiter and blocks on
 a slot before every API call, so the limiter sees the full stream of

@@ -1,7 +1,7 @@
 """Harvest sources table + the datasets join key.
 
 Owns the harvest_sources table that scripts/build_db.py populates from
-downloads/harvest_sources.json (the fetch_harvest_sources.py output, the
+downloads/harvest_sources.json (the get_harvest_sources.py output, the
 gitignored API cache alongside the dataset files). Mirrors the
 organisations table: a few queryable scalars plus the full record in a
 json text column, keyed by the CKAN source id — the same id datasets
@@ -20,7 +20,7 @@ Promoted query fields beyond the API's own columns:
   keeps the raw UUID for provenance.
 
 organization_id is the CKAN organisation UUID the source was fetched
-under (fetch_harvest_sources.py tags each record with it because the
+under (get_harvest_sources.py tags each record with it because the
 API's own publisher_id/publisher_title are often empty). It is a plain
 text column — the organisations table is keyed by slug, not UUID, so no
 FK is possible; org_slug is the join key instead.

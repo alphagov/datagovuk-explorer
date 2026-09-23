@@ -54,7 +54,7 @@ renderer. Same for `/datasets.csv`, `/links.csv`.
 
 ### Automated pipeline
 
-The current workflow is manual: `download-datasets`, `build-db`,
+The current workflow is manual: `get-datasets`, `build-db`,
 `ingest-reviews`, then dump/tunnel/restore to Railway. An automated
 version could:
 

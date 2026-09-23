@@ -951,14 +951,14 @@ def _process_batch(db, batch: list[dict], st: _BuildState) -> None:
 
 def _load_orgs() -> list:
     """Read downloads/organisations.json — the friendly CLI errors on
-    failure are the interface (fetch-organisations regenerates the file)."""
+    failure are the interface (get-organisations regenerates the file)."""
     print("Reading organisations.json...", file=sys.stderr)
     try:
         return json.loads(ORGS_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError) as err:
         print(f"Could not read {ORGS_FILE}: {err}", file=sys.stderr)
         print(
-            "Run `just fetch-organisations` first (regenerates it from the CKAN API).",
+            "Run `just get-organisations` first (regenerates it from the CKAN API).",
             file=sys.stderr,
         )
         raise typer.Exit(1) from None
@@ -966,14 +966,14 @@ def _load_orgs() -> list:
 
 def _load_harvest_sources() -> list:
     """Read downloads/harvest_sources.json — the friendly CLI errors on
-    failure are the interface (fetch-harvest-sources regenerates the file)."""
+    failure are the interface (get-harvest-sources regenerates the file)."""
     print("Reading harvest_sources.json...", file=sys.stderr)
     try:
         return json.loads(HARVEST_SOURCES_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError) as err:
         print(f"Could not read {HARVEST_SOURCES_FILE}: {err}", file=sys.stderr)
         print(
-            "Run `just fetch-harvest-sources` first (regenerates it from the CKAN API).",
+            "Run `just get-harvest-sources` first (regenerates it from the CKAN API).",
             file=sys.stderr,
         )
         raise typer.Exit(1) from None
@@ -985,7 +985,7 @@ def _collect_files() -> list[dict[str, str | Path]]:
     matches the insertion order a table diff expects)."""
     if not DATA_DIR.is_dir():
         print(
-            f"No {DATA_DIR}/ directory found — run download_datasets.py first.",
+            f"No {DATA_DIR}/ directory found — run get_datasets.py first.",
             file=sys.stderr,
         )
         raise typer.Exit(1)

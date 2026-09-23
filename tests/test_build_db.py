@@ -397,7 +397,7 @@ def test_load_harvest_sources(tmp_path, monkeypatch):
 
 
 def test_load_harvest_sources_missing_file(tmp_path, monkeypatch, capsys):
-    # missing file -> friendly error + exit 1 (points at fetch-harvest-sources)
+    # missing file -> friendly error + exit 1 (points at get-harvest-sources)
     monkeypatch.setattr(
         bd,
         "HARVEST_SOURCES_FILE",
@@ -407,7 +407,7 @@ def test_load_harvest_sources_missing_file(tmp_path, monkeypatch, capsys):
         bd._load_harvest_sources()
     assert exc.value.exit_code == 1
     err = capsys.readouterr().err
-    assert "fetch-harvest-sources" in err
+    assert "get-harvest-sources" in err
 
 
 def test_load_harvest_sources_bad_json(tmp_path, monkeypatch):

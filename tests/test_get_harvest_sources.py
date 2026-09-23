@@ -1,4 +1,4 @@
-"""Unit tests for scripts/fetch_harvest_sources.py (offline — no live API).
+"""Unit tests for scripts/get_harvest_sources.py (offline — no live API).
 
 Covers the deterministic parts:
 - load_organisation_ids: reads org IDs from organisations.json, error on missing
@@ -8,7 +8,7 @@ Covers the deterministic parts:
 - write_json round-trip
 - main(): end-to-end happy path writes harvest_sources.json
 
-Run with: uv run python -m pytest tests/test_fetch_harvest_sources.py
+Run with: uv run python -m pytest tests/test_get_harvest_sources.py
 """
 
 import json
@@ -16,7 +16,7 @@ import json
 import httpx
 import pytest
 
-import scripts.fetch_harvest_sources as fh
+import scripts.get_harvest_sources
 
 
 def make_source(i: int, org_id: str) -> dict:
@@ -35,14 +35,14 @@ def test_load_organisation_ids(tmp_path, monkeypatch):
     dl = tmp_path / "downloads"
     dl.mkdir()
     (dl / "organisations.json").write_text(json.dumps(orgs))
-    monkeypatch.setattr(fh, "DOWNLOADS_DIR", dl)
-    assert fh.load_organisation_ids() == ["org-0001", "org-0002"]
+    monkeypatch.setattr(scripts.get_harvest_sources, "DOWNLOADS_DIR", dl)
+    assert scripts.get_harvest_sources.load_organisation_ids() == ["org-0001", "org-0002"]
 
 
 def test_load_organisation_ids_missing(tmp_path, monkeypatch):
-    monkeypatch.setattr(fh, "DOWNLOADS_DIR", tmp_path / "nope")
+    monkeypatch.setattr(scripts.get_harvest_sources, "DOWNLOADS_DIR", tmp_path / "nope")
     with pytest.raises(RuntimeError, match="not found"):
-        fh.load_organisation_ids()
+        scripts.get_harvest_sources.load_organisation_ids()
 
 
 def test_get_harvest_sources_tags_and_dedupes():
@@ -62,7 +62,7 @@ def test_get_harvest_sources_tags_and_dedupes():
     with httpx.Client(
         transport=httpx.MockTransport(handler), follow_redirects=True,
     ) as client:
-        sources = fh.get_harvest_sources(client, lambda: None, org_ids)
+        sources = scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, org_ids)
 
     assert requested == org_ids
     assert len(sources) == 2
@@ -86,7 +86,7 @@ def test_error_paths():
             transport=httpx.MockTransport(http_error), follow_redirects=True,
         ) as client,
     ):
-        fh.get_harvest_sources(client, lambda: None, ["org-0001"])
+        scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, ["org-0001"])
 
     with (
         pytest.raises(RuntimeError, match="success: false"),
@@ -94,13 +94,13 @@ def test_error_paths():
             transport=httpx.MockTransport(bad_success), follow_redirects=True,
         ) as client,
     ):
-        fh.get_harvest_sources(client, lambda: None, ["org-0001"])
+        scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, ["org-0001"])
 
 
 def test_write_json_roundtrip(tmp_path):
     sources = [make_source(1, "org-0001"), make_source(2, "org-0002")]
     path = tmp_path / "harvest_sources.json"
-    fh.write_json(sources, str(path))
+    scripts.get_harvest_sources.write_json(sources, str(path))
     loaded = json.loads(path.read_text())
     assert loaded == sources
 
@@ -112,23 +112,23 @@ def test_main_writes_file(tmp_path, monkeypatch):
     downloads_dir = tmp_path / "downloads"
     downloads_dir.mkdir()
     (downloads_dir / "organisations.json").write_text(json.dumps(orgs))
-    monkeypatch.setattr(fh, "DOWNLOADS_DIR", downloads_dir)
+    monkeypatch.setattr(scripts.get_harvest_sources, "DOWNLOADS_DIR", downloads_dir)
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.params.get("organization_id") == "org-0001":
             return httpx.Response(200, json={"success": True, "result": sources})
         return httpx.Response(200, json={"success": True, "result": []})
 
-    real_client = fh.httpx.Client
+    real_client = scripts.get_harvest_sources.httpx.Client
 
     def fake_client(**kw):
         return real_client(
             transport=httpx.MockTransport(handler), follow_redirects=True,
         )
 
-    monkeypatch.setattr(fh.httpx, "Client", fake_client)
+    monkeypatch.setattr(scripts.get_harvest_sources.httpx, "Client", fake_client)
 
-    fh.main()
+    scripts.get_harvest_sources.main()
 
     out = downloads_dir / "harvest_sources.json"
     assert out.exists()
