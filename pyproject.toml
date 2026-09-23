@@ -150,7 +150,7 @@ lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
 # below mark functions whose signature or branching is their interface.
 lint.per-file-ignores."scripts/check_links.py" = [ "C901", "FBT001", "FBT003", "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004" ]
 lint.per-file-ignores."scripts/get_datasets.py" = [ "PLR0913" ]
-lint.per-file-ignores."scripts/embed_only.py" = [ "PLR0913", "PLR0917" ]
+lint.per-file-ignores."scripts/build_embeddings.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."scripts/review_suggest.py" = [ "PLR0913" ]
 lint.per-file-ignores."tests/*.py" = [ "PLR2004", "SLF001" ]
 # Fullwidth-digit strings are deliberate fixtures: they prove the date/year

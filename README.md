@@ -61,10 +61,9 @@ just dev                      # runserver on :3000
 ```
 
 `fresh-db` is the new-machine path: it creates the database if missing,
-runs `migrate` to apply the schema, then populates it (offline, no
-embeddings). If the database already exists you can run `just build-db
---skip-embeddings` instead — `build-db` runs `migrate` first too, so
-missing tables are never a thing to remember.
+runs `migrate` to apply the schema, then populates it. If the database
+already exists you can run `just build-db` instead — it runs `migrate`
+first too, so missing tables are never a thing to remember.
 
 `ingest-reviews` is a required step after every `build-db` (or full
 rebuild): the build only populates the pipeline tables and leaves
@@ -76,8 +75,8 @@ safe.
 Embeddings (semantic search over datasets) are optional: run
 `just download-llm` once to fetch the bge-base-en-v1.5 GGUF model into
 `llm/` (from CompendiumLabs on Hugging Face, with a sha256 check), then
-rebuild the DB without `--skip-embeddings` (or run `just embed-only`) with
-llama-server serving the model on :8080 — see `scripts/embeddings.py`.
+run `just build-embeddings` with llama-server serving the model on :8080 —
+see `scripts/build_embeddings.py`.
 Semantic "more like this" is served by an HNSW index on the embedding
 column (migration 0012); `migrate` builds it, which takes a few minutes on
 an already-populated DB (raise `maintenance_work_mem` for the session to
@@ -85,7 +84,7 @@ speed it up). The index is approximate — `HNSW_EF_SEARCH` (default 400)
 trades recall for latency.
 
 Other commands — `just` lists them all: `download-llm`, `build-series`,
-`embed-only` (needs llama-server on :8080), `review-suggest` +
+`build-embeddings` (needs llama-server on :8080), `review-suggest` +
 `ingest-reviews` (LLM reviews), `start` (prod: collectstatic + gunicorn).
 
 ## Environment variables

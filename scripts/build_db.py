@@ -9,17 +9,14 @@ of reading and parsing 50k+ JSON files on every request.
 The full dataset JSON is stored in the dataset_json table, so nothing is
 lost — the files under downloads/ remain the on-disk cache.
 
-Usage: python scripts/build_db.py [--skip-embeddings]
+Usage: python scripts/build_db.py
        DATABASE_URL=postgresql://localhost:5432/other python scripts/build_db.py
 
---skip-embeddings keeps the build fully offline when llama-server is down
-(by default the embeddings phase runs and hard-fails if the server is
-unreachable).
-
 Phases: wipe, organisations, datasets (batched, parallel file reads),
-full-text search, embeddings, views, metadata, dataset_api,
-dataset_content_hash. Indexes are migration-owned (0003) — the build
-populates, never creates.
+full-text search, views, metadata, dataset_api, dataset_content_hash.
+Indexes are migration-owned (0003) — the build populates, never creates.
+
+Embeddings are a separate step: run scripts/build_embeddings.py after building.
 """
 
 import csv
@@ -32,11 +29,9 @@ from functools import partial
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import httpx
 import typer
 
 from scripts.db import connect, database_url
-from scripts.embeddings import BATCH, TIMEOUT as EMBED_TIMEOUT
 
 app = typer.Typer(add_completion=False)
 
@@ -1085,34 +1080,6 @@ def _populate_fts_tx(tx, fts_rows) -> None:
         update_fts.run(r["tags"], r["title"], r["notes"], r["tags"], r["id"])
 
 
-def _embed_datasets(db, fts_rows) -> None:
-    """Embed the fts rows via llama-server (bge-base-en-v1.5, 768-dim
-    normalised) and write them to the db. Lazy imports — only needed when
-    embeddings run; --skip-embeddings keeps the build offline."""
-    from scripts.embed_only import (  # noqa: PLC0415 — lazy: only needed when embeddings run
-        build_texts,
-        embed_batch,
-    )
-
-    print(
-        "Computing embeddings (bge-base-en-v1.5 via llama-server)...",
-        file=sys.stderr,
-    )
-
-    texts = build_texts(fts_rows)
-
-    with httpx.Client(follow_redirects=True, timeout=EMBED_TIMEOUT) as client:
-        for batch_start in range(0, len(texts), BATCH):
-            batch_end = min(batch_start + BATCH, len(texts))
-            embed_batch(client, db, texts, fts_rows, batch_start, batch_end)
-            if batch_end % 5000 == 0 or batch_end >= len(texts):
-                print(
-                    f"  {batch_end}/{len(texts)} embeddings...",
-                    file=sys.stderr,
-                )
-    print(f"  embeddings: {len(texts)} datasets", file=sys.stderr)
-
-
 def _write_views_tx(tx, views_by_id) -> None:
     """Write the per-dataset view counts."""
     update_views = tx.prepare("UPDATE datasets SET views = ? WHERE id = ?")
@@ -1276,7 +1243,7 @@ def _populate_dataset_content_hash(db) -> int:
 # ---------------------------------------------------------------------------
 # Main build
 # ---------------------------------------------------------------------------
-def build(*, skip_embeddings: bool = False) -> None:
+def build() -> None:
     """Rebuild the database from downloads/ + organisations.json +
     harvest_sources.json + CSVs."""
 
@@ -1330,13 +1297,7 @@ def build(*, skip_embeddings: bool = False) -> None:
         db.transaction(partial(_populate_fts_tx, fts_rows=st.fts_rows))
         print(f"  tsvector populated: {len(st.fts_rows)} datasets", file=sys.stderr)
 
-        # Phase 6: embeddings — semantic vectors for "more like this" via
-        # pgvector (bge-base-en-v1.5 via llama-server). --skip-embeddings
-        # keeps the build offline.
-        if not skip_embeddings:
-            _embed_datasets(db, st.fts_rows)
-
-        # Phase 7: views — merge the [date]-redacted rows in, then write
+        # Phase 6: views — merge the [date]-redacted rows in, then write
         views_csv = load_views_csv()
         views_by_id = views_csv.views
         if views_csv.patterns:
@@ -1358,7 +1319,7 @@ def build(*, skip_embeddings: bool = False) -> None:
             db.transaction(partial(_write_views_tx, views_by_id=views_by_id))
             print(f"  {len(views_by_id)} datasets have views data.", file=sys.stderr)
 
-        # Phase 8: metadata field usage — write the counters collected during
+        # Phase 7: metadata field usage — write the counters collected during
         # the dataset load into metadata_keys / metadata_values.
         val_rows = db.transaction(
             partial(_write_meta_tx, field_counts=st.field_counts, value_counts=st.value_counts),
@@ -1368,12 +1329,12 @@ def build(*, skip_embeddings: bool = False) -> None:
             file=sys.stderr,
         )
 
-        # Phase 9: dataset_api — snapshot which datasets have an API and
+        # Phase 8: dataset_api — snapshot which datasets have an API and
         # their matched links; used by the report and datasets-page facet.
         api_count = _populate_dataset_api(db)
         print(f"  dataset_api: {api_count} datasets", file=sys.stderr)
 
-        # Phase 10: dataset_content_hash — exact-duplicate detection
+        # Phase 9: dataset_content_hash — exact-duplicate detection
         # (Tier 1, see docs/ideas.md); needs links loaded first.
         hash_count = _populate_dataset_content_hash(db)
         print(f"  dataset_content_hash: {hash_count} datasets", file=sys.stderr)
@@ -1389,22 +1350,15 @@ def build(*, skip_embeddings: bool = False) -> None:
 
 
 @app.command()
-def main(
-    *,
-    skip_embeddings: bool = typer.Option(
-        False,  # noqa: FBT003 — typer.Option's default is the first positional
-        "--skip-embeddings",
-        help="skip the llama-server embeddings phase (offline build)",
-    ),
-) -> None:
+def main() -> None:
     """Rebuild the database from downloads/ + organisations.json +
     harvest_sources.json + CSVs."""
 
     try:
-        build(skip_embeddings=skip_embeddings)
+        build()
     except typer.Exit:
         raise  # exit codes raised inside build() (e.g. missing inputs)
-    except (httpx.HTTPError, RuntimeError, ValueError, OSError) as e:
+    except (RuntimeError, ValueError, OSError) as e:
         print(f"Error: {e}", file=sys.stderr)
         raise typer.Exit(1) from None
 

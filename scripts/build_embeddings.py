@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Compute pgvector embeddings for the datasets table via llama-server.
+"""Build pgvector embeddings for the datasets table via llama-server.
 
-One-off: reads id, title, notes from the datasets table (populated by
-build_db.py), computes 768-dim embeddings through llama-server
-(bge-base-en-v1.5), and writes them to dataset_embeddings (the vector) and
-embedding_map (the dataset -> rowid map) via pgvector.
+Reads id, title, notes from the datasets table (populated by build_db.py),
+computes 768-dim embeddings through llama-server (bge-base-en-v1.5), and
+writes them to dataset_embeddings (the vector) and embedding_map (the
+dataset -> rowid map) via pgvector.
 
-Start the server first — the exact llama-server invocation is in
-scripts/embeddings.py (LLAMA_SERVER).
+Start llama-server first (see LLAMA_SERVER below, or `just llama-server`).
 
-Usage: python scripts/embed_only.py
-       DATABASE_URL=postgresql://localhost:5432/other python scripts/embed_only.py
+Usage: python scripts/build_embeddings.py
+       DATABASE_URL=postgresql://localhost:5432/other python scripts/build_embeddings.py
 """
 
 import json
@@ -21,20 +20,33 @@ import time
 import httpx
 
 from scripts.db import connect, database_url
-from scripts.embeddings import (
-    BATCH,
-    BGE_PREFIX,
-    DIM,
-    EMBED_URL,
-    MODEL,
-    TIMEOUT,
+
+# ---------------------------------------------------------------------------
+# llama-server config
+# ---------------------------------------------------------------------------
+# Start llama-server first with:
+# --ubatch-size 2048: avoids the "n_batch > n_ubatch" assertion that caps both
+#   at 512, reducing GPU dispatch count ~4x for our 256-text batches.
+# --parallel 8: 8 sequences processed per forward pass (vs default 4).
+LLAMA_SERVER = (
+    "llama-server -m llm/bge-base-en-v1.5-q8_0.gguf "
+    "--embeddings --pooling cls --embd-normalize 2 --gpu-layers all "
+    "--ubatch-size 2048 --parallel 8 --port 8080"
 )
+
+EMBED_URL = "http://localhost:8080/v1/embeddings"
+DIM = 768
+BATCH = 256
+MODEL = "bge-base-en-v1.5"
+TIMEOUT = 600
+
+# BGE instruction prefix — matches the format bge-base-en-v1.5 was trained
+# with, so retrieval queries and these stored documents embed consistently.
+BGE_PREFIX = "Represent this sentence for searching relevant passages: "
 
 DATABASE_URL = database_url()
 
-# Collapse all whitespace runs (Unicode \s, including NBSP) to single spaces.
 _WS_RE = re.compile(r"\s+")
-
 
 # The embedding tables are migration-owned (0001 + 0002's vector column);
 # this script truncates + repopulates, never creates.
@@ -150,7 +162,6 @@ def main() -> None:
     print("Opening db...", file=sys.stderr)
     db = connect(DATABASE_URL)
     try:
-        # Truncate + repopulate the embedding tables (migration-owned).
         db.exec(TRUNCATE_SQL)
 
         # Drop the HNSW index before bulk-loading — incremental maintenance is

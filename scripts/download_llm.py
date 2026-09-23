@@ -3,7 +3,7 @@
 
 The model is a community GGUF conversion of BAAI/bge-base-en-v1.5 hosted at
 https://huggingface.co/CompendiumLabs/bge-base-en-v1.5-gguf — the file the
-embedding pipeline expects (see scripts/embeddings.py, LLAMA_SERVER). The
+embedding pipeline expects (see scripts/build_embeddings.py, LLAMA_SERVER). The
 llm/ directory is gitignored working data, so it's not shipped with the repo.
 
 Skips the download if the file is already there (pass --force to re-fetch).

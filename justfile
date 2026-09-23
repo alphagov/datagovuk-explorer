@@ -70,12 +70,12 @@ download-llm:
 migrate:
     uv run --env-file .env python manage.py migrate
 
-# Rebuild the PostgreSQL database from downloads/ (pass --skip-embeddings
-# for a fully offline build; DATABASE_URL comes from .env). Runs migrate
-# first, so a fresh checkout or a DB restored from an older dump can't hit
-# missing tables — the schema is applied before the build populates.
-build-db *args: migrate
-    uv run --env-file .env python -m scripts.build_db main {{args}}
+# Rebuild the PostgreSQL database from downloads/ (DATABASE_URL comes from
+# .env). Runs migrate first, so a fresh checkout or a DB restored from an
+# older dump can't hit missing tables — the schema is applied before the
+# build populates. Run `just build-embeddings` afterwards for embeddings.
+build-db: migrate
+    uv run --env-file .env python -m scripts.build_db main
 
 # Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Use when tweaking the API detection algorithm.
@@ -88,14 +88,14 @@ build-dataset-content-hash:
     uv run --env-file .env python -m scripts.build_db dataset-content-hash
 
 # One-shot fresh local database: create it if missing, apply the schema,
-# then populate it (offline — pass --skip-embeddings). The path for a
-# fresh checkout. db_name must be the database DATABASE_URL names (default
+# then populate it. The path for a fresh checkout. db_name must be the
+# database DATABASE_URL names (default
 # postgresql://localhost:5432/datagovuk_explorer); if your Postgres needs
 # credentials, create the database yourself and run `just build-db`.
 fresh-db db_name="datagovuk_explorer":
     @createdb "{{db_name}}" 2>/dev/null && echo "created {{db_name}}" || echo "{{db_name}} already exists"
     uv run --env-file .env python manage.py migrate
-    uv run --env-file .env python -m scripts.build_db --skip-embeddings
+    uv run --env-file .env python -m scripts.build_db main
 
 # Build series data from dataset titles (DATABASE_URL from .env)
 build-series:
@@ -109,9 +109,9 @@ llama-server:
       --embeddings --pooling cls --embd-normalize 2 --gpu-layers all \
       --ubatch-size 2048 --parallel 8 --port 8080
 
-# Embed dataset embeddings (run `just llama-server` in another terminal first; DATABASE_URL from .env)
-embed-only:
-    uv run --env-file .env python -m scripts.embed_only
+# Build dataset embeddings (run `just llama-server` in another terminal first; DATABASE_URL from .env)
+build-embeddings:
+    uv run --env-file .env python -m scripts.build_embeddings
 
 # Dump the local dev database (schema + all pipeline data) to db/backups/ —
 # the one-shot path to replace the Railway Postgres contents (see restore-db).

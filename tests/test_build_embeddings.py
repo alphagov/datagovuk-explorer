@@ -1,4 +1,4 @@
-"""Unit tests for scripts/embed_only.py (offline — no llama-server, no DB).
+"""Unit tests for scripts/build_embeddings.py (offline — no llama-server, no DB).
 
 Covers the deterministic algorithmic core:
 - build_texts: BGE prefix, notes[:500] truncation, whitespace collapse,
@@ -11,7 +11,7 @@ The full pipeline (texts -> llama-server -> pgvector write) is verified
 separately against a scratch DB by comparing the stored embeddings with
 float tolerance.
 
-Run with: uv run pytest tests/test_embed_only.py
+Run with: uv run pytest tests/test_build_embeddings.py
 """
 
 import os
@@ -20,7 +20,7 @@ import os
 # never connect, so give it a dummy URL.
 os.environ.setdefault("DATABASE_URL", "postgresql://localhost:5432/test-db")
 
-import scripts.embed_only as eo
+import scripts.build_embeddings as be
 
 
 def row(id_, title, notes=None):
@@ -31,17 +31,17 @@ PREFIX = "Represent this sentence for searching relevant passages: "
 
 
 def test_constants():
-    assert eo.DIM == 768
-    assert eo.BATCH == 256
-    assert eo.MODEL == "bge-base-en-v1.5"
-    assert eo.BGE_PREFIX == PREFIX
+    assert be.DIM == 768
+    assert be.BATCH == 256
+    assert be.MODEL == "bge-base-en-v1.5"
+    assert be.BGE_PREFIX == PREFIX
 
 
 def test_basic_prefix_title_notes():
     rows = [
         row("a1", "Planning Applications 2020", "Applications received and decided."),
     ]
-    texts = eo.build_texts(rows)
+    texts = be.build_texts(rows)
     assert texts == [
         PREFIX + "Planning Applications 2020 Applications received and decided.",
     ]
@@ -49,26 +49,26 @@ def test_basic_prefix_title_notes():
 
 def test_notes_truncated_to_500():
     notes = "x" * 700
-    texts = eo.build_texts([row("a1", "Long Notes", notes)])
+    texts = be.build_texts([row("a1", "Long Notes", notes)])
     assert texts == [PREFIX + f"Long Notes {'x' * 500}"]
     # exactly 500 passes through whole
-    assert eo.build_texts([row("a1", "T", "y" * 500)]) == [PREFIX + "T " + "y" * 500]
+    assert be.build_texts([row("a1", "T", "y" * 500)]) == [PREFIX + "T " + "y" * 500]
 
 
 def test_null_or_empty_notes():
     # None notes -> only the title
-    assert eo.build_texts([row("a1", "Title Only", None)]) == [PREFIX + "Title Only"]
+    assert be.build_texts([row("a1", "Title Only", None)]) == [PREFIX + "Title Only"]
     # empty-string notes behave the same as None
-    assert eo.build_texts([row("a1", "Title Only", "")]) == [PREFIX + "Title Only"]
+    assert be.build_texts([row("a1", "Title Only", "")]) == [PREFIX + "Title Only"]
 
 
 def test_whitespace_collapse():
     rows = [row("a1", "  Census   Data \n 2021 ", "  Multiple\tspaces\nin notes.\n")]
-    texts = eo.build_texts(rows)
+    texts = be.build_texts(rows)
     assert texts == [PREFIX + "Census Data 2021 Multiple spaces in notes."]
     # unicode whitespace (NBSP) collapses too — \s includes it
-    rows = [row("a1", "A\u00a0B", "\u00a0notes\u00a0")]
-    assert eo.build_texts(rows) == [PREFIX + "A B notes"]
+    rows = [row("a1", "A B", " notes ")]
+    assert be.build_texts(rows) == [PREFIX + "A B notes"]
 
 
 def test_ordering_preserved():
@@ -77,7 +77,7 @@ def test_ordering_preserved():
         row("a2", "Second", None),
         row("a3", "  Third  ", "notes three"),
     ]
-    texts = eo.build_texts(rows)
+    texts = be.build_texts(rows)
     assert texts[0] == PREFIX + "First notes one"
     assert texts[1] == PREFIX + "Second"
     assert texts[2] == PREFIX + "Third notes three"
@@ -85,18 +85,18 @@ def test_ordering_preserved():
 
 def test_assemble_batch_skips_none():
     texts: list[str | None] = ["t0", None, "t2", "t3", None]
-    inp, idx = eo.assemble_batch(texts, 0, 5)
+    inp, idx = be.assemble_batch(texts, 0, 5)
     assert inp == ["t0", "t2", "t3"]
     assert idx == [0, 2, 3]
     # partial window
-    inp, idx = eo.assemble_batch(texts, 2, 5)
+    inp, idx = be.assemble_batch(texts, 2, 5)
     assert inp == ["t2", "t3"]
     assert idx == [2, 3]
     # window with only nulls
-    inp, idx = eo.assemble_batch(texts, 1, 2)
+    inp, idx = be.assemble_batch(texts, 1, 2)
     assert inp == []
     assert idx == []
     # empty window
-    inp, idx = eo.assemble_batch(texts, 4, 4)
+    inp, idx = be.assemble_batch(texts, 4, 4)
     assert inp == []
     assert idx == []
