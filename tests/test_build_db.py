@@ -269,28 +269,54 @@ def test_field_value_str():
 
 
 def test_load_views_csv(tmp_path, monkeypatch):
-    # missing file -> empty dict
-    monkeypatch.setattr(bd, "VIEWS_FILE", tmp_path / "nope.csv")
+    nope = tmp_path / "nope.csv"
+    # missing files -> empty dict
+    monkeypatch.setattr(bd, "VIEWS_FILE", nope)
+    monkeypatch.setattr(bd, "GA_PAGE_VIEWS_FILE", nope)
+    monkeypatch.setattr(bd, "GA_GOOGLE_LANDING_FILE", nope)
     assert bd.load_views_csv() == {}
 
-    # happy path: extracts UUIDs from full URLs, sums clicks
-    csv_file = tmp_path / "views.csv"
-    csv_file.write_text(
+    uid_a = "aaaaaaaa-1111-2222-3333-444444444444"
+    uid_b = "bbbbbbbb-1111-2222-3333-444444444444"
+
+    # Search Console clicks
+    sc_file = tmp_path / "sc.csv"
+    sc_file.write_text(
         "Landing Page,Url Clicks\n"
-        "https://www.data.gov.uk/dataset/aaaaaaaa-1111-2222-3333-444444444444/slug,10\n"
-        "https://www.data.gov.uk/dataset/aaaaaaaa-1111-2222-3333-444444444444/slug,5\n"
-        "https://www.data.gov.uk/dataset/bbbbbbbb-1111-2222-3333-444444444444/other,3\n"
+        f"https://www.data.gov.uk/dataset/{uid_a}/slug,10\n"
+        f"https://www.data.gov.uk/dataset/{uid_a}/slug,5\n"
+        f"https://www.data.gov.uk/dataset/{uid_b}/other,3\n"
         "https://www.data.gov.uk/,100\n"  # homepage — skipped
-        "https://www.data.gov.uk/search?q=foo,7\n"  # search — skipped
-        "https://www.data.gov.uk/dataset/bbbbbbbb-1111-2222-3333-444444444444/other,0\n",  # zero — skipped
+        f"https://www.data.gov.uk/dataset/{uid_b}/other,0\n",  # zero — skipped
         encoding="utf-8",
     )
-    monkeypatch.setattr(bd, "VIEWS_FILE", csv_file)
+    # GA page views (with comment header)
+    ga_views_file = tmp_path / "ga-views.csv"
+    ga_views_file.write_text(
+        "# comment\n"
+        "\n"
+        "Page path and screen class,Views\n"
+        f"/dataset/{uid_a}/slug,20\n"
+        f"/dataset/{uid_b}/other,6\n"
+        "/search,999\n",  # non-dataset — skipped
+        encoding="utf-8",
+    )
+    # GA Google landing sessions
+    ga_landing_file = tmp_path / "ga-landing.csv"
+    ga_landing_file.write_text(
+        "# comment\n"
+        "\n"
+        "Landing page,Sessions\n"
+        f"/dataset/{uid_a}/slug,4\n"
+        f"/dataset/{uid_b}/other,2\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bd, "VIEWS_FILE", sc_file)
+    monkeypatch.setattr(bd, "GA_PAGE_VIEWS_FILE", ga_views_file)
+    monkeypatch.setattr(bd, "GA_GOOGLE_LANDING_FILE", ga_landing_file)
     result = bd.load_views_csv()
-    assert result == {
-        "aaaaaaaa-1111-2222-3333-444444444444": 15,
-        "bbbbbbbb-1111-2222-3333-444444444444": 3,
-    }
+    # uid_a: 20 - 4 + 15 = 31,  uid_b: 6 - 2 + 3 = 7
+    assert result == {uid_a: 31, uid_b: 7}
 
 
 def test_load_harvest_sources(tmp_path, monkeypatch):

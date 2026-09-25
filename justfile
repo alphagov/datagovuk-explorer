@@ -82,8 +82,8 @@ build-db: migrate
 build-dataset-api:
     uv run --env-file .env python -m scripts.build_db dataset-api
 
-# Reload dataset view counts from the views CSV (data/datagovuk-pages.csv)
-# — fast, no full rebuild needed. Use when the views CSV changes.
+# Reload dataset view counts from GA page views, GA Google landing pages,
+# and Search Console clicks — fast, no full rebuild needed.
 ingest-views:
     uv run --env-file .env python -m scripts.build_db views
 
@@ -235,7 +235,8 @@ ingest-reviews:
     uv run --env-file .env python -m scripts.ingest_reviews
 
 # Load collection pages from data/collections/ into the collections table,
-# with Search Console views from data/datagovuk-pages.csv.
+# with combined views from GA page views, GA Google landing pages, and
+# Search Console clicks.
 ingest-collections:
     uv run --env-file .env python -m scripts.ingest_collections
 

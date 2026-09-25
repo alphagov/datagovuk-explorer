@@ -2,7 +2,8 @@
 """Load data/collections/**/*.md into the `collections` table.
 
 Parses YAML frontmatter + markdown body from each collection file, then
-loads Search Console clicks from data/datagovuk-pages.csv for view counts.
+combines GA page views, GA Google landing sessions, and Search Console
+clicks for view counts.
 
 Idempotent: TRUNCATEs `collections` then reloads.
 
@@ -11,6 +12,7 @@ Usage: python -m scripts.ingest_collections
 """
 
 import csv
+import itertools
 import json
 import re
 import sys
@@ -21,8 +23,11 @@ import yaml
 
 from scripts.db import connect, database_url
 
-COLLECTIONS_DIR = Path(__file__).resolve().parent.parent / "data" / "collections"
-VIEWS_FILE = Path(__file__).resolve().parent.parent / "data" / "datagovuk-pages.csv"
+_DATA = Path(__file__).resolve().parent.parent / "data"
+COLLECTIONS_DIR = _DATA / "collections"
+VIEWS_FILE = _DATA / "datagovuk-pages.csv"
+GA_PAGE_VIEWS_FILE = _DATA / "ga-page-views.csv"
+GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-pages.csv"
 
 EMBED_URL = "http://localhost:8080/v1/embeddings"
 EMBED_MODEL = "bge-base-en-v1.5"
@@ -32,6 +37,7 @@ _WS_RE = re.compile(r"\s+")
 _COLLECTION_URL_RE = re.compile(
     r"https://www\.data\.gov\.uk/collections/(.+)",
 )
+_GA_COLLECTION_PATH_RE = re.compile(r"/collections/(.+)")
 
 # Search Console sometimes reports a collection page under its category-level
 # path instead of the full slug. Map those shortened paths to the real slug.
@@ -87,15 +93,37 @@ def load_all_collections() -> list[dict]:
     return records
 
 
-def load_collection_views() -> dict[str, int]:
-    """Read Search Console clicks for /collections/ URLs.
+def _read_ga_collection_csv(path: Path, url_col: str, value_col: str) -> dict[str, int]:
+    """Read a GA-exported CSV, skip comment/blank lines, extract collection
+    slugs from relative paths, and sum values per slug."""
+    if not path.exists():
+        return {}
+    result: dict[str, int] = {}
+    with path.open(encoding="utf-8", newline="") as f:
+        for line in f:
+            if line.strip() and not line.startswith("#"):
+                break
+        reader = csv.DictReader(itertools.chain([line], f))
+        for row in reader:
+            raw_path = row[url_col]
+            if not raw_path:
+                continue
+            m = _GA_COLLECTION_PATH_RE.match(raw_path)
+            if not m:
+                continue
+            val = int(row[value_col])
+            if val <= 0:
+                continue
+            slug = m.group(1)
+            slug = _SLUG_ALIASES.get(slug, slug)
+            result[slug] = result.get(slug, 0) + val
+    return result
 
-    Returns {slug: total_clicks} where slug matches the collection file
-    path (e.g. "environment/air-quality").
-    """
+
+def _read_search_console_collections() -> dict[str, int]:
+    """Read Search Console clicks for /collections/ URLs."""
     if not VIEWS_FILE.exists():
         return {}
-
     result: dict[str, int] = {}
     with VIEWS_FILE.open(encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
@@ -108,6 +136,22 @@ def load_collection_views() -> dict[str, int]:
             slug = m.group(1)
             slug = _SLUG_ALIASES.get(slug, slug)
             result[slug] = result.get(slug, 0) + clicks
+    return result
+
+
+def load_collection_views() -> dict[str, int]:
+    """Combine GA page views, GA Google landing sessions, and Search Console
+    clicks for collection pages. Formula: ga_views - ga_landing + sc_clicks"""
+    ga_views = _read_ga_collection_csv(GA_PAGE_VIEWS_FILE, "Page path and screen class", "Views")
+    ga_landing = _read_ga_collection_csv(GA_GOOGLE_LANDING_FILE, "Landing page", "Sessions")
+    sc_clicks = _read_search_console_collections()
+
+    all_slugs = ga_views.keys() | ga_landing.keys() | sc_clicks.keys()
+    result: dict[str, int] = {}
+    for slug in all_slugs:
+        total = ga_views.get(slug, 0) - ga_landing.get(slug, 0) + sc_clicks.get(slug, 0)
+        if total > 0:
+            result[slug] = total
     return result
 
 
@@ -196,7 +240,7 @@ def main() -> None:
     with_views = sum(1 for r in records if r["slug"] in views)
     print(
         f"Loaded {len(records)} collection(s) from {COLLECTIONS_DIR.name}/; "
-        f"{len(views)} slug(s) have Search Console views ({with_views} matched).",
+        f"{len(views)} slug(s) have views ({with_views} matched).",
     )
 
     db = connect(database_url())

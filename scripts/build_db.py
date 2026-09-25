@@ -20,6 +20,7 @@ Embeddings are a separate step: run scripts/build_embeddings.py after building.
 """
 
 import csv
+import itertools
 import json
 import re
 import sys
@@ -45,7 +46,10 @@ MAX_FIELD_VALUE_LENGTH = 500
 DATA_DIR = Path(__file__).resolve().parent.parent / "downloads"
 ORGS_FILE = DATA_DIR / "organisations.json"
 HARVEST_SOURCES_FILE = DATA_DIR / "harvest_sources.json"
-VIEWS_FILE = Path(__file__).resolve().parent.parent / "data" / "datagovuk-pages.csv"
+_DATA = Path(__file__).resolve().parent.parent / "data"
+VIEWS_FILE = _DATA / "datagovuk-pages.csv"
+GA_PAGE_VIEWS_FILE = _DATA / "ga-page-views.csv"
+GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-pages.csv"
 DATABASE_URL = database_url()
 
 _WS_RE = re.compile(r"\s+")
@@ -479,21 +483,53 @@ def field_value_str(v):
 
 
 # ---------------------------------------------------------------------------
-# Dataset views (data/datagovuk-pages.csv — tracked in git)
+# Dataset views — combined from three sources (all tracked in data/)
 # ---------------------------------------------------------------------------
-# Search Console clicks per page. The CSV has two columns: Landing Page (full
-# URL, e.g. https://www.data.gov.uk/dataset/<uuid>/<slug>) and Url Clicks.
-# We extract the UUID and sum.
+# Formula: GA page views - GA Google landing sessions + Search Console clicks
+#
+# GA page views include Google-sourced arrivals counted by GA; we subtract
+# those (the landing-page sessions from Google) and replace them with Search
+# Console clicks, which are a more reliable measure of Google search traffic.
+#
+# GA CSVs have 5 comment lines, a header, and a grand-total row (empty first
+# field). Some GA paths have corrupted UUIDs (e.g. [date] replacing hex
+# segments) — those rows are silently skipped.
 
-_VIEWS_URL_RE = re.compile(r"https://www\.data\.gov\.uk/dataset/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
+_UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+_VIEWS_URL_RE = re.compile(rf"https://www\.data\.gov\.uk/dataset/({_UUID})")
+_GA_PATH_RE = re.compile(rf"/dataset/({_UUID})")
 
 
-def load_views_csv() -> dict[str, int]:
-    """Read the views CSV and return {dataset_uuid: total_clicks}."""
+def _read_ga_csv(path: Path, url_col: str, value_col: str) -> dict[str, int]:
+    """Read a GA-exported CSV, skip comment lines and the grand-total row,
+    extract dataset UUIDs from relative paths, and sum values per UUID."""
+    if not path.exists():
+        return {}
+    result: dict[str, int] = {}
+    with path.open(encoding="utf-8", newline="") as f:
+        for line in f:
+            if line.strip() and not line.startswith("#"):
+                break
+        reader = csv.DictReader(itertools.chain([line], f))
+        for row in reader:
+            raw_path = row[url_col]
+            if not raw_path:
+                continue
+            m = _GA_PATH_RE.search(raw_path)
+            if not m:
+                continue
+            val = int(row[value_col])
+            if val <= 0:
+                continue
+            uid = m.group(1)
+            result[uid] = result.get(uid, 0) + val
+    return result
 
+
+def _read_search_console_csv() -> dict[str, int]:
+    """Read Search Console clicks (full URLs) and return {uuid: clicks}."""
     if not VIEWS_FILE.exists():
         return {}
-
     result: dict[str, int] = {}
     with VIEWS_FILE.open(encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
@@ -505,6 +541,25 @@ def load_views_csv() -> dict[str, int]:
                 continue
             uid = m.group(1)
             result[uid] = result.get(uid, 0) + clicks
+    return result
+
+
+def load_views_csv() -> dict[str, int]:
+    """Combine GA page views, GA Google landing sessions, and Search Console
+    clicks into a single {dataset_uuid: view_count} dict.
+
+    Formula per dataset: ga_views - ga_landing + search_clicks
+    """
+    ga_views = _read_ga_csv(GA_PAGE_VIEWS_FILE, "Page path and screen class", "Views")
+    ga_landing = _read_ga_csv(GA_GOOGLE_LANDING_FILE, "Landing page", "Sessions")
+    sc_clicks = _read_search_console_csv()
+
+    all_uuids = ga_views.keys() | ga_landing.keys() | sc_clicks.keys()
+    result: dict[str, int] = {}
+    for uid in all_uuids:
+        total = ga_views.get(uid, 0) - ga_landing.get(uid, 0) + sc_clicks.get(uid, 0)
+        if total > 0:
+            result[uid] = total
     return result
 
 
