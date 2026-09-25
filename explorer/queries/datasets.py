@@ -539,9 +539,11 @@ RELATED_BY_FTS = Query(
     """WITH q AS (
          SELECT websearch_to_tsquery('english', %s) AS q
        )
-       SELECT id, title, org_slug, org_display_name, theme_primary, rank
+       SELECT id, title, org_slug, org_display_name, theme_primary,
+              metadata_modified, rank
        FROM (
          SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
+                d.metadata_modified,
                 ts_rank(d.fts, q.q) AS rank,
                 ROW_NUMBER() OVER (PARTITION BY d.org_slug ORDER BY ts_rank(d.fts, q.q) DESC, d.id) AS rn
          FROM datasets d, q

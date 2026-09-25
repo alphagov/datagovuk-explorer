@@ -25,6 +25,7 @@ EMBEDDING_LITERAL = Query(
 # (~400ms); the index drops it to single-digit milliseconds.
 SEMANTIC_RELATED = Query(
     """SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
+              d.metadata_modified,
               emb.embedding <-> %s::vector AS distance
        FROM dataset_embeddings emb
        JOIN embedding_map m ON m.rowid = emb.rowid

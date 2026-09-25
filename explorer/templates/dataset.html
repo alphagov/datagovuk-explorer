@@ -4,7 +4,6 @@
   <link rel="stylesheet" href="{{ static('css/components/detail-panel.css') }}" />
   <link rel="stylesheet" href="{{ static('css/components/detail-list.css') }}" />
   <link rel="stylesheet" href="{{ static('css/components/notes.css') }}" />
-  <link rel="stylesheet" href="{{ static('css/components/related-list.css') }}" />
   <link rel="stylesheet" href="{{ static('css/pages/dataset.css') }}" />
 {% endblock styles %}
 
@@ -338,40 +337,63 @@
       </section>
     {% endif %}
 
-    {# ── Related datasets — lexical (FTS5) vs semantic (embeddings) ── #}
-    {% if (related and related | length) or (semantic_related and semantic_related | length) %}
+    {# ── Related datasets — semantic (embeddings) ── #}
+    {% if semantic_related and semantic_related | length %}
       <section class="section">
         <details class="section-toggle">
-          <summary>Related datasets</summary>
-          <div class="related-compare">
-            {% if related and related | length %}
-              <div class="related-col">
-                <h4>Lexical (FTS5 BM25)</h4>
-                <ul class="related-list">
-                  {% for r in related %}
-                    <li>
-                      <a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a>
-                      <span class="related-org">{{ r.org_display_name }}</span>
-                      {% if r.theme_primary %}<span class="related-theme">{{ r.theme_primary }}</span>{% endif %}
-                    </li>
-                  {% endfor %}
-                </ul>
-              </div>
-            {% endif %}
-            {% if semantic_related and semantic_related | length %}
-              <div class="related-col">
-                <h4>Semantic (bge-base-en-v1.5)</h4>
-                <ul class="related-list">
-                  {% for r in semantic_related %}
-                    <li>
-                      <a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a>
-                      <span class="related-org">{{ r.org_display_name }}</span>
-                      {% if r.theme_primary %}<span class="related-theme">{{ r.theme_primary }}</span>{% endif %}
-                    </li>
-                  {% endfor %}
-                </ul>
-              </div>
-            {% endif %}
+          <summary>Related datasets — semantic ({{ semantic_related | length | num }})</summary>
+          <div class="table-wrap">
+            <table class="data-table data-table--wide-first">
+              <thead>
+                <tr>
+                  <th class="col-text">Dataset</th>
+                  <th>Publisher</th>
+                  <th class="col-date">Updated</th>
+                  <th class="col-num">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in semantic_related %}
+                  <tr>
+                    <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a></td>
+                    <td>{{ r.org_display_name }}</td>
+                    <td class="col-date">{{ r.metadata_modified | date_short if r.metadata_modified else '—' }}</td>
+                    <td class="col-num">{{ '%.3f' | format(1.2 - r.distance) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    {% endif %}
+
+    {# ── Related datasets — lexical (FTS BM25) ── #}
+    {% if related and related | length %}
+      <section class="section">
+        <details class="section-toggle">
+          <summary>Related datasets — lexical ({{ related | length | num }})</summary>
+          <div class="table-wrap">
+            <table class="data-table data-table--wide-first">
+              <thead>
+                <tr>
+                  <th class="col-text">Dataset</th>
+                  <th>Publisher</th>
+                  <th class="col-date">Updated</th>
+                  <th class="col-num">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in related %}
+                  <tr>
+                    <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a></td>
+                    <td>{{ r.org_display_name }}</td>
+                    <td class="col-date">{{ r.metadata_modified | date_short if r.metadata_modified else '—' }}</td>
+                    <td class="col-num">{{ '%.3f' | format(r.rank) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
         </details>
       </section>
