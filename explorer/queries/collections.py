@@ -62,14 +62,14 @@ COLLECTION_EMBEDDING = Query(
 
 COLLECTION_RELATED_DATASETS = Query(
     """SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
+              d.metadata_modified,
               emb.embedding <-> %s::vector AS distance
        FROM dataset_embeddings emb
        JOIN embedding_map m ON m.rowid = emb.rowid
        JOIN datasets d ON d.id = m.dataset_id
-       WHERE emb.embedding <-> %s::vector < 0.75
-         AND d.resource_count > 0
+       WHERE d.resource_count > 0
        ORDER BY distance, d.id
-       LIMIT 10""",
+       LIMIT 12""",
 )
 
 

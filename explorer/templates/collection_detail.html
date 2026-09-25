@@ -3,7 +3,6 @@
 {% block styles %}
   <link rel="stylesheet" href="{{ static('css/components/notes.css') }}" />
   <link rel="stylesheet" href="{{ static('css/components/detail-list.css') }}" />
-  <link rel="stylesheet" href="{{ static('css/components/related-list.css') }}" />
 {% endblock styles %}
 
 {% block content %}
@@ -73,15 +72,28 @@
   {% if related_datasets %}
     <section class="section" style="margin-top: 32px;">
       <h2>Related datasets</h2>
-      <ul class="related-list" style="margin-top: 16px;">
-        {% for r in related_datasets %}
-          <li>
-            <a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a>
-            <span class="related-org">{{ r.org_display_name }}</span>
-            {% if r.theme_primary %}<span class="related-theme">{{ r.theme_primary }}</span>{% endif %}
-          </li>
-        {% endfor %}
-      </ul>
+      <div class="table-wrap" style="margin-top: 16px;">
+        <table class="data-table data-table--wide-first">
+          <thead>
+            <tr>
+              <th class="col-text">Dataset</th>
+              <th>Publisher</th>
+              <th>Updated</th>
+              <th class="col-num">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in related_datasets %}
+              <tr>
+                <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a></td>
+                <td>{{ r.org_display_name }}</td>
+                <td class="col-date">{{ r.metadata_modified | date_short if r.metadata_modified else '—' }}</td>
+                <td class="col-num"{% if r.distance > 0.77 %} style="color: var(--color-error, #c00);"{% endif %}>{{ '%.3f' | format(1.2 - r.distance) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </section>
   {% endif %}
 

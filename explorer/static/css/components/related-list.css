@@ -33,3 +33,10 @@
 	border-radius: var(--radius-pill);
 	color: var(--color-muted);
 }
+
+.related-score {
+	font-size: var(--text-xs);
+	font-variant-numeric: tabular-nums;
+	color: var(--color-muted);
+	margin-left: auto;
+}

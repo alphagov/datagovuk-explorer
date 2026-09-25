@@ -66,7 +66,6 @@ def collection_detail(request, slug: str):
     if emb_row:
         related_datasets = COLLECTION_RELATED_DATASETS.all(
             emb_row["embedding"],
-            emb_row["embedding"],
         )
 
     return render(
