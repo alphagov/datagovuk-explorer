@@ -15,6 +15,9 @@ from explorer.queries.harvesters import HARVESTERS_BY_ORG
 from explorer.queries.link_errors import ORG_BROKEN_LINKS
 from explorer.queries.organisations import ORG
 
+from .harvesters import FREQUENCY_LABELS as _FREQUENCY_LABELS
+from .harvesters import TYPE_LABELS as _TYPE_LABELS
+
 _CHART_START_YEAR = 2010
 
 
@@ -26,24 +29,6 @@ def _yearly_counts(rows):
     return [
         {"year": str(y), "label": str(y), "count": counts.get(str(y), 0)} for y in range(_CHART_START_YEAR, last + 1)
     ]
-
-
-_TYPE_LABELS = {
-    "ckan": "CKAN",
-    "dcat_json": "DCAT JSON",
-    "dcat_rdf": "DCAT RDF",
-    "gemini-csw": "Gemini CSW",
-    "gemini-single": "Gemini single",
-    "gemini-waf": "Gemini WAF",
-    "inventory": "Inventory",
-}
-_FREQUENCY_LABELS = {
-    "ALWAYS": "Always",
-    "DAILY": "Daily",
-    "WEEKLY": "Weekly",
-    "MONTHLY": "Monthly",
-    "MANUAL": "Manual",
-}
 
 
 def organisation(request, slug):
