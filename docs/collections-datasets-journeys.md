@@ -85,3 +85,106 @@ The matching reveals where the editorial layer and the directory overlap — and
 - **Little overlap**: financial/economic topics (interest rates, inflation, commodity prices), parliamentary data, service assessments
 
 The gaps are informative either way. A collection with no related datasets means the directory doesn't cover that topic — which might be fine (collections are meant to go beyond the directory) or might highlight something worth adding. A dataset with no related collection means nobody has written a curated page for that area yet.
+
+## Unifying across publishers
+
+The directory is organised by publisher — Environment Agency, SEPA, Natural Resources Wales, OpenDataNI each own their slice. A user looking at the EA's flood risk dataset has no way to discover that Scotland, Wales and Northern Ireland publish equivalent data under different organisations.
+
+Collections can cut across this. The **long-term flood risk** collection page presents five services for the same task (check your flood risk) across four nations as one coherent set:
+
+- Flood risk in England (GOV.UK / Environment Agency)
+- Flood risk for planning in England (GOV.UK)
+- Flood risk in Scotland (SEPA)
+- Flood risk in Wales (Natural Resources Wales)
+- Flood risk in Northern Ireland (nidirect)
+
+No dataset page can do this because each record belongs to a single publisher. The collection reassembles the data by what the user is trying to do — check flood risk — regardless of which government body happens to hold the data for their postcode.
+
+The same pattern appears in other collections: **landfill sites** brings together EA, NRW and Scottish Government datasets; **LIDAR mapping** spans Environment Agency, Natural Resources Wales, BGS and others. This cross-publisher view is one of the strongest unique capabilities of the editorial layer — something the directory structure actively works against.
+
+## Side-by-side comparison: what each page does
+
+Comparing the same subject across both pages reveals what each layer is for.
+
+### LIDAR mapping
+
+The **collection** has two clean paragraphs explaining what LIDAR is, what the data covers (99% of England at 1m resolution), and what you can do with it. One curated link to the primary resource. 10 hand-picked related datasets — all clearly relevant (NRW LIDAR, BGS LiDAR DEM, etc.).
+
+The **dataset** (National LIDAR Programme) has the publisher's own text with typos ("curretly", "origianl", "upto", "quartely") and dense technical detail about survey phases. 9 links in a sortable table with format/MIME/size columns, many showing "?" for format. License: "None given".
+
+### Landfill sites
+
+The **collection** groups two things that belong together: the current authorised landfill boundaries dataset and the historic landfill sites dataset. It explains what happens when a site stops accepting waste (removed from one, added to the other). 8 related datasets, all directly on-topic across England, Wales, and Scotland.
+
+The **dataset** (Permitted Waste Sites - Authorised Landfill Site Boundaries) has the full regulatory name, compliance-oriented description with descriptor codes (A1, A2, A4, A5, A6, A7, 5.2 A(1) a), L04, L05), and licence status definitions. License "None given" in the structured field, but the actual licence is buried in the extras as freetext. Tags include internal jargon (EAPotential, planningCadastre). Temporal coverage: 1974 to 2099.
+
+### Fire statistics
+
+The **collection** assembles what is really a family of 10 datasets into a table of contents: incident level data, cause of fire, fatalities and casualties, response times, smoke alarms, prevention, non-fire incidents, etc. One curated link to the GOV.UK landing page for all fire statistics data tables.
+
+The **dataset** (Fire statistics: Incident level datasets) is just one member of that family. 7 links — a landing page, 3 guidance PDFs, 3 ODS files, all dated 2017.
+
+### The pattern
+
+The collection is what you'd show a policymaker or journalist. The dataset page is what you'd show a data manager auditing the catalogue. The collection curates; the dataset page exposes. Neither can replace the other — but there are UX problems when users move between them.
+
+In some cases the dataset page is so thin that the collection isn't just curating — it's the only useful entry point. The Ofsted school inspections datasets are catalogue stubs: a one-sentence description, a single link to a GOV.UK landing page, no data files, last modified in 2019. Without the collection page a user would land on a record with almost nothing to offer.
+
+### Collections as a correction for stale directory records
+
+The directory is a free-for-all — publishers can abandon records and nobody forces an update. The **museum and gallery visits** dataset was last meaningfully updated in 2014. Its 9 links are monthly results from March 2013 to July 2014, all pointing to the same GOV.UK page but labelled as individual monthly releases from over a decade ago. The description still uses the pre-2017 department name.
+
+The data itself is still being published. The collection page proves it — it links to the 2024/25 annual performance indicators and the live monthly visits page. The collection is routing around a rotting directory entry.
+
+This inverts the usual staleness concern. The risk isn't that collections go stale while the directory stays current — it's that the directory is already stale and the collection layer is the only thing keeping the front door accurate for these topics.
+
+## The duplication problem
+
+When a user reads the fire statistics collection, clicks through to "Incident level datasets", and arrives on the dataset page, they see a related datasets section showing the same family — but noisier and mixed with irrelevant results. This undermines the collection in two ways:
+
+1. The user sees the same content repeated and wonders which list to trust
+2. The algorithmic list makes the curated list look less authoritative by association
+
+### Solution: record the relationship, suppress the duplicate
+
+If a dataset belongs to a collection, exclude it from the algorithmic related datasets shown on other dataset pages within the same collection. The curated relationship takes priority over the algorithmic one.
+
+This requires modelling the collection → dataset relationship explicitly. Right now the collections are static content with hand-picked links baked in. Recording the relationship properly (collection has many datasets) enables:
+
+- **Filtering**: suppress duplicates in algorithmic related lists
+- **Back-linking**: show "Part of the **Fire statistics** collection" on a dataset page
+- **Staleness detection**: surface when a related dataset has been withdrawn or a new one appears that should be added
+- **The merged topics idea** (below): knowing which datasets belong to a collection makes this easier
+
+The relationship isn't recorded for the purpose of hiding — it's recorded because it's real, and one consequence is you can stop showing things twice.
+
+## Naming: "collections" is misleading
+
+"Collections" implies collections of dataset pages from the directory, but that's not what they are. They're editorial content that links out to datasets (and often to services and APIs that aren't in the directory at all).
+
+Alternatives considered:
+
+| Name | Pros | Cons |
+|---|---|---|
+| **Topics** | Plain, natural, familiar GOV.UK pattern | Collides with the topic facet on the datasets index |
+| **Spotlights** | Distinctive, signals editorial curation | Less conventional |
+| **Guides** | Emphasises the written-for-humans angle | Overpromises if pages stay short |
+| **Briefings** | Clear that someone wrote this for you | Slightly formal |
+| **Overviews** | Plain, accurate | Generic |
+| **Features** | Journalistic tone, clearly editorial | Ambiguous with software features |
+
+"Topics" is the most natural word but collides with browsing datasets by topic. "Spotlights" is the most distinctive option that works at both levels — "Environment spotlights" for the category listing, "the LIDAR mapping spotlight" for an individual page.
+
+### A possible merge: topics as the front door
+
+Instead of two separate concepts (curated pages and a topic facet), merge them. A topic page opens with the editorial content (description, curated links, hand-picked datasets) and below that shows the full browseable list of all datasets tagged with that topic.
+
+`/topics/environment/lidar` would be:
+
+1. The written-for-humans intro to LIDAR mapping
+2. The curated links and hand-picked datasets
+3. "All LIDAR datasets" — the full filtered list from the directory
+
+A mainstream user reads the intro and clicks a curated link. A power user scrolls past to the full unfiltered listing. The editorial content becomes the front door to the data rather than a parallel path.
+
+The risk: this only works if the collection themes align with whatever topic classification exists on the datasets. If they don't, the merge gets messy.
