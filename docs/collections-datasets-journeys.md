@@ -36,7 +36,29 @@ We tested semantic similarity (embeddings) and full-text search for matching col
 | 0.7–0.75 | Borderline | Air quality (0.71), planning data (0.71), addresses (0.75) |
 | > 0.75 | Weak/irrelevant | Train info (0.77), bank of england (0.81), service assessments (0.82) |
 
-A distance threshold of **0.75** means 72 of 83 collections show related datasets. The 11 that don't are mostly niche topics where the directory genuinely has nothing close.
+A distance threshold of **0.75** is applied, and datasets with no resource links are excluded
+
+72 of 83 collections show related datasets. The distribution:
+
+| Related datasets | Collections |
+|---|---|
+| 0 | 11 (13%) |
+| 1–3 | 23 (28%) |
+| 4–7 | 19 (23%) |
+| 8–9 | 5 (6%) |
+| 10 (cap) | 25 (30%) |
+
+By category:
+
+| Category | Collections | Zero matches | Avg related |
+|---|---|---|---|
+| environment | 18 | 0 | 6.9 |
+| land-and-property | 11 | 0 | 6.5 |
+| people | 17 | 1 | 5.9 |
+| government-and-parliament | 8 | 3 | 4.5 |
+| transport | 12 | 3 | 4.1 |
+| early-years | 7 | 2 | 3.7 |
+| business-and-economy | 10 | 2 | 2.5 |
 
 ### What we built
 
