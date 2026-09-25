@@ -43,9 +43,10 @@ urlpatterns += [
     path("links/status", views.link_errors, name="link-errors"),
 ]
 
-# --- datasets (facet page) ----------------------------------------
+# --- datasets, collections (facet pages) ------------------------------
 urlpatterns += [
     path("datasets", views.datasets, name="datasets"),
+    path("collections", views.collections, name="collections"),
 ]
 
 # --- home (dashboard), dashboard reports, dataset detail -----------

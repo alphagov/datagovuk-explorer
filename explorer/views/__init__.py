@@ -6,9 +6,9 @@ every view as views.<name>.
 """
 
 from .check_progress import check_progress, check_progress_data
+from .collections import collections
 from .core import _page_param, health, not_found, paginate
 from .dashboard import dashboard
-from .search import publisher_suggest, search, search_datasets, search_publishers
 from .dataset import dataset
 from .datasets import datasets
 from .harvesters import harvester, harvesters
@@ -19,6 +19,7 @@ from .organisation import organisation
 from .organisations import organisations
 from .reports import report
 from .reviews import reviews
+from .search import publisher_suggest, search, search_datasets, search_publishers
 from .series import series_detail, series_list
 from .suggestions import suggestions
 
@@ -26,8 +27,8 @@ __all__ = [
     "_page_param",
     "check_progress",
     "check_progress_data",
+    "collections",
     "dashboard",
-    "publisher_suggest",
     "dataset",
     "datasets",
     "harvester",
@@ -41,6 +42,7 @@ __all__ = [
     "organisation",
     "organisations",
     "paginate",
+    "publisher_suggest",
     "report",
     "reviews",
     "search",

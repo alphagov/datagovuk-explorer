@@ -8,6 +8,7 @@ PRIMARY_NAV = [
     {"key": "dashboard", "label": "Home", "url": "/"},
     {"key": "orgs", "label": "Publishers", "url": "/organisations"},
     {"key": "datasets", "label": "Datasets", "url": "/datasets"},
+    {"key": "collections", "label": "Collections", "url": "/collections"},
     {"key": "links", "label": "Links", "url": "/links"},
     {"key": "metadata", "label": "Metadata", "url": "/metadata"},
 ]
@@ -40,6 +41,7 @@ _PAGE_SECTION = _TAB_SECTION | {
     "harvester": "orgs",
     "dataset": "datasets",
     "series-detail": "datasets",
+    "collections": "collections",
     "dashboard": "dashboard",
     "metadata": "metadata",
     "search": "search",

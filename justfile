@@ -234,6 +234,11 @@ review-suggest *args:
 ingest-reviews:
     uv run --env-file .env python -m scripts.ingest_reviews
 
+# Load collection pages from data/collections/ into the collections table,
+# with Search Console views from data/datagovuk-pages.csv.
+ingest-collections:
+    uv run --env-file .env python -m scripts.ingest_collections
+
 # Check every URL in the links table (HEAD → GET → Playwright fallback).
 # Writes results to link_check_results; safe to interrupt and rerun.
 # View live progress at /check-progress while the checker is running.

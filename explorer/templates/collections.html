@@ -1,0 +1,34 @@
+{% extends "_app_layout.html" %}
+
+{% block header_right %}
+  {{ pagination(start_index, end_index, shown_collections, page, total_pages, pager_base, label="collection pages", label_singular="collection page") }}
+{% endblock header_right %}
+
+{% block facets %}
+  {{ facet_group("category") }}
+{% endblock facets %}
+
+{% block table %}
+  <div class="table-wrap">
+    <table class="data-table data-table--wide-first">
+      <thead>
+        <tr>
+          <th class="col-text">{{ sort_link("title", "Collection", sort, dir, facet_qs) }}</th>
+          <th class="col-text">{{ sort_link("category", "Category", sort, dir, facet_qs) }}</th>
+          <th class="col-date">{{ sort_link("page_last_updated", "Updated", sort, dir, facet_qs) }}</th>
+          <th class="col-num">{{ sort_link("views", "Views", sort, dir, facet_qs) }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in collections %}
+          <tr>
+            <th scope="row" class="col-text">{{ c.title }}</th>
+            <td class="col-text">{{ category_labels.get(c.category, c.category) }}</td>
+            <td class="col-date">{{ c.page_last_updated | date_short }}</td>
+            <td class="col-num">{{ c.views | num }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock table %}

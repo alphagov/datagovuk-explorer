@@ -398,3 +398,35 @@ class LinkCheckResult(models.Model):
 
     def __str__(self):
         return self.url or ""
+
+
+class Collection(models.Model):
+    """A curated collection page — one per topic (e.g. "Air quality").
+
+    Populated by scripts/ingest_collections.py from the markdown files in
+    data/collections/{category}/{slug}.md. Views are Search Console clicks
+    loaded from data/datagovuk-pages.csv.
+
+    slug is the full path below data/collections/ without extension, e.g.
+    "environment/air-quality" — supports arbitrary nesting depth.
+    category is the first path segment for faceting.
+    """
+
+    slug = models.TextField(primary_key=True)
+    category = models.TextField()
+    title = models.TextField()
+    description = models.TextField(blank=True, null=True)
+    websites = models.JSONField(blank=True, null=True)
+    api = models.JSONField(blank=True, null=True)
+    dataset = models.JSONField(blank=True, null=True)
+    page_last_updated = models.TextField(blank=True, null=True)
+    visualisation_data = models.TextField(blank=True, null=True)
+    status = models.TextField(blank=True, null=True)
+    views = models.IntegerField(db_default=0)
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "collections"
+
+    def __str__(self):
+        return self.title or self.slug

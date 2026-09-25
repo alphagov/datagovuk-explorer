@@ -380,6 +380,7 @@ def make_fixtures():
     from django.db import connection
 
     from explorer.models import (
+        Collection,
         Dataset,
         DatasetApi,
         DatasetContentHash,
@@ -533,6 +534,15 @@ def make_fixtures():
             for record in _REVIEWS
         ],
     )
+
+    Collection.objects.bulk_create([
+        Collection(slug="environment/air-quality", category="environment",
+                   title="Air quality", views=200),
+        Collection(slug="environment/flood-risk", category="environment",
+                   title="Flood risk", views=150),
+        Collection(slug="transport/roads", category="transport",
+                   title="Roads", views=80),
+    ])
 
     # datasets.fts is a build-time tsvector; populate it as the build does.
     with connection.cursor() as cur:

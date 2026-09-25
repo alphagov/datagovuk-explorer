@@ -23,6 +23,7 @@ from explorer.queries.reports import (
     report_stmts,
     report_unfiltered_count,
 )
+from explorer.queries.collections import collections_stmts
 from explorer.views.harvesters import HarvesterFilters, _matches
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
@@ -178,6 +179,7 @@ def _facet_hrefs(client, url):
 # Every page with a facet sidebar, on its default (unsorted) URL.
 FACET_ROUTES = [
     "/datasets",
+    "/collections",
     "/organisations",
     "/links",
     "/links/status",
@@ -213,3 +215,19 @@ def test_link_errors_resolved_rows_are_styled(client):
     html = client.get("/links/status?category=OK").content.decode()
     assert "link-errors-row--ok" in html
     assert "status--ok" in html
+
+
+def _collections_count(filters):
+    stmt = collections_stmts(filters, "views", "desc")
+    return stmt["count"].get(*stmt["params"])["n"]
+
+
+def test_collections_bogus_category_falls_back(client):
+    """An unknown `?category=` is ignored — the page returns the unfiltered
+    count. A valid category narrows to its pool count."""
+    unfiltered = _collections_count({})
+    assert_count(client.get("/collections?category=bogus"), unfiltered, "collection pages")
+
+    # "environment" has 2 fixture collections; check the filter works.
+    filtered = _collections_count({"category": "environment"})
+    assert_count(client.get("/collections?category=environment"), filtered, "collection pages")
