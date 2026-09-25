@@ -1,0 +1,88 @@
+{% extends "_layout.html" %}
+
+{% block styles %}
+  <link rel="stylesheet" href="{{ static('css/components/notes.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/detail-list.css') }}" />
+  <link rel="stylesheet" href="{{ static('css/components/related-list.css') }}" />
+{% endblock styles %}
+
+{% block content %}
+  {{ back_link('/collections', 'All collections') }}
+
+  <h1>{{ collection.title }}</h1>
+
+  <p class="subtitle">
+    <span class="badge">{{ category_label }}</span>
+    {% if collection.page_last_updated %}
+      · Updated {{ collection.page_last_updated | date_short }}
+    {% endif %}
+    {% if collection.views %}
+      · {{ collection.views | num }} views
+    {% endif %}
+  </p>
+
+  {% if collection.description %}
+    <div class="notes-wrap">
+      <div class="notes-content prose">
+        {{ collection.description | md }}
+      </div>
+    </div>
+  {% endif %}
+
+  {% set has_links = collection.websites or collection.api or collection.dataset %}
+  {% if has_links %}
+    <section class="section" style="margin-top: 32px;">
+      <h2>Links</h2>
+      <dl class="detail-list" style="margin-top: 16px;">
+
+        {% if collection.websites %}
+          <dt>Website{% if collection.websites | length > 1 %}s{% endif %}</dt>
+          <dd>
+            {% for link in collection.websites %}
+              <a href="{{ link.url }}">{{ link["link-text"] or link.url }}</a>{% if not loop.last %}<br />{% endif %}
+            {% endfor %}
+          </dd>
+        {% endif %}
+
+        {% if collection.api %}
+          <dt>API{% if collection.api | length > 1 %}s{% endif %}</dt>
+          <dd>
+            {% for link in collection.api %}
+              <a href="{{ link.url }}">{{ link["link-text"] or link.url }}</a>{% if not loop.last %}<br />{% endif %}
+            {% endfor %}
+          </dd>
+        {% endif %}
+
+        {% if collection.dataset %}
+          <dt>Dataset</dt>
+          <dd>
+            {% if collection.dataset is mapping %}
+              <a href="{{ collection.dataset.url }}">{{ collection.dataset["link-text"] or collection.dataset.url }}</a>
+            {% else %}
+              {% for link in collection.dataset %}
+                <a href="{{ link.url }}">{{ link["link-text"] or link.url }}</a>{% if not loop.last %}<br />{% endif %}
+              {% endfor %}
+            {% endif %}
+          </dd>
+        {% endif %}
+
+      </dl>
+    </section>
+  {% endif %}
+
+  {% if related_datasets %}
+    <section class="section" style="margin-top: 32px;">
+      <h2>Related datasets</h2>
+      <ul class="related-list" style="margin-top: 16px;">
+        {% for r in related_datasets %}
+          <li>
+            <a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a>
+            <span class="related-org">{{ r.org_display_name }}</span>
+            {% if r.theme_primary %}<span class="related-theme">{{ r.theme_primary }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+{% endblock content %}

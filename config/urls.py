@@ -47,6 +47,7 @@ urlpatterns += [
 urlpatterns += [
     path("datasets", views.datasets, name="datasets"),
     path("collections", views.collections, name="collections"),
+    path("collections/<path:slug>", views.collection_detail, name="collection-detail"),
 ]
 
 # --- home (dashboard), dashboard reports, dataset detail -----------

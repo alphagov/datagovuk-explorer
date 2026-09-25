@@ -6,7 +6,7 @@ every view as views.<name>.
 """
 
 from .check_progress import check_progress, check_progress_data
-from .collections import collections
+from .collections import collection_detail, collections
 from .core import _page_param, health, not_found, paginate
 from .dashboard import dashboard
 from .dataset import dataset
@@ -27,6 +27,7 @@ __all__ = [
     "_page_param",
     "check_progress",
     "check_progress_data",
+    "collection_detail",
     "collections",
     "dashboard",
     "dataset",

@@ -16,12 +16,18 @@ import re
 import sys
 from pathlib import Path
 
+import httpx
 import yaml
 
 from scripts.db import connect, database_url
 
 COLLECTIONS_DIR = Path(__file__).resolve().parent.parent / "data" / "collections"
 VIEWS_FILE = Path(__file__).resolve().parent.parent / "data" / "datagovuk-pages.csv"
+
+EMBED_URL = "http://localhost:8080/v1/embeddings"
+EMBED_MODEL = "bge-base-en-v1.5"
+BGE_PREFIX = "Represent this sentence for searching relevant passages: "
+_WS_RE = re.compile(r"\s+")
 
 _COLLECTION_URL_RE = re.compile(
     r"https://www\.data\.gov\.uk/collections/(.+)",
@@ -109,7 +115,7 @@ def ingest(db, records: list[dict], views: dict[str, int]) -> int:
     """Truncate + insert all collection records; returns inserted count."""
 
     def _run(tx) -> None:
-        tx.exec("TRUNCATE collections")
+        tx.exec("TRUNCATE collections CASCADE")
         stmt = tx.prepare(
             """INSERT INTO collections
                (slug, category, title, description, websites, api, dataset,
@@ -135,6 +141,51 @@ def ingest(db, records: list[dict], views: dict[str, int]) -> int:
     return len(records)
 
 
+def build_collection_embeddings(db, records: list[dict]) -> int:
+    """Embed collection title+description via llama-server and write to
+    collection_embeddings. Returns the number of embeddings written, or 0
+    if llama-server is unreachable."""
+    texts = []
+    slugs = []
+    for r in records:
+        notes_short = (r["description"] or "")[:500]
+        t = f"{BGE_PREFIX}{r['title']} {notes_short}"
+        t = _WS_RE.sub(" ", t).strip()
+        if t == BGE_PREFIX.strip():
+            continue
+        texts.append(t)
+        slugs.append(r["slug"])
+
+    if not texts:
+        return 0
+
+    try:
+        with httpx.Client(timeout=60) as client:
+            res = client.post(
+                EMBED_URL,
+                json={"input": texts, "model": EMBED_MODEL},
+                headers={"Content-Type": "application/json"},
+            )
+            res.raise_for_status()
+    except (httpx.ConnectError, httpx.HTTPStatusError) as e:
+        print(f"llama-server not available ({e}) — skipping collection embeddings.", file=sys.stderr)
+        return 0
+
+    data = res.json()["data"]
+
+    def _write(tx) -> None:
+        tx.exec("TRUNCATE collection_embeddings")
+        stmt = tx.prepare(
+            "INSERT INTO collection_embeddings(slug, embedding) VALUES (?, ?::vector)",
+        )
+        for i, slug in enumerate(slugs):
+            vec = data[i]["embedding"]
+            stmt.run(slug, f"[{','.join(str(v) for v in vec)}]")
+
+    db.transaction(_write)
+    return len(slugs)
+
+
 def main() -> None:
     records = load_all_collections()
     if not records:
@@ -151,9 +202,15 @@ def main() -> None:
     db = connect(database_url())
     try:
         n = ingest(db, records, views)
+        print(f"Inserted {n} row(s) into collections.")
+
+        n_emb = build_collection_embeddings(db, records)
+        if n_emb:
+            print(f"Wrote {n_emb} collection embedding(s).")
+        else:
+            print("No collection embeddings written (llama-server may not be running).")
     finally:
         db.close()
-    print(f"Inserted {n} row(s) into collections.")
 
 
 if __name__ == "__main__":

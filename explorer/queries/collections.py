@@ -16,6 +16,12 @@ COLLECTIONS_SORT_DEFAULT = ("views", "desc")
 
 COLLECTION_TOTAL = Query("SELECT COUNT(*) AS n FROM collections")
 
+COLLECTION_DETAIL = Query(
+    "SELECT slug, category, title, description,"
+    " websites, api, dataset, page_last_updated, views, status"
+    " FROM collections WHERE slug = %s",
+)
+
 
 def _category_clause(filters: dict, exclude: str | None = None) -> tuple[list, list]:
     if exclude == "category" or not filters.get("category"):
@@ -48,6 +54,22 @@ def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
             " LIMIT %s OFFSET %s",
         ),
     }
+
+
+COLLECTION_EMBEDDING = Query(
+    "SELECT embedding::text AS embedding FROM collection_embeddings WHERE slug = %s",
+)
+
+COLLECTION_RELATED_DATASETS = Query(
+    """SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
+              emb.embedding <-> %s::vector AS distance
+       FROM dataset_embeddings emb
+       JOIN embedding_map m ON m.rowid = emb.rowid
+       JOIN datasets d ON d.id = m.dataset_id
+       WHERE emb.embedding <-> %s::vector < 0.75
+       ORDER BY distance, d.id
+       LIMIT 10""",
+)
 
 
 @cached_unfiltered

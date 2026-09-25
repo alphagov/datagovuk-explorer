@@ -9,8 +9,10 @@ own, registered on the environment in __init__.
 import json
 import math
 
+import markdown as _md_lib
 from django.template.backends.jinja2 import Jinja2 as DjangoJinja2
 from django.templatetags.static import static
+from markupsafe import Markup
 
 from .helpers import format_date
 from .nav import PRIMARY_NAV, section_for, subnav_for
@@ -80,6 +82,13 @@ def _round1(value) -> str:
     return str(rounded)
 
 
+def _md(value: str | None) -> Markup:
+    """Render a markdown string to safe HTML."""
+    if not value:
+        return Markup("")
+    return Markup(_md_lib.markdown(value, extensions=["extra"]))  # noqa: S704 — content is from our own trusted collection files
+
+
 def _prop(value) -> int | float | str:
     """Render a 0-1 proportion: whole values drop the trailing .0, and
     fractions use Python's shortest-round-trip form (e.g. "0.5", or
@@ -108,6 +117,7 @@ class Jinja2(DjangoJinja2):
         self.env.filters["prop"] = _prop
         self.env.filters["date_short"] = format_date
         self.env.filters["dump"] = _dump
+        self.env.filters["md"] = _md
         # `static` — same code path as DTL's {% static %} tag
         # (django.templatetags.static → staticfiles_storage.url), so asset
         # references stay idiomatic and follow STATIC_URL. Django 6.1's

@@ -22,7 +22,7 @@
       <tbody>
         {% for c in collections %}
           <tr>
-            <th scope="row" class="col-text">{{ c.title }}</th>
+            <th scope="row" class="col-text"><a href="/collections/{{ c.slug }}">{{ c.title }}</a></th>
             <td class="col-text">{{ category_labels.get(c.category, c.category) }}</td>
             <td class="col-date">{{ c.page_last_updated | date_short }}</td>
             <td class="col-num">{{ c.views | num }}</td>

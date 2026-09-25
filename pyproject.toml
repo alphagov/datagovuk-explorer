@@ -12,8 +12,9 @@ dependencies = [
   "django>=6.1",
   "gunicorn>=23.0",
   "httpx>=0.28",
-  "playwright>=1.49",
   "jinja2>=3.1",
+  "markdown>=3.7",
+  "playwright>=1.49",
   "psycopg[binary]>=3.3.4",
   "python-dotenv>=1.2.2",
   "truststore>=0.10.4",
@@ -139,18 +140,29 @@ lint.per-file-ignores."conftest.py" = [
 # The shared facet builder's parameters are its API surface — one option
 # per page behaviour — not a complexity smell.
 lint.per-file-ignores."explorer/facets.py" = [ "PLR0913", "PLR0917" ]
+lint.per-file-ignores."explorer/tests/*.py" = [ "PLR2004" ]
 # _report_facets' keyword-only sort params are its interface, not complexity.
 lint.per-file-ignores."explorer/views/reports.py" = [ "PLR0913" ]
-lint.per-file-ignores."explorer/tests/*.py" = [ "PLR2004" ]
 lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
+lint.per-file-ignores."scripts/build_embeddings.py" = [ "PLR0913", "PLR0917" ]
 # Status codes and pagination sizes in test assertions are intent, not magic.
 # Tests also legitimately unit-test private script helpers (_parse_int, _subscore,
 # _translate, …) — the private members ARE the units under test.
 # Complexity rules (C901 + PLR0911-17) are on; the per-file exceptions
 # below mark functions whose signature or branching is their interface.
-lint.per-file-ignores."scripts/check_links.py" = [ "C901", "FBT001", "FBT003", "PLC0415", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004" ]
+lint.per-file-ignores."scripts/check_links.py" = [
+  "C901",
+  "FBT001",
+  "FBT003",
+  "PLC0415",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "PLR0917",
+  "PLR2004"
+]
 lint.per-file-ignores."scripts/get_datasets.py" = [ "PLR0913" ]
-lint.per-file-ignores."scripts/build_embeddings.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."scripts/review_suggest.py" = [ "PLR0913" ]
 lint.per-file-ignores."tests/*.py" = [ "PLR2004", "SLF001" ]
 # Fullwidth-digit strings are deliberate fixtures: they prove the date/year

@@ -1,11 +1,16 @@
 """GET /collections — all collections with sidebar facets."""
 
+import json
 from dataclasses import asdict, dataclass
 
+from django.http import Http404
 from django.shortcuts import render
 
 from explorer import facets
 from explorer.queries.collections import (
+    COLLECTION_DETAIL,
+    COLLECTION_EMBEDDING,
+    COLLECTION_RELATED_DATASETS,
     COLLECTION_TOTAL,
     COLLECTIONS_SORT,
     COLLECTIONS_SORT_DEFAULT,
@@ -37,6 +42,45 @@ def _parse_filters(request) -> CollectionsFilters:
     if category and category not in CATEGORY_LABELS:
         category = None
     return CollectionsFilters(category=category)
+
+
+def _parse_jsonb(v):
+    """Deserialise a JSONB column that Django's cursor returns as a raw string."""
+    if isinstance(v, str):
+        return json.loads(v)
+    return v
+
+
+def collection_detail(request, slug: str):
+    """GET /collections/{slug} — one collection's detail page."""
+    row = COLLECTION_DETAIL.get(slug)
+    if row is None:
+        raise Http404
+    collection = dict(row)
+    collection["websites"] = _parse_jsonb(collection["websites"])
+    collection["api"] = _parse_jsonb(collection["api"])
+    collection["dataset"] = _parse_jsonb(collection["dataset"])
+
+    related_datasets: list = []
+    emb_row = COLLECTION_EMBEDDING.get(slug)
+    if emb_row:
+        related_datasets = COLLECTION_RELATED_DATASETS.all(
+            emb_row["embedding"],
+            emb_row["embedding"],
+        )
+
+    return render(
+        request,
+        "collection_detail.html",
+        {
+            "title": f"{collection['title']} — Collections",
+            "nav_key": "collections",
+            "narrow": True,
+            "collection": collection,
+            "category_label": CATEGORY_LABELS.get(collection["category"], collection["category"]),
+            "related_datasets": related_datasets,
+        },
+    )
 
 
 def collections(request):

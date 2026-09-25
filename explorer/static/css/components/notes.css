@@ -39,3 +39,28 @@
 .notes-toggle:hover {
 	border-color: var(--color-accent);
 }
+
+/* Prose — rendered markdown inside .notes-content. The global reset strips
+   list and paragraph spacing; restore sensible defaults here. */
+.prose p,
+.prose ul,
+.prose ol {
+	margin-bottom: 12px;
+}
+
+.prose ul,
+.prose ol {
+	padding-left: 24px;
+}
+
+.prose li {
+	margin-bottom: 4px;
+}
+
+.prose a {
+	color: var(--color-accent);
+}
+
+.prose a:hover {
+	color: var(--color-accent-hover);
+}
