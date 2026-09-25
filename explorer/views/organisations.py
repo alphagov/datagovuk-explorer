@@ -25,7 +25,7 @@ from explorer.queries.organisations import (
 )
 from explorer.sort import parse_sort
 
-from .core import _pill, paginate
+from .core import paginate, pill
 
 
 def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
@@ -246,11 +246,11 @@ def organisations(request):
         else None
     )
     pills = [
-        _pill("Datasets", DATASET_BUCKET_NAMES[filters.datasets], facet_url("datasets", ""))
+        pill("Datasets", DATASET_BUCKET_NAMES[filters.datasets], facet_url("datasets", ""))
         if filters.datasets
         else None,
-        _pill("Created year", filters.created_year, facet_url("created_year", "")) if filters.created_year else None,
-        _pill("Published in", last_published_label, facet_url("last_published_year", ""))
+        pill("Created year", filters.created_year, facet_url("created_year", "")) if filters.created_year else None,
+        pill("Published in", last_published_label, facet_url("last_published_year", ""))
         if filters.last_published_years
         else None,
     ]

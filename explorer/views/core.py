@@ -51,5 +51,5 @@ def _page_param(request, default: int = 1) -> int:
     return max(page, 1)
 
 
-def _pill(label: str, value: str, href: str) -> dict:
+def pill(label: str, value: str, href: str) -> dict:
     return {"label": label, "value": value, "href": href, "aria": f"Remove {label.lower()} filter: {value}"}

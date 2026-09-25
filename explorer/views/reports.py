@@ -36,7 +36,7 @@ from explorer.queries.reports import (
 )
 from explorer.sort import order_by as _order_by_sql, parse_sort
 
-from .core import _pill, paginate
+from .core import paginate, pill
 
 # Facet plural noun phrases — the "More …" text and, slugged (spaces →
 # underscores), the ?<plural>=all expand param for each report facet key.
@@ -160,7 +160,10 @@ def _duplicate_content_report(request, report, content_hash):
     rows = list_stmt.all(content_hash, pagination["page_size"], pagination["offset"])
 
     base_params = facets.preserve_params(
-        sort, dir_, [("hash", content_hash)], defaults=_DUPLICATE_CONTENT_DETAIL_SORT_DEFAULT,
+        sort,
+        dir_,
+        [("hash", content_hash)],
+        defaults=_DUPLICATE_CONTENT_DETAIL_SORT_DEFAULT,
     )
     facet_qs = facets.facet_qs(base_params, include_sort=False)
     pager_base = facets.pager_base(base_params)
@@ -348,7 +351,7 @@ def report(request, key):
         for row in rows:
             row["api_links"] = json.loads(row["api_links"]) if row.get("api_links") else []
 
-    pills = [_pill(f["label"], f["current_name"], facet_url(f["key"], "")) for f in active_facets]
+    pills = [pill(f["label"], f["current_name"], facet_url(f["key"], "")) for f in active_facets]
 
     return render(
         request,

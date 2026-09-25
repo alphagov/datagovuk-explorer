@@ -14,7 +14,7 @@ from explorer.queries.collections import (
 )
 from explorer.sort import parse_sort
 
-from .core import _pill, paginate
+from .core import paginate, pill
 
 CATEGORY_LABELS = {
     "business-and-economy": "Business and economy",
@@ -86,7 +86,7 @@ def collections(request):
     pager_base = facets.pager_base(base_params)
 
     pills = [
-        _pill("Category", CATEGORY_LABELS.get(filters.category, filters.category), base_facet_url("category", ""))
+        pill("Category", CATEGORY_LABELS.get(filters.category, filters.category), base_facet_url("category", ""))
         if filters.category
         else None,
     ]

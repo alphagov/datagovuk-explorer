@@ -21,7 +21,7 @@ from explorer.queries.link_errors import (
 )
 from explorer.sort import parse_sort
 
-from .core import _pill, paginate
+from .core import paginate, pill
 
 HARVEST_LABELS = dict(HARVEST_STATES)
 
@@ -215,17 +215,15 @@ def link_errors(request):
         r["status_text"] = f"{r['status']} {label}" if r["status"] is not None else label
 
     pills = [
-        _pill("Errors", _category_name(current_category), facet_url("category", "")) if current_category else None,
-        _pill("Domain", "No URL" if current_domain == "__none__" else current_domain, facet_url("domain", ""))
+        pill("Errors", _category_name(current_category), facet_url("category", "")) if current_category else None,
+        pill("Domain", "No URL" if current_domain == "__none__" else current_domain, facet_url("domain", ""))
         if current_domain
         else None,
-        _pill("Status", "No response" if current_status == "__none__" else current_status, facet_url("status", ""))
+        pill("Status", "No response" if current_status == "__none__" else current_status, facet_url("status", ""))
         if current_status
         else None,
-        _pill("Harvested", HARVEST_LABELS[current_harvested], facet_url("harvested", ""))
-        if current_harvested
-        else None,
-        _pill("Publisher", publisher_names.get(current_publisher, current_publisher), facet_url("publisher", ""))
+        pill("Harvested", HARVEST_LABELS[current_harvested], facet_url("harvested", "")) if current_harvested else None,
+        pill("Publisher", publisher_names.get(current_publisher, current_publisher), facet_url("publisher", ""))
         if current_publisher
         else None,
     ]

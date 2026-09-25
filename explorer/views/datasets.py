@@ -40,7 +40,7 @@ from explorer.queries.datasets import (
 )
 from explorer.sort import parse_sort
 
-from .core import _pill, paginate
+from .core import paginate, pill
 
 # In-window temporal years (latest first) — filter-independent, memoised at
 # module level (the DB is a build-time snapshot, so the result is stable).
@@ -427,16 +427,16 @@ def datasets(request):  # noqa: PLR0915
 
     source_name = "Harvested" if filters.source == "harvested" else "Manual"
     pills = [
-        _pill("Theme", labels["theme_label"], facet_url("theme", "")) if filters.theme else None,
-        _pill("Publisher", publisher_label, facet_url("publisher", "")) if filters.publisher else None,
-        _pill("API", _API_NAMES[filters.api], facet_url("api", "")) if filters.api else None,
-        _pill("Source", source_name, facet_url("source", "")) if filters.source else None,
-        _pill("Links", LINK_BUCKET_NAMES[filters.links], facet_url("links", "")) if filters.links else None,
-        _pill("Created year", filters.created_year, facet_url("created_year", "")) if filters.created_year else None,
-        _pill("Temporal year", labels["temporal_label"], facet_url("temporal_year", ""))
+        pill("Theme", labels["theme_label"], facet_url("theme", "")) if filters.theme else None,
+        pill("Publisher", publisher_label, facet_url("publisher", "")) if filters.publisher else None,
+        pill("API", _API_NAMES[filters.api], facet_url("api", "")) if filters.api else None,
+        pill("Source", source_name, facet_url("source", "")) if filters.source else None,
+        pill("Links", LINK_BUCKET_NAMES[filters.links], facet_url("links", "")) if filters.links else None,
+        pill("Created year", filters.created_year, facet_url("created_year", "")) if filters.created_year else None,
+        pill("Temporal year", labels["temporal_label"], facet_url("temporal_year", ""))
         if filters.temporal_year
         else None,
-        _pill("Metadata", labels["metadata_label"], facet_url("metadata_key", "")) if filters.metadata_key else None,
+        pill("Metadata", labels["metadata_label"], facet_url("metadata_key", "")) if filters.metadata_key else None,
     ]
 
     return render(

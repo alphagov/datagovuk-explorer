@@ -44,7 +44,7 @@ from explorer.queries.organisations import (
 )
 from explorer.sort import parse_sort
 
-from .core import _pill, paginate
+from .core import paginate, pill
 
 # Fixed value → display-label maps for the type/frequency columns and
 # facets. The facet master lists are derived from the data (counts order),
@@ -266,12 +266,12 @@ def harvesters(request):
     }
 
     pills = [
-        _pill("Type", type_labels.get(filters.type, filters.type), facet_url("type", "")) if filters.type else None,
-        _pill("Status", ACTIVE_LABELS[filters.active], facet_url("active", "")) if filters.active else None,
-        _pill("Frequency", frequency_labels.get(filters.frequency, filters.frequency), facet_url("frequency", ""))
+        pill("Type", type_labels.get(filters.type, filters.type), facet_url("type", "")) if filters.type else None,
+        pill("Status", ACTIVE_LABELS[filters.active], facet_url("active", "")) if filters.active else None,
+        pill("Frequency", frequency_labels.get(filters.frequency, filters.frequency), facet_url("frequency", ""))
         if filters.frequency
         else None,
-        _pill("Datasets", DATASET_BUCKET_NAMES[filters.datasets], facet_url("datasets", ""))
+        pill("Datasets", DATASET_BUCKET_NAMES[filters.datasets], facet_url("datasets", ""))
         if filters.datasets
         else None,
     ]
