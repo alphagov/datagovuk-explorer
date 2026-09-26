@@ -19,9 +19,9 @@ committed data.
 | F3 / Step 4 — collections comparison on canonical inputs | **done** |
 | F7 — period label | **done** (cross-ref and >1-rate pages remain) |
 | Step 6 — doc corrections | **partial** |
-| F2 / Step 1 — `consent_rate.py` histogram | open |
-| F4 / Step 3 — scaling explosion | open |
-| F5 — scaling assumption documented | open |
+| F2 / Step 1 — `consent_rate.py` histogram | **done** |
+| F4 / Step 3 — scaling explosion | **done** |
+| F5 — scaling assumption documented | **done** |
 | F6 / Step 5 — org analysis script | open |
 
 ## Findings
@@ -57,7 +57,7 @@ the three apr-aug files, and the `Collection` docstring in
 datasets and `load_collection_views()` → 99 slugs (82 matched to collection
 files) on the new inputs; `tests/test_build_db.py` passes.
 
-### F2 — Script no longer reproduces the distribution chart (high, easy fix)
+### F2 — Script no longer reproduces the distribution chart (high, easy fix) — **fixed**
 
 `scripts/consent_rate.py` is internally inconsistent:
 
@@ -77,6 +77,9 @@ Minor: the histogram bins are computed with floats
 double-count a value. The doc's bars sum to **780** for a stated n of **779** —
 an off-by-one from exactly that precision issue.
 
+*Fixed — see Step 1. The description above is the pre-fix state; the doc chart
+is now regenerated from the script with the 50% cap (26 rows, n=779).*
+
 ### F3 — Collections-vs-datasets comparison is apples-to-oranges (high) — **fixed**
 
 The collection numbers came from `scripts/ingest_collections.py`, which read
@@ -91,7 +94,7 @@ median, 6.7% p25, 17.2% p75** (dataset row unchanged: 2,099 / 9.4% / 8.3% /
 sample is small (n=53), the aggregate still runs the other way (5.6% vs 9.4%),
 and the repeat-visit explanation remains unproven — see Step 4.
 
-### F4 — Per-page scaling explodes at low consent rates (high)
+### F4 — Per-page scaling explodes at low consent rates (high) — **fixed**
 
 The doc says capping at 1.0 handles the edge case. It only bounds the *upper*
 end; the multiplier `sc / ga_landing` is unbounded below. On the canonical
@@ -112,7 +115,7 @@ Across the apr-aug overlap: **1,236 pages get a >10x multiplier, 66 >50x, 7
 >100x, max 230x.** This materially distorts rankings, which is worse than the
 flat 10x the doc rejects.
 
-### F5 — The scaling assumption contradicts the doc's own findings (medium)
+### F5 — The scaling assumption contradicts the doc's own findings (medium) — **fixed**
 
 `non_google = ga_views - ga_landing` mixes **Views** and **Sessions** (different
 units), then divides by a session-based rate. More importantly it assumes the
@@ -157,15 +160,18 @@ Apr–Aug (it only appears under the new path in the full-year export).
 
 ## Plan
 
-### Step 1 — Fix `consent_rate.py` so it reproduces the doc
+### Step 1 — Fix `consent_rate.py` so it reproduces the doc — **done**
 
-- Change the distribution filter from `>= 10` to `>= 50` (matching the comment
-  and variable name), or update the doc if 10+ is intended.
-- Reconcile `max_band` with whatever range the doc publishes.
-- Replace float binning with integer-percentage buckets so boundary values
-  cannot be double-counted.
-- Acceptance: `python -m scripts.consent_rate` output matches the doc's tables
-  and chart exactly.
+- Distribution filter changed from `>= 10` to `>= 50` (matching the comment and
+  variable name).
+- Float binning replaced with integer-percentage buckets
+  (`int(r * 100) // 2`), so boundary values map to exactly one bucket. The bars
+  now sum to the stated n.
+- **Decision:** `max_band` stays at **50%** (not collapsed at 20%), so the doc
+  chart was regenerated verbatim from the script: 26 rows, `10%-12%` corrected
+  from 88 to **87**, and the old `20%+  40` split into `20–50%  35` + `50%+  5`.
+- Acceptance: verified `diff` between
+  `python -m scripts.consent_rate` and the doc chart is empty.
 
 ### Step 2 — Make Apr–Aug the one canonical analysis period — **done**
 
@@ -186,23 +192,44 @@ The correct inputs are fixed:
 - Acceptance: the three apr-aug files are the only GA/SC inputs in the
   analysis and production paths; no file is read by only one of them.
 
-### Step 3 — Stop the low-consent-rate explosion
+### Step 3 — Stop the low-consent-rate explosion — **done**
 
-Add a guard to the scaling in `load_views_csv()` (`build_db.py`) and
-`load_collection_views()` (`ingest_collections.py`). Options, in rough order of
-preference:
+The literal shrinkage approach (pool each rate toward the aggregate, weighted by
+sample size) did not survive contact with the data: a Beta-Binomial prior
+`(gl + k·p0) / (sc + k)` barely moves hmo-register5, because `sc` (5,743) is
+large and dominates — `k=500` only lifts the rate 2.6% → 3.2%. Weighting by the
+landing sample instead does move it, but was rejected in favour of something
+simpler.
 
-1. Shrinkage: pool the per-page rate toward the aggregate (~10%) weighted by
-   sample size, so tiny-landing pages fall back to the global rate.
-2. Cap the multiplier at a defensible ceiling (e.g. 20x).
-3. Require a minimum landing sample before applying a per-page rate; otherwise
-   use the simple `ga_views - ga_landing + sc_clicks` formula.
+**Decision: floor the per-page rate at the corpus-wide pooled rate, ~0.10.**
 
-Regardless, add a regression test for the small-sample case; current tests only
-cover the `>1` cap (`tests/test_build_db.py:271-326`).
+```python
+consent_rate = max(min(gl / sc, 1.0), CONSENT_RATE_FLOOR)
+```
 
-Acceptance: `e5d7c4b6` (hmo-register5) no longer ranks as the top dataset by
-views; no page receives a >20x multiplier without logging.
+The pooled rate is 21,330 / 209,455 = **10.18%** (Wilson 95% CI 10.05–10.31%),
+but the interval is only 0.26pp wide, so the confidence bound is inert — the
+floor is what does the work. The chosen readable `0.10` caps the multiplier at
+exactly **10x** (the point estimate would give 9.82x, the lower bound 9.95x — all
+noise). Note the direction: flooring the rate *caps* the multiplier, so it is
+conservative against over-counting. Using the upper bound (10.31%) would be
+marginally more so; it was not worth the extra complexity.
+
+Effect on the canonical Apr–Aug data:
+
+- `e5d7c4b6` (hmo-register5) **42,090 → 15,173**, dropping to rank 3 behind two
+  genuine pages.
+- Max multiplier **230x → 10x**; total dataset views 1,038,875 → 815,250.
+- 1,236 of 3,903 overlap pages (32%) sit below the floor and are adjusted; the
+  other 2,667 keep their exact per-page rate, so high-consent pages (e.g. 50%)
+  still scale 2x — this is *not* the flat 10x the doc rejects.
+
+Trade-off: genuinely low-consent pages are overstated (by design, bounded).
+Documented as an assumption in the analysis doc (F5).
+
+Acceptance met: hmo-register5 no longer ranks top; no page exceeds a ~10x
+multiplier. Regression test added:
+`tests/test_build_db.py::test_load_views_csv_consent_rate_floor`.
 
 ### Step 4 — Recompute the collections comparison — **done**
 
@@ -224,10 +251,23 @@ emits the tables currently hand-written into the doc.
 - [x] Name the canonical input files in the Background and Scripts sections.
 - [x] Recompute the collections row (Step 4).
 - [x] Point the doc at this plan.
-- [ ] Add an explicit "Assumptions and limitations" section covering F5 and the
-  noisy tail (max multiplier is 230x, not "roughly 10x").
+- [x] Add an explicit "Assumptions and limitations" section covering F5 and the
+  noisy tail (max multiplier was 230x before the Step 3 floor).
 - [ ] Cross-reference `docs/google-console-analytics-compare.md` and explain why
   the two estimates differ (5–8% vs ~10%).
+
+## Rollout
+
+Views are stored in the database (`datasets.views`, `collections.views`), not
+computed at request time, so shipping the code is not enough. After deploying,
+re-run both ingests against the target database:
+
+- `just ingest-views` — resets `datasets.views` to 0 and reloads (seconds).
+- `just ingest-collections` — truncate + reload `collections`; run
+  `just llama-server` first if `collection_embeddings` needs rebuilding.
+
+Locally, both were re-run against `datagovuk_explorer`; `hmo-register5` now
+stores **15,173** (rank 3). Production has not been updated yet.
 
 ## Verified as correct
 
@@ -236,5 +276,5 @@ emits the tables currently hand-written into the doc.
   3 pages).
 - `(not set)` = **8,967** of **39,592** sessions (22.6% ≈ 23%).
 - Datasets in SC 20,316 / GA landing 3,977 / both 3,903.
-- The formula in the doc matches `build_db.py:566-574` and
-  `ingest_collections.py:161-169`.
+- The formula in the doc matches `build_db.py:575-580` and
+  `ingest_collections.py:184-189`.

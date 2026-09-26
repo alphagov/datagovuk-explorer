@@ -328,6 +328,40 @@ def test_load_views_csv(tmp_path, monkeypatch):
     assert result[uid_c] == 25
 
 
+def test_load_views_csv_consent_rate_floor(tmp_path, monkeypatch):
+    """A low-sample page must not inflate its views without bound.
+
+    Regression for F4 in docs/analytics-consent-plan.md: a tiny landing
+    count against many SC clicks produced multipliers up to ~230x.
+    """
+    uid = "dddddddd-1111-2222-3333-444444444444"  # rate 5% -> floored to 10%
+
+    sc_file = tmp_path / "sc.csv"
+    sc_file.write_text(
+        f"Landing Page,Url Clicks\nhttps://www.data.gov.uk/dataset/{uid}/slug,100\n",
+        encoding="utf-8",
+    )
+    ga_views_file = tmp_path / "ga-views.csv"
+    ga_views_file.write_text(
+        f"Page path and screen class,Views\n/dataset/{uid}/slug,50\n",
+        encoding="utf-8",
+    )
+    ga_landing_file = tmp_path / "ga-landing.csv"
+    ga_landing_file.write_text(
+        f"Landing page,Sessions\n/dataset/{uid}/slug,5\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bd, "VIEWS_FILE", sc_file)
+    monkeypatch.setattr(bd, "GA_PAGE_VIEWS_FILE", ga_views_file)
+    monkeypatch.setattr(bd, "GA_GOOGLE_LANDING_FILE", ga_landing_file)
+
+    result = bd.load_views_csv()
+    # rate = 5/100 = 0.05, floored to 0.10; non_google = 50-5 = 45,
+    #   scaled = round(45/0.10) = 450, total = 450 + 100 = 550
+    # Without the floor this would be round(45/0.05) + 100 = 1,000.
+    assert result[uid] == 550
+
+
 def test_load_harvest_sources(tmp_path, monkeypatch):
     # happy path: reads and parses the file
     sources = [{"id": "src-1", "title": "One", "url": "https://x/1.xml"}]

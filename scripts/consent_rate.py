@@ -130,30 +130,31 @@ def main() -> None:
 
     # ── Distribution (all pages with >= 50 SC clicks) ────────────────
     ratios_50 = sorted(
-        ga[u] / sc[u] for u in overlap if sc[u] >= 10  # noqa: PLR2004
+        ga[u] / sc[u]
+        for u in overlap
+        if sc[u] >= 50  # noqa: PLR2004
     )
     if not ratios_50:
         return
 
-    print(f"Distribution of consent rate (pages with 10+ SC clicks, n={len(ratios_50):,}):")
+    print(f"Distribution of consent rate (pages with 50+ SC clicks, n={len(ratios_50):,}):")
     print()
 
-    band = 0.02
-    max_band = 0.50
-    counts: list[tuple[str, int]] = []
-    for i in range(int(max_band / band)):
-        lo_r = i * band
-        hi_r = lo_r + band
-        n = sum(1 for r in ratios_50 if lo_r <= r < hi_r)
-        counts.append((f"{lo_r:>5.0%}-{hi_r:<5.0%}", n))
-    tail = sum(1 for r in ratios_50 if r >= max_band)
-    # Match the "  NN%-NN%  " format of the other labels
-    counts.append((f"{max_band:>5.0%}+     ", tail))
+    band_pct = 2
+    max_pct = 50
+    n_bands = max_pct // band_pct
+    # Integer-percentage buckets: each ratio maps to exactly one bucket, so
+    # values on a boundary cannot be double-counted (unlike float ranges).
+    counts = [0] * (n_bands + 1)
+    for r in ratios_50:
+        counts[min(int(r * 100) // band_pct, n_bands)] += 1
 
-    max_count = max(c for _, c in counts)
+    max_count = max(counts)
     bar_width = 40
 
-    for label, n in counts:
+    for i, n in enumerate(counts):
+        lo = i * band_pct / 100
+        label = f"{lo:>5.0%}+     " if i == n_bands else f"{lo:>5.0%}-{lo + band_pct / 100:<5.0%}"
         bar_len = int(n / max_count * bar_width) if max_count else 0
         bar = "█" * bar_len
         print(f"  {label}  {bar}  {n}")

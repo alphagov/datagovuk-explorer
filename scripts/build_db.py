@@ -50,6 +50,14 @@ _DATA = Path(__file__).resolve().parent.parent / "data"
 VIEWS_FILE = _DATA / "console-clicks-apr-aug.csv"
 GA_PAGE_VIEWS_FILE = _DATA / "ga-views-apr-aug.csv"
 GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-apr-aug.csv"
+
+# Floor for the per-page consent rate (ga_landing / sc_clicks), used when
+# scaling up the non-Google view component. Ratios below this are treated as
+# sampling noise (a handful of opted-in landings against many Search Console
+# clicks) and would otherwise inflate views without bound (up to ~230x on the
+# Apr-Aug data). ~0.10 is the corpus-wide pooled rate; see
+# docs/ga-opt-in-analysis.md. Kept in sync with scripts/ingest_collections.py.
+CONSENT_RATE_FLOOR = 0.10
 DATABASE_URL = database_url()
 
 _WS_RE = re.compile(r"\s+")
@@ -549,8 +557,9 @@ def load_views_csv() -> dict[str, int]:
     clicks into a single {dataset_uuid: view_count} dict.
 
     For pages in the GA-landing / SC-clicks overlap, the per-page consent
-    rate (ga_landing / sc_clicks) scales up the non-Google GA component.
-    Pages outside the overlap use the simple formula.
+    rate (ga_landing / sc_clicks), floored at CONSENT_RATE_FLOOR, scales up
+    the non-Google GA component. Pages outside the overlap use the simple
+    formula.
     """
     ga_views = _read_ga_csv(GA_PAGE_VIEWS_FILE, "Page path and screen class", "Views")
     ga_landing = _read_ga_csv(GA_GOOGLE_LANDING_FILE, "Landing page", "Sessions")
@@ -564,7 +573,7 @@ def load_views_csv() -> dict[str, int]:
         sc = sc_clicks.get(uid, 0)
 
         if gl > 0 and sc > 0:
-            consent_rate = min(gl / sc, 1.0)
+            consent_rate = max(min(gl / sc, 1.0), CONSENT_RATE_FLOOR)
             non_google = gv - gl
             total = round(non_google / consent_rate) + sc if non_google > 0 else sc
         else:

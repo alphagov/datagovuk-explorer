@@ -33,17 +33,32 @@ Analysis period: 2026-04-01 to 2026-09-01 (April – August 2026, 5 months; GA f
 Variance tightens with volume. The distribution peaks at 4-6% but has a fat right tail:
 
 ```
-  0%-2%     ██████████████████  66
-  2%-4%     █████████████████████████████  106
-  4%-6%     ████████████████████████████████████████  145
-  6%-8%     ██████████████████████████████████  124
-  8%-10%    ██████████████████████  81
- 10%-12%    ████████████████████████  88
- 12%-14%    █████████████  49
- 14%-16%    ███████████  40
- 16%-18%    ██████  22
- 18%-20%    █████  19
- 20%+       ██████  40
+     0%-2%     ██████████████████  66
+     2%-4%     █████████████████████████████  106
+     4%-6%     ████████████████████████████████████████  145
+     6%-8%     ██████████████████████████████████  124
+     8%-10%    ██████████████████████  81
+    10%-12%    ████████████████████████  87
+    12%-14%    █████████████  49
+    14%-16%    ███████████  40
+    16%-18%    ██████  22
+    18%-20%    █████  19
+    20%-22%    ███  13
+    22%-24%    █  6
+    24%-26%    █  4
+    26%-28%      3
+    28%-30%      2
+    30%-32%      2
+    32%-34%      1
+    34%-36%      1
+    36%-38%      1
+    38%-40%      1
+    40%-42%      1
+    42%-44%      0
+    44%-46%      0
+    46%-48%      0
+    48%-50%      0
+    50%+       █  5
 ```
 (pages with 50+ SC clicks, n=779)
 
@@ -105,16 +120,24 @@ A flat multiplier (e.g. 10x) doesn't work well:
 - Pages with high consent rates (e.g. 50%) get massively over-represented
 - The consent rate varies from ~1% to ~53% across publishers
 
-Instead, we use the **exact per-page consent rate** where we have overlap data.
+Instead, we use the **per-page consent rate** where we have overlap data.
 
 For pages where we have both GA landing sessions and SC clicks:
-1. Calculate the page's consent rate: `ga_landing / sc_clicks` (capped at 1.0)
+1. Calculate the page's consent rate: `max(min(ga_landing / sc_clicks, 1.0), 0.10)`
 2. Scale up the non-Google component: `round((ga_views - ga_landing) / consent_rate)`
 3. Add SC clicks: `scaled_non_google + sc_clicks`
 
 For pages without overlap data: keep the simple formula `ga_views - ga_landing + sc_clicks`.
 
 Capping at 1.0 handles pages where GA landing sessions exceed SC clicks (due to repeat visits inflating GA) — for those pages, no scaling is applied.
+
+The `0.10` floor handles the opposite tail. A page with only a handful of opted-in landings against many Search Console clicks yields a near-zero rate, and dividing by it inflates views without bound — up to ~230x on the Apr–Aug data, which pushed a low-traffic page to the top of the rankings. Ratios below ~10% are treated as sampling noise and floored at the corpus-wide pooled rate (10.2%). Pages at or above 10% keep their exact rate, so a 50%-consent page still scales 2x.
+
+## Assumptions and limitations
+
+- **The Google consent rate is applied to non-Google traffic.** The scaling assumes direct/referral visitors consent at the same rate as search visitors. That is the opposite of what §Why the variance finds (professional and public audiences behave differently), so the estimate likely **over-inflates high-consent audiences**. It also mixes units: `ga_views - ga_landing` is Views minus Sessions.
+- **The 0.10 floor overstates genuinely low-consent pages.** It bounds the error rather than removing it, and is a deliberate simplification — this is an estimate, not a measurement.
+- **The tail is noisy.** Individual page rates run from ~1% to ~53%, and before the floor some multipliers reached ~230x. Treat small per-page differences as noise.
 
 ## Scripts
 
