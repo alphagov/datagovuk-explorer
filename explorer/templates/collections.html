@@ -17,6 +17,7 @@
           <th class="col-text">{{ sort_link("category", "Category", sort, dir, facet_qs) }}</th>
           <th class="col-date">{{ sort_link("page_last_updated", "Updated", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("views", "Views", sort, dir, facet_qs) }}</th>
+          <th class="col-num">{{ sort_link("related", "Related", sort, dir, facet_qs) }}</th>
         </tr>
       </thead>
       <tbody>
@@ -26,6 +27,7 @@
             <td class="col-text">{{ category_labels.get(c.category, c.category) }}</td>
             <td class="col-date">{{ c.page_last_updated | date_short }}</td>
             <td class="col-num">{{ c.views | num }}</td>
+            <td class="col-num">{% if c.related is not none %}{{ c.related }}{% else %}—{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>

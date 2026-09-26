@@ -5,11 +5,14 @@ from explorer.sort import order_by
 
 from .core import Query, cached_unfiltered, facet_where
 
+RELATED_DISTANCE_THRESHOLD = 0.77
+
 COLLECTIONS_SORT = {
     "title": "LOWER(COALESCE(c.title, ''))",
     "category": "LOWER(c.category)",
     "views": "COALESCE(c.views, 0)",
     "page_last_updated": "COALESCE(c.page_last_updated, '')",
+    "related": "COALESCE(related.count, 0)",
 }
 
 COLLECTIONS_SORT_DEFAULT = ("views", "desc")
@@ -38,6 +41,22 @@ def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
     return facet_where(_FACET_CLAUSES, filters, exclude)
 
 
+_OVER_THRESHOLD_JOIN = (
+    " LEFT JOIN LATERAL ("
+    f"  SELECT 12 - COUNT(*) FILTER (WHERE sub.distance > {RELATED_DISTANCE_THRESHOLD}) AS count"
+    "  FROM ("
+    "    SELECT emb.embedding <-> ce.embedding AS distance"
+    "    FROM dataset_embeddings emb"
+    "    JOIN embedding_map m ON m.rowid = emb.rowid"
+    "    JOIN datasets d ON d.id = m.dataset_id"
+    "    WHERE d.resource_count > 0"
+    "    ORDER BY emb.embedding <-> ce.embedding, d.id"
+    "    LIMIT 12"
+    "  ) sub"
+    " ) related ON true"
+)
+
+
 def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = _facet_where(filters)
@@ -48,8 +67,11 @@ def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
         "count": Query(f"SELECT COUNT(*) AS n FROM collections c{where}"),
         "list": Query(
             "SELECT c.slug, c.category, c.title,"
-            "  c.page_last_updated, c.views"
-            f" FROM collections c{where}"
+            "  c.page_last_updated, c.views, related.count AS related"
+            " FROM collections c"
+            " LEFT JOIN collection_embeddings ce ON ce.slug = c.slug"
+            f"{_OVER_THRESHOLD_JOIN}"
+            f"{where}"
             f" ORDER BY {order_sql}"
             " LIMIT %s OFFSET %s",
         ),
@@ -71,6 +93,7 @@ COLLECTION_RELATED_DATASETS = Query(
        ORDER BY distance, d.id
        LIMIT 12""",
 )
+
 
 
 @cached_unfiltered

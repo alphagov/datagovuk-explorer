@@ -14,6 +14,7 @@ from explorer.queries.collections import (
     COLLECTION_TOTAL,
     COLLECTIONS_SORT,
     COLLECTIONS_SORT_DEFAULT,
+    RELATED_DISTANCE_THRESHOLD,
     collections_facet_counts,
     collections_stmts,
 )
@@ -78,6 +79,7 @@ def collection_detail(request, slug: str):
             "collection": collection,
             "category_label": CATEGORY_LABELS.get(collection["category"], collection["category"]),
             "related_datasets": related_datasets,
+            "distance_threshold": RELATED_DISTANCE_THRESHOLD,
         },
     )
 
@@ -123,6 +125,7 @@ def collections(request):
         pagination["page_size"],
         pagination["offset"],
     )
+
 
     base_facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
