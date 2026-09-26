@@ -62,50 +62,6 @@ Variance tightens with volume. The distribution peaks at 4-6% but has a fat righ
 ```
 (pages with 50+ SC clicks, n=779)
 
-### Collections vs datasets
-
-| Type        | pages | aggregate | median | p25  | p75   |
-|-------------|-------|-----------|--------|------|-------|
-| Datasets    | 2,099 | 9.4%      | 8.3%   | 5.3% | 13.5% |
-| Collections | 53    | 5.6%      | 13.5%  | 6.7% | 17.2% |
-
-Collections have a higher median consent rate than datasets. This likely reflects repeat visits — collections are curated topic pages (weather, births, house prices) that professionals and researchers bookmark and return to. A user who accepts cookies once generates GA sessions on every return visit, but only one Search Console click per search.
-
-### By publisher organisation
-
-At the org level (orgs with 100+ SC clicks, n=122), the interquartile range is **5.5% – 10.2%** with a median of **8.1%**.
-
-Lowest consent rates:
-
-| Rate | GA | SC | Organisation |
-|------|----|----|-------------|
-| 1.3% | 18 | 1,382 | Race Equality Unit (REU) |
-| 1.8% | 5 | 274 | London Borough of Hackney |
-| 1.9% | 2 | 106 | Monmouthshire County Council |
-| 2.3% | 3 | 130 | Driver and Vehicle Licensing Agency |
-| 2.4% | 4 | 164 | The Disclosure and Barring Service |
-
-Highest consent rates:
-
-| Rate | GA | SC | Organisation |
-|------|----|----|-------------|
-| 17.0% | 296 | 1,743 | Dept for Business, Innovation, Science and Trade |
-| 18.2% | 60 | 329 | Marine Environmental Data & Information Network |
-| 22.4% | 49 | 219 | Joint Nature Conservation Committee |
-| 23.6% | 107 | 453 | Rochdale Borough Council |
-| 53.0% | 218 | 411 | High Speed 2 Limited |
-
-## Why the variance?
-
-The consent rate likely reflects two combined effects:
-
-1. **Cookie acceptance** — whether the visitor clicks accept on the banner
-2. **Repeat visits** — a user who accepts cookies once generates GA sessions on every return visit, but only one Search Console click per search
-
-Professional/technical users (HS2, JNCC, Marine Environmental Data) tend to accept cookies and return repeatedly, inflating their consent rate. General public visitors (Race Equality Unit, DVLA) tend to arrive once from Google, probably reject the cookie banner, and never come back.
-
-These two effects can't be separated with the data we have.
-
 ## The `(not set)` problem
 
 The GA Google landing pages data has a `(not set)` row with 8,967 sessions — 23% of the 39,592 total. These are Google arrivals where GA couldn't determine the landing page, so they're never subtracted from any specific page's count.
@@ -147,5 +103,3 @@ All three read the canonical Apr–Aug files (`console-clicks-apr-aug.csv`,
 - `scripts/consent_rate.py` — calculates the consent rate analysis (run with `python -m scripts.consent_rate`)
 - `scripts/build_db.py` — `load_views_csv()` combines the three sources for dataset views
 - `scripts/ingest_collections.py` — `load_collection_views()` does the same for collection views, remapping the pre-rename `government/…` category path to `government-and-parliament/…`
-
-Known issues and remediation are tracked in `docs/analytics-consent-plan.md`.
