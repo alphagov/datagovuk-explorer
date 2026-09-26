@@ -25,9 +25,9 @@ from scripts.db import connect, database_url
 
 _DATA = Path(__file__).resolve().parent.parent / "data"
 COLLECTIONS_DIR = _DATA / "collections"
-VIEWS_FILE = _DATA / "datagovuk-pages.csv"
-GA_PAGE_VIEWS_FILE = _DATA / "ga-page-views.csv"
-GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-pages.csv"
+VIEWS_FILE = _DATA / "console-clicks-apr-aug.csv"
+GA_PAGE_VIEWS_FILE = _DATA / "ga-views-apr-aug.csv"
+GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-apr-aug.csv"
 
 EMBED_URL = "http://localhost:8080/v1/embeddings"
 EMBED_MODEL = "bge-base-en-v1.5"
@@ -50,6 +50,22 @@ _SLUG_ALIASES = {
     "transport": "transport/road-traffic",
     "early-years": "early-years/childcare-providers",
 }
+
+# The government category was renamed to government-and-parliament, but the
+# Apr-Aug GA / Search Console exports still use the old /collections/government/
+# path. Rewrite the leading category segment so old paths resolve to the
+# current collection slugs.
+_CATEGORY_ALIASES = {
+    "government": "government-and-parliament",
+}
+
+
+def _normalise_slug(slug: str) -> str:
+    """Map a path captured from a GA/SC export to a current collection slug."""
+    slug = _SLUG_ALIASES.get(slug, slug)
+    first, sep, rest = slug.partition("/")
+    first = _CATEGORY_ALIASES.get(first, first)
+    return f"{first}/{rest}" if sep else first
 
 
 def parse_collection(path: Path, base: Path) -> dict:
@@ -114,8 +130,7 @@ def _read_ga_collection_csv(path: Path, url_col: str, value_col: str) -> dict[st
             val = int(row[value_col])
             if val <= 0:
                 continue
-            slug = m.group(1)
-            slug = _SLUG_ALIASES.get(slug, slug)
+            slug = _normalise_slug(m.group(1))
             result[slug] = result.get(slug, 0) + val
     return result
 
@@ -133,8 +148,7 @@ def _read_search_console_collections() -> dict[str, int]:
             clicks = int(row["Url Clicks"])
             if clicks <= 0:
                 continue
-            slug = m.group(1)
-            slug = _SLUG_ALIASES.get(slug, slug)
+            slug = _normalise_slug(m.group(1))
             result[slug] = result.get(slug, 0) + clicks
     return result
 
@@ -161,10 +175,7 @@ def load_collection_views() -> dict[str, int]:
         if gl > 0 and sc > 0:
             consent_rate = min(gl / sc, 1.0)
             non_google = gv - gl
-            if non_google > 0:
-                total = round(non_google / consent_rate) + sc
-            else:
-                total = sc
+            total = round(non_google / consent_rate) + sc if non_google > 0 else sc
         else:
             total = gv - gl + sc
 

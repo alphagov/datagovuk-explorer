@@ -47,9 +47,9 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "downloads"
 ORGS_FILE = DATA_DIR / "organisations.json"
 HARVEST_SOURCES_FILE = DATA_DIR / "harvest_sources.json"
 _DATA = Path(__file__).resolve().parent.parent / "data"
-VIEWS_FILE = _DATA / "datagovuk-pages.csv"
-GA_PAGE_VIEWS_FILE = _DATA / "ga-page-views.csv"
-GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-pages.csv"
+VIEWS_FILE = _DATA / "console-clicks-apr-aug.csv"
+GA_PAGE_VIEWS_FILE = _DATA / "ga-views-apr-aug.csv"
+GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-apr-aug.csv"
 DATABASE_URL = database_url()
 
 _WS_RE = re.compile(r"\s+")
@@ -566,10 +566,7 @@ def load_views_csv() -> dict[str, int]:
         if gl > 0 and sc > 0:
             consent_rate = min(gl / sc, 1.0)
             non_google = gv - gl
-            if non_google > 0:
-                total = round(non_google / consent_rate) + sc
-            else:
-                total = sc
+            total = round(non_google / consent_rate) + sc if non_google > 0 else sc
         else:
             total = gv - gl + sc
 

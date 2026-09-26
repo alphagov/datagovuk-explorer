@@ -19,7 +19,7 @@ start:
 
 # Lint: Run pre-commit checks without the commit (ruff, djlint, django-upgrade, ...)
 lint *args:
-    pre-commit run {{args}}
+    uv run pre-commit run {{args}}
 
 # Typecheck: Run mypy
 # (Not in pre-commit/CI — run manually, like datagovuk.)

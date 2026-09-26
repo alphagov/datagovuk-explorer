@@ -404,8 +404,10 @@ class Collection(models.Model):
     """A curated collection page — one per topic (e.g. "Air quality").
 
     Populated by scripts/ingest_collections.py from the markdown files in
-    data/collections/{category}/{slug}.md. Views are Search Console clicks
-    loaded from data/datagovuk-pages.csv.
+    data/collections/{category}/{slug}.md. Views combine Search Console
+    clicks (data/console-clicks-apr-aug.csv) with GA page views and Google
+    landing sessions (data/ga-views-apr-aug.csv,
+    data/ga-google-landing-apr-aug.csv).
 
     slug is the full path below data/collections/ without extension, e.g.
     "environment/air-quality" — supports arbitrary nesting depth.

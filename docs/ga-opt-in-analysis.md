@@ -4,9 +4,9 @@
 
 We combine three data sources to estimate dataset and collection page views:
 
-- **GA page views** — all page views recorded by Google Analytics (cookie opt-in required)
-- **GA Google landing pages** — sessions that arrived from Google (cookie opt-in required)
-- **Search Console clicks** — clicks from Google search results (no opt-in, counts every click)
+- **GA page views** (`data/ga-views-apr-aug.csv`) — all page views recorded by Google Analytics (cookie opt-in required)
+- **GA Google landing pages** (`data/ga-google-landing-apr-aug.csv`) — sessions that arrived from Google (cookie opt-in required)
+- **Search Console clicks** (`data/console-clicks-apr-aug.csv`) — clicks from Google search results (no opt-in, counts every click)
 
 The formula: `GA page views - GA Google landing sessions + Search Console clicks`
 
@@ -16,7 +16,7 @@ This replaces GA's count of Google arrivals with Search Console's count, which d
 
 GA only sees users who accepted the cookie banner. Search Console counts every Google click regardless. For pages that appear in both datasets, the ratio `GA landing sessions / SC clicks` approximates the consent rate.
 
-Analysis period: April – September 2026 (5 months, GA functioning correctly).
+Analysis period: 2026-04-01 to 2026-09-01 (April – August 2026, 5 months; GA functioning correctly).
 
 **Overall: ~10% aggregate, ~8% median** — GA sees about 1 in 10-12 real Google arrivals.
 
@@ -52,7 +52,7 @@ Variance tightens with volume. The distribution peaks at 4-6% but has a fat righ
 | Type        | pages | aggregate | median | p25  | p75   |
 |-------------|-------|-----------|--------|------|-------|
 | Datasets    | 2,099 | 9.4%      | 8.3%   | 5.3% | 13.5% |
-| Collections | 47    | 5.5%      | 12.9%  | 5.3% | 16.2% |
+| Collections | 53    | 5.6%      | 13.5%  | 6.7% | 17.2% |
 
 Collections have a higher median consent rate than datasets. This likely reflects repeat visits — collections are curated topic pages (weather, births, house prices) that professionals and researchers bookmark and return to. A user who accepts cookies once generates GA sessions on every return visit, but only one Search Console click per search.
 
@@ -118,6 +118,11 @@ Capping at 1.0 handles pages where GA landing sessions exceed SC clicks (due to 
 
 ## Scripts
 
+All three read the canonical Apr–Aug files (`console-clicks-apr-aug.csv`,
+`ga-google-landing-apr-aug.csv`, `ga-views-apr-aug.csv`).
+
 - `scripts/consent_rate.py` — calculates the consent rate analysis (run with `python -m scripts.consent_rate`)
 - `scripts/build_db.py` — `load_views_csv()` combines the three sources for dataset views
-- `scripts/ingest_collections.py` — `load_collection_views()` does the same for collection views
+- `scripts/ingest_collections.py` — `load_collection_views()` does the same for collection views, remapping the pre-rename `government/…` category path to `government-and-parliament/…`
+
+Known issues and remediation are tracked in `docs/analytics-consent-plan.md`.
