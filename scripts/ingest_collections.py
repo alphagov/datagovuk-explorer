@@ -141,7 +141,12 @@ def _read_search_console_collections() -> dict[str, int]:
 
 def load_collection_views() -> dict[str, int]:
     """Combine GA page views, GA Google landing sessions, and Search Console
-    clicks for collection pages. Formula: ga_views - ga_landing + sc_clicks"""
+    clicks for collection pages.
+
+    For pages in the GA-landing / SC-clicks overlap, the per-page consent
+    rate (ga_landing / sc_clicks) scales up the non-Google GA component.
+    Pages outside the overlap use the simple formula.
+    """
     ga_views = _read_ga_collection_csv(GA_PAGE_VIEWS_FILE, "Page path and screen class", "Views")
     ga_landing = _read_ga_collection_csv(GA_GOOGLE_LANDING_FILE, "Landing page", "Sessions")
     sc_clicks = _read_search_console_collections()
@@ -149,7 +154,20 @@ def load_collection_views() -> dict[str, int]:
     all_slugs = ga_views.keys() | ga_landing.keys() | sc_clicks.keys()
     result: dict[str, int] = {}
     for slug in all_slugs:
-        total = ga_views.get(slug, 0) - ga_landing.get(slug, 0) + sc_clicks.get(slug, 0)
+        gv = ga_views.get(slug, 0)
+        gl = ga_landing.get(slug, 0)
+        sc = sc_clicks.get(slug, 0)
+
+        if gl > 0 and sc > 0:
+            consent_rate = min(gl / sc, 1.0)
+            non_google = gv - gl
+            if non_google > 0:
+                total = round(non_google / consent_rate) + sc
+            else:
+                total = sc
+        else:
+            total = gv - gl + sc
+
         if total > 0:
             result[slug] = total
     return result

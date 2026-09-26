@@ -276,8 +276,9 @@ def test_load_views_csv(tmp_path, monkeypatch):
     monkeypatch.setattr(bd, "GA_GOOGLE_LANDING_FILE", nope)
     assert bd.load_views_csv() == {}
 
-    uid_a = "aaaaaaaa-1111-2222-3333-444444444444"
-    uid_b = "bbbbbbbb-1111-2222-3333-444444444444"
+    uid_a = "aaaaaaaa-1111-2222-3333-444444444444"  # overlap: consent rate scales
+    uid_b = "bbbbbbbb-1111-2222-3333-444444444444"  # non-overlap: no GA landing
+    uid_c = "cccccccc-1111-2222-3333-444444444444"  # consent rate > 1: capped
 
     # Search Console clicks
     sc_file = tmp_path / "sc.csv"
@@ -286,8 +287,9 @@ def test_load_views_csv(tmp_path, monkeypatch):
         f"https://www.data.gov.uk/dataset/{uid_a}/slug,10\n"
         f"https://www.data.gov.uk/dataset/{uid_a}/slug,5\n"
         f"https://www.data.gov.uk/dataset/{uid_b}/other,3\n"
-        "https://www.data.gov.uk/,100\n"  # homepage — skipped
-        f"https://www.data.gov.uk/dataset/{uid_b}/other,0\n",  # zero — skipped
+        f"https://www.data.gov.uk/dataset/{uid_c}/thing,10\n"
+        "https://www.data.gov.uk/,100\n"  # homepage - skipped
+        f"https://www.data.gov.uk/dataset/{uid_b}/other,0\n",  # zero - skipped
         encoding="utf-8",
     )
     # GA page views (with comment header)
@@ -298,7 +300,8 @@ def test_load_views_csv(tmp_path, monkeypatch):
         "Page path and screen class,Views\n"
         f"/dataset/{uid_a}/slug,20\n"
         f"/dataset/{uid_b}/other,6\n"
-        "/search,999\n",  # non-dataset — skipped
+        f"/dataset/{uid_c}/thing,30\n"
+        "/search,999\n",  # non-dataset - skipped
         encoding="utf-8",
     )
     # GA Google landing sessions
@@ -308,15 +311,21 @@ def test_load_views_csv(tmp_path, monkeypatch):
         "\n"
         "Landing page,Sessions\n"
         f"/dataset/{uid_a}/slug,4\n"
-        f"/dataset/{uid_b}/other,2\n",
+        f"/dataset/{uid_c}/thing,15\n",  # 15 > 10 SC clicks: consent > 1
         encoding="utf-8",
     )
     monkeypatch.setattr(bd, "VIEWS_FILE", sc_file)
     monkeypatch.setattr(bd, "GA_PAGE_VIEWS_FILE", ga_views_file)
     monkeypatch.setattr(bd, "GA_GOOGLE_LANDING_FILE", ga_landing_file)
     result = bd.load_views_csv()
-    # uid_a: 20 - 4 + 15 = 31,  uid_b: 6 - 2 + 3 = 7
-    assert result == {uid_a: 31, uid_b: 7}
+    # uid_a (overlap): consent_rate = 4/15 = 0.267, non_google = 20-4 = 16,
+    #   scaled = round(16/0.267) = 60, total = 60 + 15 = 75
+    assert result[uid_a] == 75
+    # uid_b (non-overlap, no GA landing): 6 - 0 + 3 = 9
+    assert result[uid_b] == 9
+    # uid_c (consent > 1, capped at 1.0): non_google = 30-15 = 15,
+    #   scaled = round(15/1.0) = 15, total = 15 + 10 = 25
+    assert result[uid_c] == 25
 
 
 def test_load_harvest_sources(tmp_path, monkeypatch):

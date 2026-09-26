@@ -548,7 +548,9 @@ def load_views_csv() -> dict[str, int]:
     """Combine GA page views, GA Google landing sessions, and Search Console
     clicks into a single {dataset_uuid: view_count} dict.
 
-    Formula per dataset: ga_views - ga_landing + search_clicks
+    For pages in the GA-landing / SC-clicks overlap, the per-page consent
+    rate (ga_landing / sc_clicks) scales up the non-Google GA component.
+    Pages outside the overlap use the simple formula.
     """
     ga_views = _read_ga_csv(GA_PAGE_VIEWS_FILE, "Page path and screen class", "Views")
     ga_landing = _read_ga_csv(GA_GOOGLE_LANDING_FILE, "Landing page", "Sessions")
@@ -557,7 +559,20 @@ def load_views_csv() -> dict[str, int]:
     all_uuids = ga_views.keys() | ga_landing.keys() | sc_clicks.keys()
     result: dict[str, int] = {}
     for uid in all_uuids:
-        total = ga_views.get(uid, 0) - ga_landing.get(uid, 0) + sc_clicks.get(uid, 0)
+        gv = ga_views.get(uid, 0)
+        gl = ga_landing.get(uid, 0)
+        sc = sc_clicks.get(uid, 0)
+
+        if gl > 0 and sc > 0:
+            consent_rate = min(gl / sc, 1.0)
+            non_google = gv - gl
+            if non_google > 0:
+                total = round(non_google / consent_rate) + sc
+            else:
+                total = sc
+        else:
+            total = gv - gl + sc
+
         if total > 0:
             result[uid] = total
     return result
