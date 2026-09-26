@@ -91,15 +91,31 @@ class HostGate:
     Dead-host logic:
       - Once a host accumulates DEAD_THRESHOLD dead signals, is_dead() returns True
         and record() returns True exactly once (the turn it crosses the threshold).
+
+    Host groups:
+      - Hosts in the same group share a single rate-limit gate. A 429 (or any signal)
+        on any member slows the whole group equally. Pass groups as a list of sets.
     """
 
     SPEED_UP_AFTER = 5
 
-    def __init__(self, start_ms: int = 1000, floor_ms: int = 250, dead_threshold: int = 10) -> None:
+    def __init__(
+        self,
+        start_ms: int = 1000,
+        floor_ms: int = 250,
+        dead_threshold: int = 10,
+        groups: list[set[str]] | None = None,
+    ) -> None:
         self._dead_threshold = dead_threshold
         self._start = start_ms / 1000.0
         self._floor = floor_ms / 1000.0
         self._step = floor_ms / 1000.0
+        # Map each host to its group key (first sorted member of the group).
+        self._host_to_group: dict[str, str] = {}
+        for group in groups or []:
+            key = min(group)
+            for h in group:
+                self._host_to_group[h] = key
         self._locks: dict[str, asyncio.Lock] = {}
         self._last: dict[str, float] = {}
         self._intervals: dict[str, float] = {}
@@ -108,22 +124,27 @@ class HostGate:
         self._dead_counts: dict[str, int] = {}
         self._dead: set[str] = set()
 
+    def _resolve(self, host: str) -> str:
+        return self._host_to_group.get(host, host)
+
     def _cur_interval(self, host: str) -> float:
         return self._intervals.get(host, self._start)
 
     async def acquire(self, host: str) -> None:
-        if host not in self._locks:
-            self._locks[host] = asyncio.Lock()
-            self._last[host] = 0.0
-        async with self._locks[host]:
+        key = self._resolve(host)
+        if key not in self._locks:
+            self._locks[key] = asyncio.Lock()
+            self._last[key] = 0.0
+        async with self._locks[key]:
             now = time.monotonic()
-            wait = self._last[host] + self._cur_interval(host) - now
+            wait = self._last[key] + self._cur_interval(key) - now
             if wait > 0:
                 await asyncio.sleep(wait)
-            self._last[host] = time.monotonic()
+            self._last[key] = time.monotonic()
 
     def record(self, host: str, *, status: int | None, error: str | None) -> bool:
         """Update per-host state. Returns True if the host just crossed the dead threshold."""
+        key = self._resolve(host)
         err = error or ""
         is_success = status is not None and status != 429 and status < 500
         is_429 = status == 429
@@ -137,28 +158,28 @@ class HostGate:
         )
 
         if is_success:
-            if self._accelerating.get(host, True):
-                streak = self._streak.get(host, 0) + 1
-                self._streak[host] = streak
+            if self._accelerating.get(key, True):
+                streak = self._streak.get(key, 0) + 1
+                self._streak[key] = streak
                 if streak >= self.SPEED_UP_AFTER:
-                    self._intervals[host] = max(self._cur_interval(host) - self._step, self._floor)
-                    self._streak[host] = 0
+                    self._intervals[key] = max(self._cur_interval(key) - self._step, self._floor)
+                    self._streak[key] = 0
         elif is_429:
-            self._accelerating[host] = False
-            self._streak[host] = 0
-            self._intervals[host] = min(self._cur_interval(host) + self._step, self._start)
+            self._accelerating[key] = False
+            self._streak[key] = 0
+            self._intervals[key] = min(self._cur_interval(key) + self._step, self._start)
         elif is_dead_signal:
-            self._streak[host] = 0
-            count = self._dead_counts.get(host, 0) + 1
-            self._dead_counts[host] = count
-            if self._dead_threshold and count >= self._dead_threshold and host not in self._dead:
-                self._dead.add(host)
+            self._streak[key] = 0
+            count = self._dead_counts.get(key, 0) + 1
+            self._dead_counts[key] = count
+            if self._dead_threshold and count >= self._dead_threshold and key not in self._dead:
+                self._dead.add(key)
                 return True
 
         return False
 
     def is_dead(self, host: str) -> bool:
-        return host in self._dead
+        return self._resolve(host) in self._dead
 
 
 # ---------------------------------------------------------------------------
@@ -381,7 +402,7 @@ SELECT DISTINCT l.url
 FROM links l
 WHERE l.url IS NOT NULL
   AND l.url LIKE 'http%%'
-  AND l.url ~* '^https?://[^/]'
+  AND l.url ~* '^https{{0,1}}://[^/]'
   AND NOT EXISTS (
       SELECT 1 FROM link_check_results lcr
       WHERE lcr.url = l.url AND lcr.checked_at IS NOT NULL
@@ -395,7 +416,7 @@ SELECT DISTINCT l.url
 FROM links l
 WHERE l.url IS NOT NULL
   AND l.url LIKE 'http%%'
-  AND l.url ~* '^https?://[^/]'
+  AND l.url ~* '^https{{0,1}}://[^/]'
   {extra}
 ORDER BY l.url
 """
@@ -452,7 +473,7 @@ def write_result(db: Db, result: dict[str, Any]) -> None:
 
 _MARK_MALFORMED_SQL = """
 INSERT INTO link_check_results (url, checked_at, method, ok, http_status, final_url, error)
-SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL, NULL, 'url:malformed'
+SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL::integer, NULL, 'url:malformed'
 FROM links l
 WHERE l.host IS NULL AND l.url IS NOT NULL AND l.url != ''
 ON CONFLICT (url) DO NOTHING
@@ -463,7 +484,7 @@ ON CONFLICT (url) DO NOTHING
 # wrong case (Https://), and http-prefixed-but-malformed (http:/foo, https:///foo).
 _MARK_UNCHECKABLE_SQL = """
 INSERT INTO link_check_results (url, checked_at, method, ok, http_status, final_url, error)
-SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL, NULL, 'url:malformed'
+SELECT DISTINCT l.url, %s, 'SKIPPED', false, NULL::integer, NULL, 'url:malformed'
 FROM links l
 WHERE l.url IS NOT NULL AND l.url != ''
   AND NOT (l.url LIKE 'http%%' AND l.url ~* '^https?://[^/]')
@@ -616,7 +637,12 @@ def main(
     floor_ms: int = typer.Option(250, help="Minimum gap per host in ms (4 req/s)"),
     dead_threshold: int = typer.Option(10, help="Mark host dead after N consecutive failures (0 = disable)"),
     force: bool = typer.Option(False, help="Recheck URLs already in link_check_results"),
+    group_hosts: list[str] = typer.Option(
+        [],
+        help="Comma-separated hosts that share one rate-limit gate (repeat for multiple groups)",
+    ),
 ) -> None:
+    groups = [set(g.split(",")) for g in group_hosts if g]
     asyncio.run(
         _main(
             limit=limit or None,
@@ -628,6 +654,7 @@ def main(
             floor_ms=floor_ms,
             dead_threshold=dead_threshold,
             force=force,
+            groups=groups,
         ),
     )
 
@@ -643,6 +670,7 @@ async def _main(
     floor_ms: int,
     dead_threshold: int,
     force: bool,
+    groups: list[set[str]] | None = None,
 ) -> None:
     db = connect(database_url())
     try:
@@ -664,7 +692,7 @@ async def _main(
         if not _HAS_PLAYWRIGHT:
             print("  playwright not installed — Playwright fallback disabled", flush=True)
 
-        gate = HostGate(start_ms, floor_ms, dead_threshold)
+        gate = HostGate(start_ms, floor_ms, dead_threshold, groups=groups)
         worker_sem = asyncio.Semaphore(workers)
         pw_sem = asyncio.Semaphore(pw_pages)
         queue: asyncio.Queue[dict | None] = asyncio.Queue()

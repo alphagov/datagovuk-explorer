@@ -7,16 +7,15 @@
     .progress-page { padding: 1.5rem 0; }
     .progress-summary {
       display: flex;
-      gap: 2rem;
+      gap: 40px;
       flex-wrap: wrap;
       margin-bottom: 1.5rem;
-      padding: 1rem 1.25rem;
-      background: var(--surface-raised, #f8f8f8);
+      padding: 1rem 0;
       border-radius: 6px;
     }
-    .progress-summary__item { display: flex; flex-direction: column; gap: 0.25rem; }
-    .progress-summary__value { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .progress-summary__label { font-size: 0.8125rem; color: var(--text-secondary, #666); }
+    .progress-summary__item { display: flex; flex-direction: column; gap: 4px; }
+    .progress-summary__value { font-size: var(--text-display); font-variant-numeric: tabular-nums; }
+    .progress-summary__label { font-size: var(--text-body); color: var(--text-secondary, #666); }
     .progress-bar-wrap {
       height: 6px;
       background: var(--border, #ddd);
@@ -63,8 +62,6 @@
         <div class="progress-bar" id="progress-bar" style="width:0%"></div>
       </div>
 
-      <p class="status" id="status">Loading…</p>
-
       <div class="table-wrap">
         <table class="data-table" id="hosts-table">
           <thead>
@@ -102,7 +99,7 @@
       }
 
       function render(data) {
-        var pct = data.total > 0 ? Math.round(data.checked * 100 / data.total) : 0;
+        var pct = data.total > 0 ? Math.floor(data.checked * 100 / data.total) : 0;
         document.getElementById('s-total').textContent = fmt(data.total);
         document.getElementById('s-checked').textContent = fmt(data.checked);
         document.getElementById('s-ok').textContent = fmt(data.ok);
@@ -110,14 +107,8 @@
         document.getElementById('s-pct').textContent = pct + '%';
         document.getElementById('progress-bar').style.width = pct + '%';
 
-        var statusEl = document.getElementById('status');
         if (data.total > 0 && data.checked >= data.total) {
-          statusEl.textContent = 'Complete — all ' + fmt(data.total) + ' URLs checked.';
-          statusEl.className = 'status status--done';
           if (timer) { clearInterval(timer); timer = null; }
-        } else {
-          statusEl.textContent = 'Polling every 1 s…';
-          statusEl.className = 'status';
         }
 
         var tbody = document.getElementById('hosts-body');
@@ -130,19 +121,19 @@
         var rows = checked.concat(unchecked).map(function (h) {
           var e = h.errors || {};
           var cls = h.checked === 0 ? ' class="unchecked"' : '';
-          return '<tr' + cls + '>' +
-            '<td class="col-text">' + escHtml(h.host || '(no host)') + '</td>' +
-            '<td class="col-num">' + fmt(h.total) + '</td>' +
-            '<td class="col-num">' + fmt(h.checked) + '</td>' +
-            '<td class="col-num">' + fmt(h.ok) + '</td>' +
-            '<td class="col-num">' + fmt(h.broken) + '</td>' +
-            '<td class="col-num">' + fmt(e.ssl) + '</td>' +
-            '<td class="col-num">' + fmt(e.dns) + '</td>' +
-            '<td class="col-num">' + fmt(e.timeout) + '</td>' +
-            '<td class="col-num">' + fmt(e.connect) + '</td>' +
-            '<td class="col-num">' + fmt(e.http) + '</td>' +
-            '<td class="col-num">' + fmt(e.playwright) + '</td>' +
-            '</tr>';
+          return `<tr${cls}>
+            <td class="col-text">${escHtml(h.host || '(no host)')}</td>
+            <td class="col-num">${fmt(h.total)}</td>
+            <td class="col-num">${fmt(h.checked)}</td>
+            <td class="col-num">${fmt(h.ok)}</td>
+            <td class="col-num">${fmt(h.broken)}</td>
+            <td class="col-num">${fmt(e.ssl)}</td>
+            <td class="col-num">${fmt(e.dns)}</td>
+            <td class="col-num">${fmt(e.timeout)}</td>
+            <td class="col-num">${fmt(e.connect)}</td>
+            <td class="col-num">${fmt(e.http)}</td>
+            <td class="col-num">${fmt(e.playwright)}</td>
+            </tr>`;
         });
         tbody.innerHTML = rows.join('') || '<tr><td colspan="11">No data yet.</td></tr>';
       }
