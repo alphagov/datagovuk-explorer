@@ -5,7 +5,7 @@
 {% endblock header_right %}
 
 {% block facets %}
-  {{ facet_group("category") }}
+  {{ facet_group("collection") }}
 {% endblock facets %}
 
 {% block table %}
@@ -13,8 +13,8 @@
     <table class="data-table data-table--wide-first">
       <thead>
         <tr>
-          <th class="col-text">{{ sort_link("title", "Collection", sort, dir, facet_qs) }}</th>
-          <th class="col-text">{{ sort_link("category", "Category", sort, dir, facet_qs) }}</th>
+          <th class="col-text">{{ sort_link("title", "Page", sort, dir, facet_qs) }}</th>
+          <th class="col-text">{{ sort_link("collection", "Collection", sort, dir, facet_qs) }}</th>
           <th class="col-date">{{ sort_link("page_last_updated", "Updated", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("views", "Views", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("related", "Related", sort, dir, facet_qs) }}</th>
@@ -24,7 +24,7 @@
         {% for c in collections %}
           <tr>
             <th scope="row" class="col-text"><a href="/collections/{{ c.slug }}">{{ c.title }}</a></th>
-            <td class="col-text">{{ category_labels.get(c.category, c.category) }}</td>
+            <td class="col-text">{{ collection_labels.get(c.collection, c.collection) }}</td>
             <td class="col-date">{{ c.page_last_updated | date_short }}</td>
             <td class="col-num">{{ c.views | num }}</td>
             <td class="col-num">{% if c.related is not none %}{{ c.related }}{% else %}—{% endif %}</td>

@@ -9,7 +9,7 @@ RELATED_DISTANCE_THRESHOLD = 0.77
 
 COLLECTIONS_SORT = {
     "title": "LOWER(COALESCE(c.title, ''))",
-    "category": "LOWER(c.category)",
+    "collection": "LOWER(c.collection)",
     "views": "COALESCE(c.views, 0)",
     "page_last_updated": "COALESCE(c.page_last_updated, '')",
     "related": "COALESCE(related.count, 0)",
@@ -17,23 +17,23 @@ COLLECTIONS_SORT = {
 
 COLLECTIONS_SORT_DEFAULT = ("views", "desc")
 
-COLLECTION_TOTAL = Query("SELECT COUNT(*) AS n FROM collections")
+COLLECTION_TOTAL = Query("SELECT COUNT(*) AS n FROM collection_pages")
 
 COLLECTION_DETAIL = Query(
-    "SELECT slug, category, title, description,"
+    "SELECT slug, collection, title, description,"
     " websites, api, dataset, page_last_updated, views, status"
-    " FROM collections WHERE slug = %s",
+    " FROM collection_pages WHERE slug = %s",
 )
 
 
-def _category_clause(filters: dict, exclude: str | None = None) -> tuple[list, list]:
-    if exclude == "category" or not filters.get("category"):
+def _collection_clause(filters: dict, exclude: str | None = None) -> tuple[list, list]:
+    if exclude == "collection" or not filters.get("collection"):
         return [], []
-    return ["c.category = %s"], [filters["category"]]
+    return ["c.collection = %s"], [filters["collection"]]
 
 
 _FACET_CLAUSES = {
-    "category": _category_clause,
+    "collection": _collection_clause,
 }
 
 
@@ -64,11 +64,11 @@ def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
 
     return {
         "params": params,
-        "count": Query(f"SELECT COUNT(*) AS n FROM collections c{where}"),
+        "count": Query(f"SELECT COUNT(*) AS n FROM collection_pages c{where}"),
         "list": Query(
-            "SELECT c.slug, c.category, c.title,"
+            "SELECT c.slug, c.collection, c.title,"
             "  c.page_last_updated, c.views, related.count AS related"
-            " FROM collections c"
+            " FROM collection_pages c"
             " LEFT JOIN collection_embeddings ce ON ce.slug = c.slug"
             f"{_OVER_THRESHOLD_JOIN}"
             f"{where}"
@@ -95,14 +95,15 @@ COLLECTION_RELATED_DATASETS = Query(
 )
 
 
-
 @cached_unfiltered
 def collections_facet_counts(filters: dict) -> dict:
-    """Category facet counts with self-exclusion."""
-    cat_where, cat_params = _facet_where(filters, exclude="category")
+    """Collection facet counts with self-exclusion."""
+    col_where, col_params = _facet_where(filters, exclude="collection")
 
-    categories = Query(
-        f"SELECT c.category, COUNT(*) AS count FROM collections c{cat_where} GROUP BY c.category ORDER BY c.category",
-    ).all(*cat_params)
+    collections = Query(
+        f"SELECT c.collection, COUNT(*) AS count"
+        f" FROM collection_pages c{col_where}"
+        " GROUP BY c.collection ORDER BY c.collection",
+    ).all(*col_params)
 
-    return {"categories": categories}
+    return {"collections": collections}

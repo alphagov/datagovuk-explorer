@@ -404,18 +404,18 @@ class Collection(models.Model):
     """A curated collection page — one per topic (e.g. "Air quality").
 
     Populated by scripts/ingest_collections.py from the markdown files in
-    data/collections/{category}/{slug}.md. Views combine Search Console
+    data/collections/{collection}/{slug}.md. Views combine Search Console
     clicks (data/console-clicks-apr-aug.csv) with GA page views and Google
     landing sessions (data/ga-views-apr-aug.csv,
     data/ga-google-landing-apr-aug.csv).
 
     slug is the full path below data/collections/ without extension, e.g.
     "environment/air-quality" — supports arbitrary nesting depth.
-    category is the first path segment for faceting.
+    collection is the first path segment for faceting.
     """
 
     slug = models.TextField(primary_key=True)
-    category = models.TextField()
+    collection = models.TextField()
     title = models.TextField()
     description = models.TextField(blank=True, null=True)
     websites = models.JSONField(blank=True, null=True)
@@ -428,7 +428,7 @@ class Collection(models.Model):
 
     class Meta:
         app_label = "explorer"
-        db_table = "collections"
+        db_table = "collection_pages"
 
     def __str__(self):
         return self.title or self.slug

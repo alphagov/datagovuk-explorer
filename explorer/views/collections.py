@@ -22,7 +22,7 @@ from explorer.sort import parse_sort
 
 from .core import paginate, pill
 
-CATEGORY_LABELS = {
+COLLECTION_LABELS = {
     "business-and-economy": "Business and economy",
     "early-years": "Early years",
     "environment": "Environment",
@@ -35,14 +35,14 @@ CATEGORY_LABELS = {
 
 @dataclass(frozen=True)
 class CollectionsFilters:
-    category: str | None = None
+    collection: str | None = None
 
 
 def _parse_filters(request) -> CollectionsFilters:
-    category = request.GET.get("category", "").strip() or None
-    if category and category not in CATEGORY_LABELS:
-        category = None
-    return CollectionsFilters(category=category)
+    collection = request.GET.get("collection", "").strip() or None
+    if collection and collection not in COLLECTION_LABELS:
+        collection = None
+    return CollectionsFilters(collection=collection)
 
 
 def _parse_jsonb(v):
@@ -77,7 +77,7 @@ def collection_detail(request, slug: str):
             "nav_key": "collections",
             "narrow": True,
             "collection": collection,
-            "category_label": CATEGORY_LABELS.get(collection["category"], collection["category"]),
+            "category_label": COLLECTION_LABELS.get(collection["collection"], collection["collection"]),
             "related_datasets": related_datasets,
             "distance_threshold": RELATED_DISTANCE_THRESHOLD,
         },
@@ -85,7 +85,7 @@ def collection_detail(request, slug: str):
 
 
 def collections(request):
-    """GET /collections — the all-collections page with category sidebar."""
+    """GET /collections — the all-collections page with collection sidebar."""
     filters = _parse_filters(request)
     sort, dir_ = parse_sort(request, COLLECTIONS_SORT, *COLLECTIONS_SORT_DEFAULT)
 
@@ -94,23 +94,23 @@ def collections(request):
     base_params = facets.preserve_params(
         sort,
         dir_,
-        [("category", filters.category)],
+        [("collection", filters.collection)],
         defaults=COLLECTIONS_SORT_DEFAULT,
     )
 
-    category_master = list(CATEGORY_LABELS.items())
-    category_counts = {r["category"]: r["count"] for r in facet_counts["categories"]}
+    collection_master = list(COLLECTION_LABELS.items())
+    collection_counts = {r["collection"]: r["count"] for r in facet_counts["collections"]}
 
     facet_groups = {
         g["key"]: g
         for g in (
             facets.facet_counts_group(
-                "category",
-                "Category",
-                "Filter by category",
-                category_master,
-                category_counts,
-                filters.category,
+                "collection",
+                "Collection",
+                "Filter by collection",
+                collection_master,
+                collection_counts,
+                filters.collection,
             ),
         )
         if g is not None
@@ -126,14 +126,17 @@ def collections(request):
         pagination["offset"],
     )
 
-
     base_facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
     pager_base = facets.pager_base(base_params)
 
     pills = [
-        pill("Category", CATEGORY_LABELS.get(filters.category, filters.category), base_facet_url("category", ""))
-        if filters.category
+        pill(
+            "Collection",
+            COLLECTION_LABELS.get(filters.collection, filters.collection),
+            base_facet_url("collection", ""),
+        )
+        if filters.collection
         else None,
     ]
 
@@ -144,7 +147,7 @@ def collections(request):
             "title": "Collections — data.gov.uk Explorer",
             "nav_key": "collections",
             "collections": page_collections,
-            "category_labels": CATEGORY_LABELS,
+            "collection_labels": COLLECTION_LABELS,
             **pagination,
             "total_collections": COLLECTION_TOTAL.get()["n"],
             "shown_collections": shown_count,

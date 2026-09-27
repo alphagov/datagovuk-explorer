@@ -12,6 +12,7 @@ import re
 import pytest
 from django.test import SimpleTestCase
 
+from explorer.queries.collections import collections_stmts
 from explorer.queries.core import Query
 from explorer.queries.dashboard import cards
 from explorer.queries.datasets import datasets_facet_counts, datasets_stmts
@@ -23,7 +24,6 @@ from explorer.queries.reports import (
     report_stmts,
     report_unfiltered_count,
 )
-from explorer.queries.collections import collections_stmts
 from explorer.views.harvesters import HarvesterFilters, _matches
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
@@ -222,12 +222,12 @@ def _collections_count(filters):
     return stmt["count"].get(*stmt["params"])["n"]
 
 
-def test_collections_bogus_category_falls_back(client):
-    """An unknown `?category=` is ignored — the page returns the unfiltered
-    count. A valid category narrows to its pool count."""
+def test_collections_bogus_collection_falls_back(client):
+    """An unknown `?collection=` is ignored — the page returns the unfiltered
+    count. A valid collection narrows to its pool count."""
     unfiltered = _collections_count({})
-    assert_count(client.get("/collections?category=bogus"), unfiltered, "collection pages")
+    assert_count(client.get("/collections?collection=bogus"), unfiltered, "collection pages")
 
     # "environment" has 2 fixture collections; check the filter works.
-    filtered = _collections_count({"category": "environment"})
-    assert_count(client.get("/collections?category=environment"), filtered, "collection pages")
+    filtered = _collections_count({"collection": "environment"})
+    assert_count(client.get("/collections?collection=environment"), filtered, "collection pages")

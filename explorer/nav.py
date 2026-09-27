@@ -30,6 +30,9 @@ SECTIONS = {
         {"key": "links", "label": "Links", "url": "/links"},
         {"key": "errors", "label": "Status", "url": "/links/status"},
     ],
+    "collections": [
+        {"key": "collections", "label": "Collections", "url": "/collections"},
+    ],
 }
 
 _TAB_SECTION = {tab["key"]: key for key, tabs in SECTIONS.items() for tab in tabs}

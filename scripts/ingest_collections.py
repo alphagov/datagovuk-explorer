@@ -91,11 +91,11 @@ def parse_collection(path: Path, base: Path) -> dict:
 
     rel = path.relative_to(base).with_suffix("")
     slug = str(rel)
-    category = rel.parts[0]
+    collection = rel.parts[0]
 
     return {
         "slug": slug,
-        "category": category,
+        "collection": collection,
         "title": meta.get("title", ""),
         "description": body or None,
         "websites": meta.get("websites") or None,
@@ -197,17 +197,17 @@ def ingest(db, records: list[dict], views: dict[str, int]) -> int:
     """Truncate + insert all collection records; returns inserted count."""
 
     def _run(tx) -> None:
-        tx.exec("TRUNCATE collections CASCADE")
+        tx.exec("TRUNCATE collection_pages CASCADE")
         stmt = tx.prepare(
-            """INSERT INTO collections
-               (slug, category, title, description, websites, api, dataset,
+            """INSERT INTO collection_pages
+               (slug, collection, title, description, websites, api, dataset,
                 page_last_updated, visualisation_data, status, views)
                VALUES (?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, ?)""",
         )
         for r in records:
             stmt.run(
                 r["slug"],
-                r["category"],
+                r["collection"],
                 r["title"],
                 r["description"],
                 json.dumps(r["websites"], ensure_ascii=False) if r["websites"] else None,

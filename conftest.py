@@ -481,10 +481,7 @@ def make_fixtures():
     Link.objects.bulk_create(links)
 
     LinkCheckResult.objects.bulk_create(
-        [
-            LinkCheckResult(checked_at="2026-01-01T00:00:00", **row)
-            for row in _LINK_CHECK_RESULTS
-        ],
+        [LinkCheckResult(checked_at="2026-01-01T00:00:00", **row) for row in _LINK_CHECK_RESULTS],
     )
 
     MetadataKey.objects.bulk_create(
@@ -535,14 +532,13 @@ def make_fixtures():
         ],
     )
 
-    Collection.objects.bulk_create([
-        Collection(slug="environment/air-quality", category="environment",
-                   title="Air quality", views=200),
-        Collection(slug="environment/flood-risk", category="environment",
-                   title="Flood risk", views=150),
-        Collection(slug="transport/roads", category="transport",
-                   title="Roads", views=80),
-    ])
+    Collection.objects.bulk_create(
+        [
+            Collection(slug="environment/air-quality", collection="environment", title="Air quality", views=200),
+            Collection(slug="environment/flood-risk", collection="environment", title="Flood risk", views=150),
+            Collection(slug="transport/roads", collection="transport", title="Roads", views=80),
+        ],
+    )
 
     # datasets.fts is a build-time tsvector; populate it as the build does.
     with connection.cursor() as cur:
