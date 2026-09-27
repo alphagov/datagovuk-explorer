@@ -5,6 +5,7 @@
 {% endblock header_right %}
 
 {% block facets %}
+  {{ facet_group("publisher", search=true) }}
   {{ facet_group("overall") }}
   {{ facet_group("findability") }}
   {{ facet_group("metadata") }}

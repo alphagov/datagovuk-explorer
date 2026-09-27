@@ -75,6 +75,8 @@ _DEDUP = """
 # represented by the "none" facet.
 SCORE_KEYS = ("overall", "findability", "metadata", "resources")
 
+FACET_KEYS = ("publisher", *SCORE_KEYS)
+
 # Valid facet values — scores run 0-5; only values actually present in the
 # data are rendered as items.
 SCORE_VALUES = ["0", "1", "2", "3", "4", "5"]
@@ -94,6 +96,17 @@ REVIEWS_SORT = {
 REVIEWS_SORT_DEFAULT = ("overall", "asc")
 
 
+def _publisher_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    """publisher (org slug) WHERE fragment + params, or ([], []) when
+    skipped/excluded."""
+    if exclude == "publisher":
+        return [], []
+    publisher = filters.get("publisher")
+    if publisher:
+        return ["d.org_slug = %s"], [publisher]
+    return [], []
+
+
 def _score_clause(filters: dict, exclude: str | None, col: str) -> tuple[list, list]:
     """One score facet's WHERE clause + params: value → `col = %s`,
     `none` → `col IS NULL`. Skipped when the facet isn't selected or when
@@ -108,17 +121,22 @@ def _score_clause(filters: dict, exclude: str | None, col: str) -> tuple[list, l
     return [], []
 
 
-# The four score clause builders, keyed by facet — the dict core.facet_where
-# ANDs together (minus the excluded facet) for both the page list/count and
-# the sidebar facet pools.
-_SCORE_CLAUSES = {key: (lambda filters, exclude, col=key: _score_clause(filters, exclude, col)) for key in SCORE_KEYS}
+_PUBLISHER_NAME = "COALESCE(NULLIF(MAX(d.org_display_name), ''), d.org_slug)"
+
+# The publisher + four score clause builders, keyed by facet — the dict
+# core.facet_where ANDs together (minus the excluded facet) for both the
+# page list/count and the sidebar facet pools.
+_FACET_CLAUSES = {
+    "publisher": _publisher_clause,
+    **{key: (lambda filters, exclude, col=key: _score_clause(filters, exclude, col)) for key in SCORE_KEYS},
+}
 
 
 def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
-    """WHERE fragment + params for the score filters, omitting `exclude`
-    (the facet group being counted). Routed through the shared
-    core.facet_where helper with the four clause builders above."""
-    return facet_where(_SCORE_CLAUSES, filters, exclude)
+    """WHERE fragment + params for the publisher + score filters, omitting
+    `exclude` (the facet group being counted). Routed through the shared
+    core.facet_where helper with the clause builders above."""
+    return facet_where(_FACET_CLAUSES, filters, exclude)
 
 
 def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
@@ -248,7 +266,7 @@ def suggestions_facet_counts(filters: dict) -> dict:
         tag_none_filter = f" WHERE {no_tags_cond}"
     tag_from = f"{_SUGGESTIONS_FROM}, jsonb_array_elements_text(r.tags::jsonb) AS t(value)"
     tag_q = Query(
-        f"SELECT t.value, COUNT(*) AS count FROM {tag_from}{tag_filter} GROUP BY t.value",
+        f"SELECT t.value, COUNT(*) AS count FROM {tag_from}{tag_filter} GROUP BY t.value HAVING COUNT(*) > 10",
     )
     tag_none_q = Query(
         f"SELECT COUNT(*) AS count FROM {_SUGGESTIONS_FROM}{tag_none_filter}",
@@ -290,13 +308,32 @@ def _facet_pool(filters: dict, key: str) -> Query:
 
 @cached_unfiltered
 def reviews_facet_counts(filters: dict) -> dict:
-    """Sidebar facet counts for /reviews — every group counts over the pool
-    filtered by the other groups. Returns { key: {value: count} } per score
-    key, missing scores under '__none__'. The four pools run concurrently
-    via core.fetch_parallel; no-filter calls return the memoised pools via
+    """Sidebar facet counts for /reviews — publisher + every score group
+    counts over the pool filtered by the other groups. Returns
+    { "publishers": [{value, name, count}], key: {value: count} } —
+    publishers as an ordered list (count desc), score keys as dicts with
+    missing scores under '__none__'. All pools run concurrently via
+    core.fetch_parallel; no-filter calls return the memoised pools via
     core.cached_unfiltered.
     """
+    pub_where, pub_params = _facet_where(filters, exclude="publisher")
+    pub_q = Query(
+        "SELECT d.org_slug AS value,"
+        f"       {_PUBLISHER_NAME} AS name, COUNT(*) AS count"
+        f" FROM ({_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id{pub_where}"
+        " GROUP BY d.org_slug"
+        f" ORDER BY count DESC, LOWER({_PUBLISHER_NAME})",
+    )
+
     pools = {key: _facet_pool(filters, key) for key in SCORE_KEYS}
     params = {key: _facet_where(filters, exclude=key)[1] for key in SCORE_KEYS}
-    rows = fetch_parallel([lambda key=key: pools[key].all(*params[key]) for key in SCORE_KEYS])
-    return {key: {r["value"]: r["count"] for r in rows[i]} for i, key in enumerate(SCORE_KEYS)}
+    results = fetch_parallel(
+        [lambda: pub_q.all(*pub_params)]
+        + [lambda key=key: pools[key].all(*params[key]) for key in SCORE_KEYS],
+    )
+    pub_rows = results[0]
+    score_rows = results[1:]
+    return {
+        "publishers": pub_rows,
+        **{key: {r["value"]: r["count"] for r in score_rows[i]} for i, key in enumerate(SCORE_KEYS)},
+    }

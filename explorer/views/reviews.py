@@ -15,6 +15,7 @@ from django.shortcuts import render
 
 from explorer import facets
 from explorer.queries.reviews import (
+    FACET_KEYS,
     REVIEWS_SORT,
     REVIEWS_SORT_DEFAULT,
     SCORE_KEYS,
@@ -70,20 +71,40 @@ def _score_facet_group(key: str, label: str, counts: dict, current: str | None) 
 def reviews(request):
     """GET /reviews — the LLM review table with per-score facets."""
     # Current facet selections — single-select per group, combinable across
-    # groups. A value must be a valid score or "none" to be accepted.
+    # groups. Score values must be a valid score or "none"; publisher is an
+    # org slug validated against the facet pool below.
     filters: dict[str, str] = {}
     for key in SCORE_KEYS:
         v = request.GET.get(key)
         if v == "none" or v in SCORE_VALUES:
             filters[key] = v
 
+    # Publisher validation: the unfiltered pool (cached after first call)
+    # supplies the whitelist of valid org slugs — add publisher to filters
+    # before computing the filtered facet counts so the score pools reflect it.
+    valid_publishers = {p["value"] for p in reviews_facet_counts({})["publishers"]}
+    publisher = request.GET.get("publisher")
+    if publisher in valid_publishers:
+        filters["publisher"] = publisher
+
     sort, dir_ = parse_sort(request, REVIEWS_SORT, *REVIEWS_SORT_DEFAULT)
 
+    facet_counts = reviews_facet_counts(filters)
+    publisher_pool = facet_counts["publishers"]
+
+    publisher_expanded = request.GET.get("publishers") == "all"
+    expanded_extras: dict[str, str] = {}
+    if publisher_expanded:
+        expanded_extras["publishers"] = "all"
+
     # Shared query-string machinery from explorer/facets.py: the base keeps
-    # sort/dir then the active facets in SCORE_KEYS order; facet_qs drops
+    # sort/dir then the active facets in FACET_KEYS order; facet_qs drops
     # sort/dir for the sort/pagination links; facet_url sets or clears one
     # facet value (empty value clears it, back to the pills).
-    base_params = facets.preserve_params(sort, dir_, list(filters.items()), defaults=REVIEWS_SORT_DEFAULT)
+    base_params = facets.preserve_params(
+        sort, dir_, [(k, filters.get(k, "")) for k in FACET_KEYS],
+        extras=expanded_extras, defaults=REVIEWS_SORT_DEFAULT,
+    )
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
     pager_base = facets.pager_base(base_params)
@@ -96,24 +117,49 @@ def reviews(request):
     pagination = paginate(request, shown_count)
     page_reviews = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
 
-    # Sidebar facet groups — each score group counts over the pool filtered
-    # by every other group (the standard self-excluding sidebar).
-    facet_counts = reviews_facet_counts(filters)
+    # Sidebar facet groups — publisher + each score group counts over the
+    # pool filtered by every other group (the standard self-excluding sidebar).
+    publisher_names = {p["value"]: p["name"] for p in publisher_pool}
     facet_groups = {}
+
+    publisher_group = facets.facet_counts_group(
+        "publisher",
+        "Publisher",
+        "Filter by publisher",
+        [(p["value"], p["name"]) for p in publisher_pool],
+        {p["value"]: p["count"] for p in publisher_pool},
+        filters.get("publisher"),
+        proportions=True,
+        plural="publishers",
+        toggle_base=base_params,
+        expanded=publisher_expanded,
+        search="Search publishers",
+    )
+    if publisher_group is not None:
+        facet_groups[publisher_group["key"]] = publisher_group
+
     for g in SCORE_GROUPS:
         group = _score_facet_group(g["key"], g["label"], facet_counts[g["key"]], filters.get(g["key"]))
         if group is not None:
             facet_groups[group["key"]] = group
 
-    pills = [
-        pill(
-            g["label"],
-            "No score" if filters.get(g["key"]) == "none" else f"{filters[g['key']]}/5",
-            facet_url(g["key"], ""),
-        )
-        if filters.get(g["key"])
+    publisher_label = (
+        publisher_names.get(filters.get("publisher"), filters.get("publisher"))
+        if filters.get("publisher")
         else None
-        for g in SCORE_GROUPS
+    )
+    pills = [
+        pill("Publisher", publisher_label, facet_url("publisher", "")) if filters.get("publisher") else None,
+        *[
+            pill(
+                g["label"],
+                "No score" if filters.get(g["key"]) == "none" else f"{filters[g['key']]}/5",
+                facet_url(g["key"], ""),
+            )
+            if filters.get(g["key"])
+            else None
+            for g in SCORE_GROUPS
+        ],
     ]
 
     return render(
