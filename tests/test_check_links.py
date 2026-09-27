@@ -339,12 +339,14 @@ def _mock_db(rows: list[dict]):
 
 
 def test_load_urls_filters_non_http():
-    db = _mock_db([
-        {"url": "http://example.com/a"},
-        {"url": "ftp://example.com/b"},
-        {"url": ""},
-        {"url": "https://gov.uk/c"},
-    ])
+    db = _mock_db(
+        [
+            {"url": "http://example.com/a"},
+            {"url": "ftp://example.com/b"},
+            {"url": ""},
+            {"url": "https://gov.uk/c"},
+        ],
+    )
     urls = cl.load_urls(db)
     assert urls == ["http://example.com/a", "https://gov.uk/c"]
 
@@ -362,6 +364,14 @@ def test_load_urls_force_omits_checked_filter():
     sql_arg = db.prepare.call_args[0][0]
     assert "NOT EXISTS" not in sql_arg
     assert "link_check_results" not in sql_arg
+
+
+def test_load_urls_errors_only_filters_to_error_results():
+    db = _mock_db([{"url": "http://example.com/a"}])
+    cl.load_urls(db, errors_only=True)
+    sql_arg = db.prepare.call_args[0][0]
+    assert "lcr.ok = false" in sql_arg
+    assert "JOIN link_check_results" in sql_arg
 
 
 def test_load_urls_only_host():
@@ -390,7 +400,7 @@ def test_write_result_calls_upsert():
     call_args = db.prepare.return_value.run.call_args[0]
     assert call_args[0] == "http://example.com/a"
     assert call_args[3] is True  # ok
-    assert call_args[4] == 200    # http_status
+    assert call_args[4] == 200  # http_status
 
 
 # ---------------------------------------------------------------------------

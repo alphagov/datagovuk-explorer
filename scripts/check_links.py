@@ -11,6 +11,7 @@ Usage:
 """
 
 import asyncio
+import json
 import re
 import sys
 import time
@@ -18,6 +19,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, datetime
 from itertools import chain, zip_longest
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -104,18 +106,21 @@ class HostGate:
         start_ms: int = 1000,
         floor_ms: int = 250,
         dead_threshold: int = 10,
-        groups: list[set[str]] | None = None,
+        groups: dict[str, set[str]] | None = None,
+        host_config: dict[str, dict] | None = None,
     ) -> None:
         self._dead_threshold = dead_threshold
         self._start = start_ms / 1000.0
         self._floor = floor_ms / 1000.0
-        self._step = floor_ms / 1000.0
-        # Map each host to its group key (first sorted member of the group).
+        # Map each host to its group name.
         self._host_to_group: dict[str, str] = {}
-        for group in groups or []:
-            key = min(group)
-            for h in group:
-                self._host_to_group[h] = key
+        for name, hosts in (groups or {}).items():
+            for h in hosts:
+                self._host_to_group[h] = name
+        # Per-host overrides, keyed by resolved group key.
+        self._host_cfg: dict[str, dict] = {}
+        for host, cfg in (host_config or {}).items():
+            self._host_cfg[self._resolve(host)] = cfg
         self._locks: dict[str, asyncio.Lock] = {}
         self._last: dict[str, float] = {}
         self._intervals: dict[str, float] = {}
@@ -127,8 +132,16 @@ class HostGate:
     def _resolve(self, host: str) -> str:
         return self._host_to_group.get(host, host)
 
-    def _cur_interval(self, host: str) -> float:
-        return self._intervals.get(host, self._start)
+    def _start_for(self, key: str) -> float:
+        ms = self._host_cfg.get(key, {}).get("start_ms")
+        return ms / 1000.0 if ms is not None else self._start
+
+    def _floor_for(self, key: str) -> float:
+        ms = self._host_cfg.get(key, {}).get("floor_ms")
+        return ms / 1000.0 if ms is not None else self._floor
+
+    def _cur_interval(self, key: str) -> float:
+        return self._intervals.get(key, self._start_for(key))
 
     async def acquire(self, host: str) -> None:
         key = self._resolve(host)
@@ -162,12 +175,13 @@ class HostGate:
                 streak = self._streak.get(key, 0) + 1
                 self._streak[key] = streak
                 if streak >= self.SPEED_UP_AFTER:
-                    self._intervals[key] = max(self._cur_interval(key) - self._step, self._floor)
+                    floor = self._floor_for(key)
+                    self._intervals[key] = max(self._cur_interval(key) - floor, floor)
                     self._streak[key] = 0
         elif is_429:
             self._accelerating[key] = False
             self._streak[key] = 0
-            self._intervals[key] = min(self._cur_interval(key) + self._step, self._start)
+            self._intervals[key] = min(self._cur_interval(key) + self._floor_for(key), self._start_for(key))
         elif is_dead_signal:
             self._streak[key] = 0
             count = self._dead_counts.get(key, 0) + 1
@@ -421,6 +435,18 @@ WHERE l.url IS NOT NULL
 ORDER BY l.url
 """
 
+_LOAD_ERRORS_SQL = """
+SELECT DISTINCT l.url
+FROM links l
+JOIN link_check_results lcr ON lcr.url = l.url
+WHERE l.url IS NOT NULL
+  AND l.url LIKE 'http%%'
+  AND l.url ~* '^https{{0,1}}://[^/]'
+  AND lcr.ok = false
+  {extra}
+ORDER BY l.url
+"""
+
 
 def _interleave_by_host(urls: list[str]) -> list[str]:
     """Round-robin interleave URLs across hosts, shuffled within each host group."""
@@ -435,10 +461,11 @@ def load_urls(
     db: Db,
     *,
     force: bool = False,
+    errors_only: bool = False,
     limit: int | None = None,
     only_host: str | None = None,
 ) -> list[str]:
-    """Return unchecked (or all, with --force) http URLs from links."""
+    """Return unchecked (or all, with --force; or error results only, with --errors-only) http URLs from links."""
     clauses = []
     params: list[Any] = []
 
@@ -447,7 +474,12 @@ def load_urls(
         params.extend([only_host, f"%.{only_host}"])
 
     extra = "\n  ".join(clauses)
-    template = _LOAD_FORCE_SQL if force else _LOAD_SQL
+    if errors_only:
+        template = _LOAD_ERRORS_SQL
+    elif force:
+        template = _LOAD_FORCE_SQL
+    else:
+        template = _LOAD_SQL
     sql = template.format(extra=extra)
 
     rows = db.prepare(sql).all(*params)
@@ -637,9 +669,14 @@ def main(
     floor_ms: int = typer.Option(250, help="Minimum gap per host in ms (4 req/s)"),
     dead_threshold: int = typer.Option(10, help="Mark host dead after N consecutive failures (0 = disable)"),
     force: bool = typer.Option(False, help="Recheck URLs already in link_check_results"),
+    errors_only: bool = typer.Option(False, help="Recheck only URLs whose last result was an error (ok=false)"),
     group_hosts: list[str] = typer.Option(
         [],
         help="Comma-separated hosts that share one rate-limit gate (repeat for multiple groups)",
+    ),
+    config: str = typer.Option(
+        "check_links_config.json",
+        help="Path to JSON config file for host groups and per-host settings",
     ),
 ) -> None:
     groups = [set(g.split(",")) for g in group_hosts if g]
@@ -654,9 +691,19 @@ def main(
             floor_ms=floor_ms,
             dead_threshold=dead_threshold,
             force=force,
+            errors_only=errors_only,
             groups=groups,
+            config_file=config,
         ),
     )
+
+
+def _load_config(config_file: str) -> dict:
+    path = Path(config_file)
+    if not path.exists():
+        return {}
+    with path.open() as f:
+        return json.load(f)
 
 
 async def _main(
@@ -670,8 +717,17 @@ async def _main(
     floor_ms: int,
     dead_threshold: int,
     force: bool,
+    errors_only: bool = False,
     groups: list[set[str]] | None = None,
+    config_file: str = "check_links_config.json",
 ) -> None:
+    cfg = _load_config(config_file)
+    # Named groups from config file; unnamed CLI groups use min(hosts) as the name.
+    all_groups: dict[str, set[str]] = {name: set(hosts) for name, hosts in cfg.get("groups", {}).items()}
+    for g in groups or []:
+        all_groups.setdefault(min(g), g)
+    host_config: dict[str, dict] = cfg.get("hosts", {})
+
     db = connect(database_url())
     try:
         n_malformed = _mark_malformed_urls(db)
@@ -683,7 +739,7 @@ async def _main(
             print(f"  Marked {n_uncheckable} uncheckable URL(s) as url:malformed", flush=True)
 
         print("Loading URLs…", flush=True)
-        urls = load_urls(db, force=force, limit=limit, only_host=only_host)
+        urls = load_urls(db, force=force, errors_only=errors_only, limit=limit, only_host=only_host)
         total = len(urls)
         print(f"  {total} URL(s) to check", flush=True)
         if not total:
@@ -692,7 +748,7 @@ async def _main(
         if not _HAS_PLAYWRIGHT:
             print("  playwright not installed — Playwright fallback disabled", flush=True)
 
-        gate = HostGate(start_ms, floor_ms, dead_threshold, groups=groups)
+        gate = HostGate(start_ms, floor_ms, dead_threshold, groups=all_groups, host_config=host_config)
         worker_sem = asyncio.Semaphore(workers)
         pw_sem = asyncio.Semaphore(pw_pages)
         queue: asyncio.Queue[dict | None] = asyncio.Queue()

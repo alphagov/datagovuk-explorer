@@ -1,0 +1,20 @@
+{
+  "groups": {
+    "datapress": [
+      "data.london.gov.uk",
+      "datamillnorth.org",
+      "dataworks.calderdale.gov.uk",
+      "open.barnet.gov.uk"
+    ]
+  },
+  "hosts": {
+    "datapress": {
+      "start_ms": 1000,
+      "floor_ms": 500
+    },
+    "environment.data.gov.uk": {
+      "start_ms": 1000,
+      "floor_ms": 500
+    }
+  }
+}
