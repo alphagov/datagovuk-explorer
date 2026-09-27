@@ -1,5 +1,9 @@
 {% extends "_app_layout.html" %}
 
+{% block facets %}
+  {{ facet_group("datasets") }}
+{% endblock facets %}
+
 {% block header_right %}
   {{ pagination(start_index, end_index, shown, page, total_pages, pager_base, label="publishers", label_singular="publisher") }}
 {% endblock header_right %}

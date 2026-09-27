@@ -334,14 +334,28 @@ PUBLISHER_REVIEWS_SORT = {
 
 PUBLISHER_REVIEWS_SORT_DEFAULT = ("avg_overall", "desc")
 
+_PR_BUCKET_CASE = bucket_case("sub.count")
 
-def publisher_reviews_stmts(sort: str, dir_: str) -> dict:
+
+def _pr_datasets_having(filters: dict) -> tuple[str, list]:
+    """HAVING clause + params for the reviewed-datasets bucket filter."""
+    bucket = filters.get("datasets")
+    if not bucket:
+        return "", []
+    lo, hi = DATASET_BUCKET_RANGES[bucket]
+    if hi is None:
+        return " HAVING COUNT(*) > %s", [lo]
+    return " HAVING COUNT(*) BETWEEN %s AND %s", [lo, hi]
+
+
+def publisher_reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Count + page list for /organisations/reviews."""
+    having, params = _pr_datasets_having(filters)
     order_sql = order_by(PUBLISHER_REVIEWS_SORT, sort, dir_, "LOWER(COALESCE(MAX(d.org_display_name), d.org_slug))")
     return {
-        "params": [],
+        "params": params,
         "count": Query(
-            f"SELECT COUNT(*) AS n FROM (SELECT 1 FROM {_PUBLISHER_REVIEWS_FROM} GROUP BY d.org_slug) sub",
+            f"SELECT COUNT(*) AS n FROM (  SELECT 1 FROM {_PUBLISHER_REVIEWS_FROM} GROUP BY d.org_slug{having}) sub",
         ),
         "list": Query(
             "SELECT d.org_slug,"
@@ -352,10 +366,22 @@ def publisher_reviews_stmts(sort: str, dir_: str) -> dict:
             "  ROUND(AVG(r.metadata)::numeric, 2) AS avg_metadata,"
             "  ROUND(AVG(r.resources)::numeric, 2) AS avg_resources"
             f" FROM {_PUBLISHER_REVIEWS_FROM}"
-            f" GROUP BY d.org_slug"
+            f" GROUP BY d.org_slug{having}"
             f" ORDER BY {order_sql}"
             " LIMIT %s OFFSET %s",
         ),
+    }
+
+
+@cached_unfiltered
+def publisher_reviews_facet_counts(filters: dict) -> dict:
+    """Sidebar facet counts for /organisations/reviews — dataset-count buckets."""
+    return {
+        "datasets": Query(
+            f"SELECT {_PR_BUCKET_CASE} AS bucket, COUNT(*) AS count"
+            f" FROM (SELECT d.org_slug, COUNT(*) AS count FROM {_PUBLISHER_REVIEWS_FROM}"
+            " GROUP BY d.org_slug) sub GROUP BY 1",
+        ).all(),
     }
 
 
