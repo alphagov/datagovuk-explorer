@@ -293,10 +293,10 @@ ORG_SORT_DEFAULT = ("views", "desc")
 _LINK_HEALTH_AGG = (
     " LEFT JOIN ("
     "  SELECT l.org_slug,"
-    "    CAST(ROUND(COUNT(*) FILTER (WHERE lcr.ok) * 100.0 / NULLIF(COUNT(*), 0), 0) AS INTEGER)"
+    "    COUNT(*) FILTER (WHERE lcr.ok) * 100.0 / NULLIF(COUNT(*), 0)"
     "    AS link_health"
     "  FROM links l"
-    "  JOIN link_check_results lcr ON l.url = lcr.url"
+    "  LEFT JOIN link_check_results lcr ON l.url = lcr.url"
     "  GROUP BY l.org_slug"
     " ) lh ON lh.org_slug = o.slug"
 )
@@ -324,5 +324,7 @@ def organisations_stmts(filters: dict, sort: str, dir_: str) -> dict:
     return {
         "params": params,
         "count": Query(f"SELECT COUNT(*) AS n FROM organisations o {_ORG_AGG}{where}"),
-        "list": Query(f"{_ORG_LIST_SELECT} {_ORG_AGG}{_LINK_HEALTH_AGG}{where} ORDER BY {order_sql} LIMIT %s OFFSET %s"),
+        "list": Query(
+            f"{_ORG_LIST_SELECT} {_ORG_AGG}{_LINK_HEALTH_AGG}{where} ORDER BY {order_sql} LIMIT %s OFFSET %s",
+        ),
     }

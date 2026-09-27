@@ -297,8 +297,9 @@ def link_errors_facet_counts(filters: dict) -> dict:
 ORG_BROKEN_LINKS = Query(
     "SELECT COUNT(*) AS n"
     " FROM links l"
-    " JOIN link_check_results lcr ON l.url = lcr.url"
-    " WHERE l.org_slug = %s AND lcr.ok = false AND lcr.checked_at IS NOT NULL",
+    " LEFT JOIN link_check_results lcr ON l.url = lcr.url"
+    " WHERE l.org_slug = %s"
+    " AND (l.url IS NULL OR lcr.ok = false AND lcr.checked_at IS NOT NULL)",
 )
 
 
