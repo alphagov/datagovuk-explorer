@@ -94,7 +94,7 @@
         <details class="section-toggle" open>
           <summary>LLM-suggested tags</summary>
           <div class="tags">
-            {% for tag in classification.tags %}<span class="tag tag--suggested">{{ tag }}</span>{% endfor %}
+            {% for tag in classification.tags %}<a href="/suggestions?tag={{ tag | urlencode }}" class="tag tag--suggested">{{ tag }}</a>{% endfor %}
           </div>
         </details>
       </section>

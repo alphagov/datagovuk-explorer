@@ -37,7 +37,7 @@ def _db_config_from_url(url: str) -> dict:
         # @20, 200 ≈ 85%, 400 ≈ 95%, at ~2/4/8ms per query (vs ~400ms for
         # the old exact scan). Tune via HNSW_EF_SEARCH; 40 restores
         # pgvector's default.
-        "OPTIONS": {"options": f"-c hnsw.ef_search={os.getenv('HNSW_EF_SEARCH', '400')}"},
+        "OPTIONS": {"options": f"-c hnsw.ef_search={os.getenv('HNSW_EF_SEARCH', '500')}"},
     }
 
 

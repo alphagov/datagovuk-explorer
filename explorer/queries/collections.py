@@ -43,7 +43,7 @@ def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
 
 _OVER_THRESHOLD_JOIN = (
     " LEFT JOIN LATERAL ("
-    f"  SELECT 12 - COUNT(*) FILTER (WHERE sub.distance > {RELATED_DISTANCE_THRESHOLD}) AS count"
+    f"  SELECT COUNT(*) FILTER (WHERE sub.distance <= {RELATED_DISTANCE_THRESHOLD}) AS count"
     "  FROM ("
     "    SELECT emb.embedding <-> ce.embedding AS distance"
     "    FROM dataset_embeddings emb"
@@ -51,7 +51,7 @@ _OVER_THRESHOLD_JOIN = (
     "    JOIN datasets d ON d.id = m.dataset_id"
     "    WHERE d.resource_count > 0"
     "    ORDER BY emb.embedding <-> ce.embedding, d.id"
-    "    LIMIT 12"
+    "    LIMIT 500"
     "  ) sub"
     " ) related ON true"
 )

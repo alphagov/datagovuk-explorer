@@ -227,11 +227,21 @@ def build_collection_embeddings(db, records: list[dict]) -> int:
     """Embed collection title+description via llama-server and write to
     collection_embeddings. Returns the number of embeddings written, or 0
     if llama-server is unreachable."""
+    tags_path = _DATA / "collection-page-tags.json"
+    tags_map = json.loads(tags_path.read_text()) if tags_path.exists() else {}
+
     texts = []
     slugs = []
     for r in records:
         notes_short = (r["description"] or "")[:500]
-        t = f"{BGE_PREFIX}{r['title']} Collection: {r['collection']}. {notes_short}"
+        t = f"{BGE_PREFIX}{r['title']}."
+        meta = tags_map.get(r["slug"], {})
+        if meta.get("theme"):
+            t += f" Theme: {meta['theme']}."
+        if meta.get("tags"):
+            t += f" Tags: {', '.join(meta['tags'])}."
+        if notes_short:
+            t += f" {notes_short}"
         t = _WS_RE.sub(" ", t).strip()
         if t == BGE_PREFIX.strip():
             continue
