@@ -147,9 +147,9 @@ def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
 
 # --- /suggestions query builder ---
 #
-# No facets — count + list only, same builder shape as reviews_stmts. The
-# dedup subquery carries the suggestion columns; the join to `datasets`
-# supplies the *current* title/org/theme/tags.
+# One facet: suggested theme (?theme=). The dedup subquery carries the
+# suggestion columns; the join to `datasets` supplies the *current*
+# title/org/theme/tags.
 
 # The dedup subquery for /suggestions — the latest ok review per dataset
 # (as _DEDUP, but selecting the suggestion columns). "desc" is quoted: a
@@ -159,6 +159,8 @@ _SUGGESTIONS_DEDUP = """
            theme_confidence, tags, title, "desc"
     FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
 """
+
+_SUGGESTIONS_FROM = f"({_SUGGESTIONS_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
 
 # Text columns sort case-insensitively; confidence maps high/medium/low to
 # 3/2/1 (so default asc lists the least confident first). `theme` sorts on
@@ -173,29 +175,101 @@ SUGGESTIONS_SORT = {
 # The order /suggestions starts in — shared by parse_sort and pager_base.
 SUGGESTIONS_SORT_DEFAULT = ("confidence", "asc")
 
+SUGGESTIONS_FACET_KEYS = ("theme", "tag")
 
-def suggestions_stmts(sort: str, dir_: str) -> dict:
-    """Return { count, list, params } for one (sort, dir) combo.
 
-    As reviews_stmts: the dedup subquery joined to datasets, ordered by the
-    sort expr with title then id appended, so tied rows keep a stable
-    order.
-    """
+def _suggestions_theme_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    if exclude == "theme":
+        return [], []
+    v = filters.get("theme")
+    if v == "none":
+        return ["r.theme IS NULL"], []
+    if v:
+        return ["r.theme = %s"], [v]
+    return [], []
+
+
+def _suggestions_tag_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
+    if exclude == "tag":
+        return [], []
+    v = filters.get("tag")
+    if v == "none":
+        return ["(r.tags IS NULL OR r.tags = '[]')"], []
+    if v:
+        return ["r.tags::jsonb ? %s"], [v]
+    return [], []
+
+
+_SUGGESTIONS_CLAUSES = {"theme": _suggestions_theme_clause, "tag": _suggestions_tag_clause}
+
+
+def _suggestions_facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
+    return facet_where(_SUGGESTIONS_CLAUSES, filters, exclude)
+
+
+def suggestions_stmts(filters: dict, sort: str, dir_: str) -> dict:
+    """Return { count, list, params } for one (filters, sort, dir) combo."""
+    where, params = _suggestions_facet_where(filters)
     order_sql = order_by(SUGGESTIONS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.id")
-    from_sql = f"({_SUGGESTIONS_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
 
     return {
-        "params": [],
-        "count": Query(f"SELECT COUNT(*) AS n FROM {from_sql}"),
+        "params": params,
+        "count": Query(f"SELECT COUNT(*) AS n FROM {_SUGGESTIONS_FROM}{where}"),
         "list": Query(
             "SELECT r.dataset_id, d.org_slug, d.org_display_name,"
             "  d.title, d.theme_primary AS current_theme, d.tags AS current_tags,"
             "  r.theme, r.theme_confidence, r.tags, r.title AS suggested_title,"
             '  r."desc" AS suggested_description'
-            f" FROM {from_sql}"
+            f" FROM {_SUGGESTIONS_FROM}{where}"
             f" ORDER BY {order_sql}"
             " LIMIT %s OFFSET %s",
         ),
+    }
+
+
+@cached_unfiltered
+def suggestions_facet_counts(filters: dict) -> dict:
+    """Sidebar facet counts for /suggestions — suggested theme and tag."""
+    theme_where, theme_params = _suggestions_facet_where(filters, exclude="theme")
+    theme_q = Query(
+        "SELECT COALESCE(r.theme, '__none__') AS value, COUNT(*) AS count"
+        f" FROM {_SUGGESTIONS_FROM}{theme_where}"
+        " GROUP BY COALESCE(r.theme, '__none__')",
+    )
+
+    tag_where, tag_params = _suggestions_facet_where(filters, exclude="tag")
+    has_tags_cond = "r.tags IS NOT NULL AND r.tags != '[]'"
+    no_tags_cond = "(r.tags IS NULL OR r.tags = '[]')"
+    if tag_where:
+        tag_filter = f"{tag_where} AND {has_tags_cond}"
+        tag_none_filter = f"{tag_where} AND {no_tags_cond}"
+    else:
+        tag_filter = f" WHERE {has_tags_cond}"
+        tag_none_filter = f" WHERE {no_tags_cond}"
+    tag_from = f"{_SUGGESTIONS_FROM}, jsonb_array_elements_text(r.tags::jsonb) AS t(value)"
+    tag_q = Query(
+        f"SELECT t.value, COUNT(*) AS count FROM {tag_from}{tag_filter} GROUP BY t.value",
+    )
+    tag_none_q = Query(
+        f"SELECT COUNT(*) AS count FROM {_SUGGESTIONS_FROM}{tag_none_filter}",
+    )
+
+    theme_rows, tag_rows, tag_none_rows = fetch_parallel(
+        [
+            lambda: theme_q.all(*theme_params),
+            lambda: tag_q.all(*tag_params),
+            lambda: tag_none_q.all(*tag_params),
+        ]
+    )
+
+    tag_counts = {r["value"]: r["count"] for r in tag_rows}
+    none_count = tag_none_rows[0]["count"] if tag_none_rows else 0
+    if none_count:
+        tag_counts["__none__"] = none_count
+
+    return {
+        "theme": {r["value"]: r["count"] for r in theme_rows},
+        "tag": tag_counts,
     }
 
 

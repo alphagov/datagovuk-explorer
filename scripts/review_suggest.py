@@ -278,6 +278,7 @@ assignment.
 - Be specific — prefer "car parks" over "transport".
 - Include subject-matter terms a domain expert would search for.
 - NEVER include the publishing organisation's name or acronym.
+- NEVER include dates
 - NEVER include format or file-type terms (no "CSV", "shapefile", "WMS", etc.).
 - NEVER include data-structure terms (no "table", "dataset").
 - Never repeat the title verbatim as a tag.

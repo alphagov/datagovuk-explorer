@@ -9,10 +9,14 @@
   {{ pagination(start_index, end_index, total, page, total_pages, pager_base, label="suggestions", label_singular="suggestion") }}
 {% endblock header_right %}
 
-{% macro tag_list(tags, cls) %}
+{% macro tag_list(tags, cls, linkable=false) %}
   <div class="tags">
     {% for t in tags %}
-      <span class="tag{% if cls %} {{ cls }}{% endif %}">{{ t }}</span>
+      {% if linkable %}
+        <a href="{{ facet_url('tag', t) }}" class="tag{% if cls %} {{ cls }}{% endif %}">{{ t }}</a>
+      {% else %}
+        <span class="tag{% if cls %} {{ cls }}{% endif %}">{{ t }}</span>
+      {% endif %}
     {% endfor %}
   </div>
 {% endmacro %}
@@ -22,11 +26,11 @@
     <table class="data-table data-table--wide-first">
       <thead>
         <tr>
-          <th class="col-text">{{ sort_link("title", "Dataset", sort, dir) }}</th>
-          <th class="col-text">{{ sort_link("org", "Publisher", sort, dir) }}</th>
-          <th class="col-text">{{ sort_link("theme", "Theme", sort, dir) }}</th>
+          <th class="col-text">{{ sort_link("title", "Dataset", sort, dir, facet_qs) }}</th>
+          <th class="col-text">{{ sort_link("org", "Publisher", sort, dir, facet_qs) }}</th>
+          <th class="col-text">{{ sort_link("theme", "Theme", sort, dir, facet_qs) }}</th>
           <th class="col-text">Tags</th>
-          <th class="col-num">{{ sort_link("confidence", "Confidence", sort, dir) }}</th>
+          <th class="col-num">{{ sort_link("confidence", "Confidence", sort, dir, facet_qs) }}</th>
         </tr>
       </thead>
       <tbody>
@@ -51,7 +55,7 @@
             </td>
             <td class="col-text">
               {% if s.current_tags %}{{ tag_list(s.current_tags.split(" ") , "") }}{% endif %}
-              {% if s.tags and s.tags | length %}{{ tag_list(s.tags, "tag--suggested") }}{% endif %}
+              {% if s.tags and s.tags | length %}{{ tag_list(s.tags, "tag--suggested", linkable=true) }}{% endif %}
               {% if not s.current_tags and not (s.tags and s.tags | length) %}—{% endif %}
             </td>
             <td class="col-num">
