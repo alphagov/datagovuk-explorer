@@ -313,6 +313,52 @@ _ORG_LIST_SELECT = (
 )
 
 
+# ── /organisations/reviews — per-publisher average review scores ──
+
+_REVIEW_DEDUP = """
+    SELECT DISTINCT ON (dataset_id) dataset_id, overall,
+           findability, metadata, resources
+    FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
+"""
+
+_PUBLISHER_REVIEWS_FROM = f"({_REVIEW_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
+
+PUBLISHER_REVIEWS_SORT = {
+    "name": "LOWER(COALESCE(MAX(d.org_display_name), d.org_slug))",
+    "reviewed_datasets": "COUNT(*)",
+    "avg_overall": "AVG(r.overall)",
+    "avg_findability": "AVG(r.findability)",
+    "avg_metadata": "AVG(r.metadata)",
+    "avg_resources": "AVG(r.resources)",
+}
+
+PUBLISHER_REVIEWS_SORT_DEFAULT = ("avg_overall", "desc")
+
+
+def publisher_reviews_stmts(sort: str, dir_: str) -> dict:
+    """Count + page list for /organisations/reviews."""
+    order_sql = order_by(PUBLISHER_REVIEWS_SORT, sort, dir_, "LOWER(COALESCE(MAX(d.org_display_name), d.org_slug))")
+    return {
+        "params": [],
+        "count": Query(
+            f"SELECT COUNT(*) AS n FROM (SELECT 1 FROM {_PUBLISHER_REVIEWS_FROM} GROUP BY d.org_slug) sub",
+        ),
+        "list": Query(
+            "SELECT d.org_slug,"
+            "  COALESCE(NULLIF(MAX(d.org_display_name), ''), d.org_slug) AS name,"
+            "  COUNT(*) AS reviewed_datasets,"
+            "  ROUND(AVG(r.overall)::numeric, 2) AS avg_overall,"
+            "  ROUND(AVG(r.findability)::numeric, 2) AS avg_findability,"
+            "  ROUND(AVG(r.metadata)::numeric, 2) AS avg_metadata,"
+            "  ROUND(AVG(r.resources)::numeric, 2) AS avg_resources"
+            f" FROM {_PUBLISHER_REVIEWS_FROM}"
+            f" GROUP BY d.org_slug"
+            f" ORDER BY {order_sql}"
+            " LIMIT %s OFFSET %s",
+        ),
+    }
+
+
 def organisations_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Count + page list for /organisations — one (filters, sort, dir) combo.
 

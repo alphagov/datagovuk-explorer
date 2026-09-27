@@ -18,6 +18,7 @@ SECTIONS = {
     "orgs": [
         {"key": "orgs", "label": "Publishers", "url": "/organisations"},
         {"key": "harvesters", "label": "Harvesters", "url": "/harvesters"},
+        {"key": "publisher_reviews", "label": "Reviews", "url": "/organisations/reviews"},
     ],
     "datasets": [
         {"key": "datasets", "label": "Datasets", "url": "/datasets"},

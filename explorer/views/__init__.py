@@ -17,6 +17,7 @@ from .links_errors import link_errors
 from .metadata import metadata_detail, metadata_overview
 from .organisation import organisation
 from .organisations import organisations
+from .publisher_reviews import publisher_reviews
 from .reports import report
 from .reviews import reviews
 from .search import publisher_suggest, search, search_datasets, search_publishers
@@ -43,6 +44,7 @@ __all__ = [
     "organisation",
     "organisations",
     "paginate",
+    "publisher_reviews",
     "publisher_suggest",
     "report",
     "reviews",
