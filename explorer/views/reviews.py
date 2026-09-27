@@ -102,8 +102,11 @@ def reviews(request):
     # sort/dir for the sort/pagination links; facet_url sets or clears one
     # facet value (empty value clears it, back to the pills).
     base_params = facets.preserve_params(
-        sort, dir_, [(k, filters.get(k, "")) for k in FACET_KEYS],
-        extras=expanded_extras, defaults=REVIEWS_SORT_DEFAULT,
+        sort,
+        dir_,
+        [(k, filters.get(k, "")) for k in FACET_KEYS],
+        extras=expanded_extras,
+        defaults=REVIEWS_SORT_DEFAULT,
     )
     facet_url = facets.facet_url_for(base_params)
     facet_qs = facets.facet_qs(base_params, include_sort=False)
@@ -144,9 +147,7 @@ def reviews(request):
             facet_groups[group["key"]] = group
 
     publisher_label = (
-        publisher_names.get(filters.get("publisher"), filters.get("publisher"))
-        if filters.get("publisher")
-        else None
+        publisher_names.get(filters.get("publisher"), filters.get("publisher")) if filters.get("publisher") else None
     )
     pills = [
         pill("Publisher", publisher_label, facet_url("publisher", "")) if filters.get("publisher") else None,

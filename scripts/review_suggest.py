@@ -580,7 +580,7 @@ def _fetch_record(config: ReviewConfig, base: dict, digest: dict) -> dict:
             parsed = extract_json(content)
 
             # Validate theme / tags before accepting the record.
-            if parsed.get("theme") and parsed["theme"] not in THEMES.keys():
+            if parsed.get("theme") and parsed["theme"] not in THEMES:
                 raise ReviewError(  # noqa: TRY301 — validation errors are caught by the same try to record failed records
                     f'invalid theme "{parsed["theme"]}" — not in vocabulary',
                 )
@@ -780,18 +780,17 @@ def run(
                     rows = db.prepare(
                         select_sql + f"\n AND d.id IN ({placeholders})\n LIMIT ?",
                     ).all(org_filter, org_filter, *ids, pick)
+            elif limit is not None:
+                pick = limit
+                candidates = db.prepare(
+                    select_sql + "\n ORDER BY RANDOM()\n LIMIT ?",
+                ).all(org_filter, org_filter, pick * 4)
+                rows = [r for r in candidates if r["id"] not in processed][:pick]
             else:
-                if limit is not None:
-                    pick = limit
-                    candidates = db.prepare(
-                        select_sql + "\n ORDER BY RANDOM()\n LIMIT ?",
-                    ).all(org_filter, org_filter, pick * 4)
-                    rows = [r for r in candidates if r["id"] not in processed][:pick]
-                else:
-                    candidates = db.prepare(
-                        select_sql + "\n ORDER BY d.org_slug, d.title",
-                    ).all(org_filter, org_filter)
-                    rows = [r for r in candidates if r["id"] not in processed]
+                candidates = db.prepare(
+                    select_sql + "\n ORDER BY d.org_slug, d.title",
+                ).all(org_filter, org_filter)
+                rows = [r for r in candidates if r["id"] not in processed]
         finally:
             db.close()
 

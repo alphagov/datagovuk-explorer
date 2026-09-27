@@ -277,7 +277,7 @@ def suggestions_facet_counts(filters: dict) -> dict:
             lambda: theme_q.all(*theme_params),
             lambda: tag_q.all(*tag_params),
             lambda: tag_none_q.all(*tag_params),
-        ]
+        ],
     )
 
     tag_counts = {r["value"]: r["count"] for r in tag_rows}
@@ -328,8 +328,7 @@ def reviews_facet_counts(filters: dict) -> dict:
     pools = {key: _facet_pool(filters, key) for key in SCORE_KEYS}
     params = {key: _facet_where(filters, exclude=key)[1] for key in SCORE_KEYS}
     results = fetch_parallel(
-        [lambda: pub_q.all(*pub_params)]
-        + [lambda key=key: pools[key].all(*params[key]) for key in SCORE_KEYS],
+        [lambda: pub_q.all(*pub_params)] + [lambda key=key: pools[key].all(*params[key]) for key in SCORE_KEYS],
     )
     pub_rows = results[0]
     score_rows = results[1:]

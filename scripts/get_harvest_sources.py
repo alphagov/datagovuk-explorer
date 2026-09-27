@@ -32,14 +32,16 @@ def load_organisation_ids() -> list[str]:
     path = DOWNLOADS_DIR / "organisations.json"
     if not path.exists():
         raise RuntimeError(
-            f"{path} not found — run `just get-organisations` first"
+            f"{path} not found — run `just get-organisations` first",
         )
     orgs = json.loads(path.read_text(encoding="utf-8"))
     return [org["id"] for org in orgs]
 
 
 def get_harvest_sources(
-    client: httpx.Client, rate_limit, org_ids: list[str],
+    client: httpx.Client,
+    rate_limit,
+    org_ids: list[str],
 ) -> list[dict]:
     """Fetch harvest sources per organisation and return the deduped union.
 

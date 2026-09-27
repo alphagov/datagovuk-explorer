@@ -212,7 +212,11 @@ def test_fetch_datasets():
         ) as client:
             # 'all' (inf): 1000 + 1000 + 500 pages, short page breaks the loop
             results = scripts.get_datasets.fetch_datasets(
-                limiter, client, "ons", float("inf"), scripts.get_datasets.SORT,
+                limiter,
+                client,
+                "ons",
+                float("inf"),
+                scripts.get_datasets.SORT,
             )
         assert len(results) == total
         # pagination params: rows=1000, starts 0/1000/2000, sort ':' -> ' '

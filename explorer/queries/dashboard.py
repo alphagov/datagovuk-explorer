@@ -77,7 +77,16 @@ def cards() -> dict:
     # iteration — otherwise every lambda closes over the last report's key.
     report_count_fns: list = [(lambda key=report["key"]: report_dashboard_count(key)) for report in REPORTS]
 
-    org_rows, last_pub_rows, total_datasets_row, links_stats, theme_count_rows, no_links_count_row, broken_links_row, *report_counts = fetch_parallel(
+    (
+        org_rows,
+        last_pub_rows,
+        total_datasets_row,
+        links_stats,
+        theme_count_rows,
+        no_links_count_row,
+        broken_links_row,
+        *report_counts,
+    ) = fetch_parallel(
         [
             ORGS.all,
             LAST_PUBLISHED_BY_ORG.all,

@@ -60,7 +60,8 @@ def test_get_harvest_sources_tags_and_dedupes():
         return httpx.Response(200, json={"success": True, "result": per_org[org_id]})
 
     with httpx.Client(
-        transport=httpx.MockTransport(handler), follow_redirects=True,
+        transport=httpx.MockTransport(handler),
+        follow_redirects=True,
     ) as client:
         sources = scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, org_ids)
 
@@ -83,7 +84,8 @@ def test_error_paths():
     with (
         pytest.raises(RuntimeError, match="HTTP 500"),
         httpx.Client(
-            transport=httpx.MockTransport(http_error), follow_redirects=True,
+            transport=httpx.MockTransport(http_error),
+            follow_redirects=True,
         ) as client,
     ):
         scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, ["org-0001"])
@@ -91,7 +93,8 @@ def test_error_paths():
     with (
         pytest.raises(RuntimeError, match="success: false"),
         httpx.Client(
-            transport=httpx.MockTransport(bad_success), follow_redirects=True,
+            transport=httpx.MockTransport(bad_success),
+            follow_redirects=True,
         ) as client,
     ):
         scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, ["org-0001"])
@@ -123,7 +126,8 @@ def test_main_writes_file(tmp_path, monkeypatch):
 
     def fake_client(**kw):
         return real_client(
-            transport=httpx.MockTransport(handler), follow_redirects=True,
+            transport=httpx.MockTransport(handler),
+            follow_redirects=True,
         )
 
     monkeypatch.setattr(scripts.get_harvest_sources.httpx, "Client", fake_client)

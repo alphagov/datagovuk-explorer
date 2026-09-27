@@ -174,7 +174,7 @@ def _api_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
     api = filters.get("api")
     if api:
         return [
-            "EXISTS (SELECT 1 FROM dataset_api da WHERE da.dataset_id = d.id AND da.api_category = %s)"
+            "EXISTS (SELECT 1 FROM dataset_api da WHERE da.dataset_id = d.id AND da.api_category = %s)",
         ], [api]
     return [], []
 

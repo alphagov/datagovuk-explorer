@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build pgvector embeddings for the datasets table via llama-server.
 
 Reads id, title, notes from the datasets table (populated by build_db.py),
@@ -58,24 +57,41 @@ TRUNCATE_SQL = "TRUNCATE TABLE embedding_map, dataset_embeddings CASCADE"
 # full rebuild. A single bulk CREATE INDEX takes ~5 minutes and produces the
 # same result.
 DROP_HNSW_SQL = "DROP INDEX IF EXISTS idx_dataset_embeddings_hnsw"
-CREATE_HNSW_SQL = (
-    "CREATE INDEX idx_dataset_embeddings_hnsw "
-    "ON dataset_embeddings USING hnsw (embedding vector_l2_ops)"
-)
+CREATE_HNSW_SQL = "CREATE INDEX idx_dataset_embeddings_hnsw ON dataset_embeddings USING hnsw (embedding vector_l2_ops)"
+
+
+def _format_tags(tags_json: str | None) -> str:
+    """Parse a JSON-array tags string into a comma-separated string, or ''."""
+    if not tags_json:
+        return ""
+    try:
+        items = json.loads(tags_json)
+        return ", ".join(str(t) for t in items) if items else ""
+    except (ValueError, TypeError):
+        return ""
 
 
 def build_texts(rows: list[dict]) -> list[str | None]:
-    """Build BGE-prefixed input texts.
+    """Build BGE-prefixed input texts from LLM-suggested fields.
 
-    rows: [{id, title, notes}, ...]. Per row: notes truncated to 500
-    chars, whitespace collapsed to single spaces, trimmed. Empty texts
-    become None (a row with an empty title embeds the bare prefix).
+    rows: [{id, title, theme, tags, desc}, ...] — all from the reviews table.
+    Order: suggested title, theme, tags, desc (desc truncated to 500 chars).
+    Whitespace collapsed, trimmed. Empty texts become None.
     """
 
     texts: list[str | None] = []
     for r in rows:
-        notes_short = (r["notes"] or "")[:500]
-        t = f"{BGE_PREFIX}{r['title']} {notes_short}"
+        title = (r.get("title") or r.get("orig_title") or "").strip()
+        desc_short = (r.get("desc") or r.get("notes") or "")[:500]
+        t = f"{BGE_PREFIX}{title}"
+        theme = (r.get("theme") or "").strip()
+        tags = _format_tags(r.get("tags"))
+        if theme:
+            t += f" Theme: {theme}."
+        if tags:
+            t += f" Tags: {tags}."
+        if desc_short:
+            t += f" {desc_short}"
         texts.append(_WS_RE.sub(" ", t).strip() or None)
     return texts
 
@@ -169,7 +185,12 @@ def main() -> None:
         db.exec(DROP_HNSW_SQL)
         print("HNSW index dropped; will rebuild after inserts.", file=sys.stderr)
 
-        rows = db.prepare("SELECT id, title, notes FROM datasets").all()
+        rows = db.prepare(
+            "SELECT d.id, r.title, d.title AS orig_title,"
+            " r.theme, r.tags, r.desc, d.notes"
+            " FROM datasets d"
+            " JOIN reviews r ON r.dataset_id = d.id",
+        ).all()
         print(f"datasets to embed: {len(rows)}", file=sys.stderr)
 
         rows = [dict(r) for r in rows]
@@ -177,7 +198,7 @@ def main() -> None:
 
         print("Computing embeddings via llama-server...", file=sys.stderr)
 
-        LOG_EVERY = 20  # batches between progress lines
+        log_every = 20  # batches between progress lines
         start_time = time.time()
         with httpx.Client(follow_redirects=True, timeout=TIMEOUT) as client:
             for batch_num, batch_start in enumerate(range(0, len(texts), BATCH)):
@@ -185,7 +206,7 @@ def main() -> None:
                 embed_batch(client, db, texts, rows, batch_start, batch_end)
 
                 done = batch_end
-                if batch_num % LOG_EVERY == 0 or done >= len(texts):
+                if batch_num % log_every == 0 or done >= len(texts):
                     elapsed = (time.time() - start_time) / 60
                     print(
                         f"  {done}/{len(texts)} ({elapsed:.1f} min)...",

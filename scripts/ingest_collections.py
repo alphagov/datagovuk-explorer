@@ -231,7 +231,7 @@ def build_collection_embeddings(db, records: list[dict]) -> int:
     slugs = []
     for r in records:
         notes_short = (r["description"] or "")[:500]
-        t = f"{BGE_PREFIX}{r['title']} {notes_short}"
+        t = f"{BGE_PREFIX}{r['title']} Collection: {r['collection']}. {notes_short}"
         t = _WS_RE.sub(" ", t).strip()
         if t == BGE_PREFIX.strip():
             continue

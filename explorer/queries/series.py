@@ -25,8 +25,7 @@ def series_list_stmt(sort: str, dir_: str) -> Query:
     # id breaks ties (the series table has large tie groups).
     order_sql = order_by(SERIES_SORT, sort, dir_, "id")
     return Query(
-        f"SELECT id, root_title, type, dataset_count, org_count "
-        f"FROM series ORDER BY {order_sql} LIMIT %s OFFSET %s",
+        f"SELECT id, root_title, type, dataset_count, org_count FROM series ORDER BY {order_sql} LIMIT %s OFFSET %s",
     )
 
 

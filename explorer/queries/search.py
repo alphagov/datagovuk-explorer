@@ -75,18 +75,21 @@ SUGGEST_LIMIT = 10
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+
 def search_all(q: str) -> dict:
     """Preview + counts for both sections, all in parallel. Returns:
-      { 'publishers': [...], 'publisher_count': int,
-        'datasets': [...],   'dataset_count': int }
+    { 'publishers': [...], 'publisher_count': int,
+      'datasets': [...],   'dataset_count': int }
     """
     like = f"%{q}%"
-    publishers, pub_count, datasets, ds_count = fetch_parallel([
-        lambda: _PUBLISHERS_PREVIEW.all(like, PREVIEW_LIMIT),
-        lambda: (_PUBLISHERS_COUNT.get(like) or {}).get("n", 0),
-        lambda: _DATASETS_PREVIEW.all(q, PREVIEW_LIMIT),
-        lambda: (_DATASETS_COUNT.get(q) or {}).get("n", 0),
-    ])
+    publishers, pub_count, datasets, ds_count = fetch_parallel(
+        [
+            lambda: _PUBLISHERS_PREVIEW.all(like, PREVIEW_LIMIT),
+            lambda: (_PUBLISHERS_COUNT.get(like) or {}).get("n", 0),
+            lambda: _DATASETS_PREVIEW.all(q, PREVIEW_LIMIT),
+            lambda: (_DATASETS_COUNT.get(q) or {}).get("n", 0),
+        ],
+    )
     return {
         "publishers": publishers,
         "publisher_count": pub_count,

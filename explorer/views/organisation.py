@@ -15,8 +15,7 @@ from explorer.queries.harvesters import HARVESTERS_BY_ORG
 from explorer.queries.link_errors import ORG_BROKEN_LINKS
 from explorer.queries.organisations import ORG
 
-from .harvesters import FREQUENCY_LABELS as _FREQUENCY_LABELS
-from .harvesters import TYPE_LABELS as _TYPE_LABELS
+from .harvesters import FREQUENCY_LABELS as _FREQUENCY_LABELS, TYPE_LABELS as _TYPE_LABELS
 
 _CHART_START_YEAR = 2010
 
