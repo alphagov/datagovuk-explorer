@@ -10,7 +10,6 @@ PRIMARY_NAV = [
     {"key": "datasets", "label": "Datasets", "url": "/datasets"},
     {"key": "collections", "label": "Collections", "url": "/collections"},
     {"key": "links", "label": "Links", "url": "/links"},
-    {"key": "metadata", "label": "Metadata", "url": "/metadata"},
 ]
 
 # Section key -> its child report pages, in nav order. The first is the
@@ -25,6 +24,7 @@ SECTIONS = {
         {"key": "series", "label": "Series", "url": "/series"},
         {"key": "reviews", "label": "Reviews", "url": "/reviews"},
         {"key": "suggestions", "label": "Suggestions", "url": "/suggestions"},
+        {"key": "metadata", "label": "Metadata", "url": "/metadata"},
     ],
     "links": [
         {"key": "links", "label": "Links", "url": "/links"},
@@ -46,7 +46,6 @@ _PAGE_SECTION = _TAB_SECTION | {
     "series-detail": "datasets",
     "collections": "collections",
     "dashboard": "dashboard",
-    "metadata": "metadata",
     "search": "search",
 }
 
