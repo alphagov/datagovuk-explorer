@@ -34,6 +34,7 @@ same pattern as the other pipeline scripts — it never touches Django.
 import json
 import os
 import re
+import shutil
 import sys
 import threading
 import time
@@ -80,18 +81,18 @@ class ReviewError(RuntimeError):
 # ---------------------------------------------------------------------------
 # Canonical theme vocabulary
 # ---------------------------------------------------------------------------
-THEMES = [
-    "business-and-economy",
-    "crime-and-justice",
-    "defence",
-    "education",
-    "environment",
-    "government-and-parliament",
-    "health",
-    "land-and-property",
-    "people",
-    "transport",
-]
+THEMES = {
+    "business-and-economy": "eg. companies, finance, trade",
+    "crime-and-justice": "eg. policing, courts, prisons",
+    "defence": "eg. armed forces, military, veterans",
+    "education": "eg. schools, universities, training",
+    "environment": "eg. climate, nature, pollution",
+    "government-and-parliament": "eg. elections, legislation, transparency",
+    "health": "eg. NHS, mental health, social care",
+    "land-and-property": "eg. housing, planning, land use",
+    "people": "eg. population, demographics, migration",
+    "transport": "eg. roads, public transport, shipping",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -246,8 +247,10 @@ or in the description.
 
 **resources**
 
-Real downloadable data files in sensible formats (CSV/GeoJSON/XLSX
-etc.).
+Downloadable data files in sensible formats (CSV/GeoJSON/XLSX etc.).
+HTML alone can be ok in context (eg it represents API documentation).
+They should have clear names.
+Do not penalise National Archives links.
 
 **overall**
 
@@ -261,7 +264,8 @@ low quality no matter how good the files are.
 
 **theme**
 
-Pick the single best primary theme from: [${themeList}].
+Pick the single best primary theme from:
+${themeList}
 If the dataset genuinely spans multiple themes or none clearly
 fit, pick the closest one and set theme_confidence low. Never
 make up a theme outside the list.
@@ -273,12 +277,12 @@ assignment.
 
 **tags**
 
-3-8 tags, ordered by relevance.
+3-6 relevant tags
 - Describe what the data is ABOUT, not how it's delivered.
 - Be specific — prefer "car parks" over "transport".
 - Include subject-matter terms a domain expert would search for.
 - NEVER include the publishing organisation's name or acronym.
-- NEVER include dates
+- NEVER include dates or years (no "2017-18", "2019", "December 2020", etc.)
 - NEVER include format or file-type terms (no "CSV", "shapefile", "WMS", etc.).
 - NEVER include data-structure terms (no "table", "dataset").
 - Never repeat the title verbatim as a tag.
@@ -311,7 +315,7 @@ Respond with ONE JSON object, no markdown fences, no commentary. Schema:
     "metadata":    { "score": <int 0-5>, "explanation": "<1-2 sentence reason>" },
     "resources":   { "score": <int 0-5>, "explanation": "<1-2 sentence reason>" }
   },
-  "theme": "<exactly one of [${themeList}]>",
+  "theme": "<exactly one of [${themeKeys}]>",
   "theme_confidence": "<high | medium | low>",
   "tags": ["<tag1>", "<tag2>", "..."],
   "suggested_title": "<improved title or empty string>",
@@ -324,9 +328,10 @@ def build_prompt(digest: dict) -> list[dict]:
     the schema — the `${themeList}` placeholder is kept verbatim in the
     constants above."""
 
-    theme_list = ", ".join(f'"{t}"' for t in THEMES)
+    theme_list = "\n".join(f'- "{t}" — {d}' for t, d in THEMES.items())
+    theme_keys = ", ".join(f'"{t}"' for t in THEMES)
     rubric = RUBRIC.replace("${themeList}", theme_list)
-    schema = SCHEMA.replace("${themeList}", theme_list)
+    schema = SCHEMA.replace("${themeKeys}", theme_keys)
 
     return [
         {"role": "system", "content": SYSTEM_CONTENT},
@@ -537,6 +542,7 @@ class ReviewConfig:
     api_key: str
     model: str
     out_dir: Path
+    show_prompt: bool = False
 
 
 def _summary_guard(summary_lock: threading.Lock | None):
@@ -574,7 +580,7 @@ def _fetch_record(config: ReviewConfig, base: dict, digest: dict) -> dict:
             parsed = extract_json(content)
 
             # Validate theme / tags before accepting the record.
-            if parsed.get("theme") and parsed["theme"] not in THEMES:
+            if parsed.get("theme") and parsed["theme"] not in THEMES.keys():
                 raise ReviewError(  # noqa: TRY301 — validation errors are caught by the same try to record failed records
                     f'invalid theme "{parsed["theme"]}" — not in vocabulary',
                 )
@@ -647,6 +653,13 @@ def process_one(
     and progress printing are separate concerns here.
     """
     digest = build_digest(row["json"])
+    if config.show_prompt:
+        messages = build_prompt(digest)
+        print("\n" + "=" * 72)
+        for msg in messages:
+            print(f"--- {msg['role']} ---")
+            print(msg["content"])
+        print("=" * 72 + "\n")
     base = _record_base(row, config.model)
 
     record = _fetch_record(config, base, digest)
@@ -714,6 +727,7 @@ def run(
     out_dir: Path,
     include_reviewed: bool,
     show_progress: bool,
+    show_prompt: bool = False,
 ) -> None:
     """Fetch + review + write per-dataset records for the selected rows."""
 
@@ -767,11 +781,17 @@ def run(
                         select_sql + f"\n AND d.id IN ({placeholders})\n LIMIT ?",
                     ).all(org_filter, org_filter, *ids, pick)
             else:
-                pick = limit if limit is not None else 20
-                candidates = db.prepare(
-                    select_sql + "\n ORDER BY RANDOM()\n LIMIT ?",
-                ).all(org_filter, org_filter, pick * 4)
-                rows = [r for r in candidates if r["id"] not in processed][:pick]
+                if limit is not None:
+                    pick = limit
+                    candidates = db.prepare(
+                        select_sql + "\n ORDER BY RANDOM()\n LIMIT ?",
+                    ).all(org_filter, org_filter, pick * 4)
+                    rows = [r for r in candidates if r["id"] not in processed][:pick]
+                else:
+                    candidates = db.prepare(
+                        select_sql + "\n ORDER BY d.org_slug, d.title",
+                    ).all(org_filter, org_filter)
+                    rows = [r for r in candidates if r["id"] not in processed]
         finally:
             db.close()
 
@@ -791,6 +811,7 @@ def run(
                 api_key=api_key,
                 model=model,
                 out_dir=out_dir,
+                show_prompt=show_prompt,
             ),
             rows,
             concurrency,
@@ -856,6 +877,16 @@ def main(
         "--progress",
         help="show per-dataset progress output (auto-enabled with --dataset)",
     ),
+    show_prompt: bool = typer.Option(
+        False,  # noqa: FBT003 — typer.Option's default is the first positional
+        "--show-prompt",
+        help="print the full prompt sent to the model",
+    ),
+    clean: bool = typer.Option(
+        False,  # noqa: FBT003 — typer.Option's default is the first positional
+        "--clean",
+        help="delete existing reviews before starting",
+    ),
 ) -> None:
     """Review + suggest — one LLM call per dataset (scores + theme/tags)."""
 
@@ -891,6 +922,10 @@ def main(
     else:
         concurrency = 1
 
+    if clean and out_dir.exists():
+        shutil.rmtree(out_dir)
+        print(f"Cleaned {out_dir}")
+
     try:
         run(
             limit=limit,
@@ -903,6 +938,7 @@ def main(
             out_dir=out_dir,
             include_reviewed=include_reviewed,
             show_progress=progress or dataset is not None,
+            show_prompt=show_prompt,
         )
     except typer.Exit:
         raise  # exit codes raised inside run() (e.g. the health check)
