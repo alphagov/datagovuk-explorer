@@ -12,9 +12,9 @@
 {% block facets %}
   {{ facet_group("status") }}
   {{ facet_group("category") }}
+  {{ facet_group("publisher", search=true) }}
   {{ facet_group("domain", search=true) }}
   {{ facet_group("harvested") }}
-  {{ facet_group("publisher", search=true) }}
 {% endblock facets %}
 
 {% block table %}
