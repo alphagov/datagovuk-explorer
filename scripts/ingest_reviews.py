@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Load data/dataset-reviews-suggestions.jsonl into the `reviews` table.
+"""Load per-dataset review JSON files into the `reviews` table.
 
-The pipeline (review_suggest.py) keeps appending to the JSONL as the
-audit artifact; this script (re)populates the DB table the web app reads.
+The pipeline (review_suggest.py) writes one JSON file per dataset under
+downloads/reviews/<org>/; this script (re)populates the DB table the web
+app reads.
 
 Idempotent: TRUNCATEs `reviews` then reloads — run it after any
-review_suggest run to refresh the site. Dedup rules:
-- records are walked in file order and later lines win, so only the
-  latest record per dataset_id survives;
-- failed (ok:false) records are kept in the table with their flag; the
-  views filter ok = true at query time.
+review_suggest run to refresh the site. Failed (ok:false) records are
+kept in the table with their flag; the views filter ok = true at query
+time.
 
-Usage: python -m scripts.ingest_reviews [--file data/dataset-reviews-suggestions.jsonl]
+Usage: python -m scripts.ingest_reviews [--dir downloads/reviews]
        DATABASE_URL=postgresql://localhost:5432/other python -m scripts.ingest_reviews
 """
 
@@ -21,30 +20,20 @@ from pathlib import Path
 
 from scripts.db import connect, database_url
 
-DEFAULT_FILE = Path(__file__).resolve().parent.parent / "data" / "dataset-reviews-suggestions.jsonl"
+DEFAULT_DIR = Path(__file__).resolve().parent.parent / "downloads" / "reviews"
 
 
-def load_records(path: Path) -> list[dict]:
-    """All JSONL records in file order; corrupt lines skipped."""
+def load_records(directory: Path) -> list[dict]:
+    """All review records from per-dataset JSON files; corrupt files skipped."""
     records: list[dict] = []
-    if not path.exists():
+    if not directory.exists():
         return records
-    for line in path.read_text(encoding="utf-8").split("\n"):
-        if not line.strip():
-            continue
+    for f in sorted(directory.rglob("*.json")):
         try:
-            records.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue  # ignore corrupt lines
+            records.append(json.loads(f.read_text(encoding="utf-8")))
+        except (json.JSONDecodeError, OSError):
+            continue
     return records
-
-
-def latest_per_dataset(records: list[dict]) -> list[dict]:
-    """Later lines win — one record per dataset_id."""
-    by_id: dict[str, dict] = {}
-    for r in records:
-        by_id[r["dataset_id"]] = r
-    return list(by_id.values())
 
 
 def _scores(r: dict) -> dict:
@@ -103,23 +92,18 @@ def ingest(db, records: list[dict]) -> int:
     return len(present)
 
 
-def main(file: str = str(DEFAULT_FILE)) -> None:
-    path = Path(file)
+def main(directory: str = str(DEFAULT_DIR)) -> None:
+    path = Path(directory)
     records = load_records(path)
     if not records:
-        print(f"No records in {path} — nothing to do.", file=sys.stderr)
+        print(f"No review files in {path} — nothing to do.", file=sys.stderr)
         sys.exit(1)
 
-    unique = latest_per_dataset(records)
-    print(
-        f"Loaded {len(records)} record(s) from {path.name}; "
-        f"{len(records) - len(unique)} duplicate(s) dropped, "
-        f"{len(unique)} latest-per-dataset kept.",
-    )
+    print(f"Loaded {len(records)} review(s) from {path}.")
 
     db = connect(database_url())
     try:
-        n = ingest(db, unique)
+        n = ingest(db, records)
     finally:
         db.close()
     print(f"Inserted {n} row(s) into reviews.")

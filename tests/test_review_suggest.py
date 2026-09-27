@@ -8,8 +8,8 @@ Covers the deterministic parts:
 - build_prompt: system/user roles, themeList interpolation into both rubric
   and schema, digest JSON with indent=1
 - extract_json: fence stripping, first-{-to-last-} slicing, error paths
-- load_processed_ids / append_record: ok vs attempted sets, corrupt-line
-  skip, compact no-space JSONL bytes
+- load_processed_ids / write_record: ok vs attempted sets, corrupt-file
+  skip, per-dataset JSON files
 - send_request (mock transport): auth header + thinking only when an API
   key is present, request key order, HTTP-error truncation, empty content
 - process_one: ok/failed record shapes + key order, invalid theme, non-array
@@ -345,52 +345,54 @@ def test_extract_json():
 
 
 # ---------------------------------------------------------------------------
-# JSONL store
+# Per-dataset file store
 # ---------------------------------------------------------------------------
 def test_load_processed_ids():
     with tempfile.TemporaryDirectory() as d:
-        p = Path(d) / "out.jsonl"
-        # missing file -> empty sets
-        ok, attempted = rs.load_processed_ids(p)
+        out = Path(d)
+        # missing dir -> empty sets
+        ok, attempted = rs.load_processed_ids(Path(d) / "nonexistent")
         assert ok == set()
         assert attempted == set()
 
-        p.write_text(
-            '{"dataset_id":"a","ok":true}\n'
-            '{"dataset_id":"b","ok":false,"error":"boom"}\n'
-            "corrupt line not json\n"
-            '{"dataset_id":"c","ok":true}\n'
-            "\n"
-            '{"no_dataset_id":true}\n',
+        org = out / "test-org"
+        org.mkdir()
+        (org / "a-aaaaaaaa.json").write_text(
+            '{"dataset_id":"a","ok":true}',
             encoding="utf-8",
         )
-        ok, attempted = rs.load_processed_ids(p)
-        assert ok == {"a", "c"}  # only ok:true
-        assert attempted == {
-            "a",
-            "b",
-            "c",
-            None,
-        }  # all parsed records (None = missing id)
-
-
-def test_append_record():
-    with tempfile.TemporaryDirectory() as d:
-        p = Path(d) / "out.jsonl"
-        rs.append_record(p, {"dataset_id": "a", "ok": True, "theme": "society"})
-        rs.append_record(
-            p,
-            {"dataset_id": "b", "ok": False, "error": "x", "note": "£—…"},
+        (org / "b-bbbbbbbb.json").write_text(
+            '{"dataset_id":"b","ok":false,"error":"boom"}',
+            encoding="utf-8",
         )
-        lines = p.read_text(encoding="utf-8").split("\n")
-        assert lines[0] == '{"dataset_id":"a","ok":true,"theme":"society"}'
-        assert lines[1] == '{"dataset_id":"b","ok":false,"error":"x","note":"£—…"}'
-        assert lines[2] == ""  # trailing newline
-        # no spaces after separators, raw unicode
-        assert ":" in lines[0]
-        assert ', "' not in lines[0]
-        assert "£" in lines[1]
-        assert "—" in lines[1]
+        (org / "corrupt.json").write_text("not json", encoding="utf-8")
+        (org / "c-cccccccc.json").write_text(
+            '{"dataset_id":"c","ok":true}',
+            encoding="utf-8",
+        )
+        ok, attempted = rs.load_processed_ids(out)
+        assert ok == {"a", "c"}
+        assert attempted == {"a", "b", "c"}
+
+
+def test_write_record():
+    with tempfile.TemporaryDirectory() as d:
+        out = Path(d)
+        rs.write_record(out, {"dataset_id": "aaaaaaaa-1111", "ok": True, "org_slug": "alpha", "title": "My Dataset"})
+        rs.write_record(
+            out,
+            {"dataset_id": "bbbbbbbb-2222", "ok": False, "org_slug": "beta", "title": "Other", "note": "£—…"},
+        )
+
+        a = out / "alpha" / "my-dataset-aaaaaaaa.json"
+        b = out / "beta" / "other-bbbbbbbb.json"
+        assert a.exists()
+        assert b.exists()
+        rec_a = json.loads(a.read_text(encoding="utf-8"))
+        assert rec_a["dataset_id"] == "aaaaaaaa-1111"
+        assert rec_a["ok"] is True
+        rec_b = json.loads(b.read_text(encoding="utf-8"))
+        assert rec_b["note"] == "£—…"
 
 
 # ---------------------------------------------------------------------------
@@ -486,13 +488,25 @@ def test_send_request_errors():
 # ---------------------------------------------------------------------------
 # process_one
 # ---------------------------------------------------------------------------
+def _read_record(out_dir: Path) -> dict:
+    """Read the single JSON file written under out_dir."""
+    files = list(out_dir.rglob("*.json"))
+    assert len(files) == 1, f"expected 1 file, got {len(files)}: {files}"
+    return json.loads(files[0].read_text(encoding="utf-8"))
+
+
+def _read_all_records(out_dir: Path) -> list[dict]:
+    """Read all JSON files under out_dir."""
+    return [json.loads(f.read_text(encoding="utf-8")) for f in sorted(out_dir.rglob("*.json"))]
+
+
 def test_process_one_ok_record():
     row = fake_row({"title": "T", "resources": [{"format": "CSV"}]})
     summary = {"ok": 0, "failed": 0, "overall": []}
     handler = chat_handler([review_reply()])
 
     with tempfile.TemporaryDirectory() as d:
-        out = Path(d) / "out.jsonl"
+        out = Path(d)
 
         with make_client(handler) as client:
             rs.process_one(
@@ -503,7 +517,7 @@ def test_process_one_ok_record():
                 show_progress=False,
                 summary=summary,
             )
-        rec = json.loads(out.read_text(encoding="utf-8"))
+        rec = _read_record(out)
         # key order: base keys, ok, then the parsed model output
         assert list(rec) == [
             "dataset_id",
@@ -549,7 +563,7 @@ def test_process_one_failed_and_validation():
         handler = chat_handler([reply, reply, reply])  # retries up to 3 times
 
         with tempfile.TemporaryDirectory() as d:
-            out = Path(d) / "out.jsonl"
+            out = Path(d)
 
             with make_client(handler) as client:
                 rs.process_one(
@@ -560,7 +574,7 @@ def test_process_one_failed_and_validation():
                     show_progress=False,
                     summary=summary,
                 )
-            rec = json.loads(out.read_text(encoding="utf-8"))
+            rec = _read_record(out)
         assert rec["ok"] is False
         assert rec["error"] == err
         assert summary == {"ok": 0, "failed": 1, "overall": []}
@@ -580,7 +594,7 @@ def test_process_one_429_backoff():
     )
 
     with tempfile.TemporaryDirectory() as d:
-        out = Path(d) / "out.jsonl"
+        out = Path(d)
         with PatchedSleep() as ps, make_client(handler) as client:
             rs.process_one(
                 rs.ReviewConfig(client, "http://llm", "", "m", out),
@@ -590,7 +604,7 @@ def test_process_one_429_backoff():
                 show_progress=False,
                 summary=summary,
             )
-        rec = json.loads(out.read_text(encoding="utf-8"))
+        rec = _read_record(out)
     assert rec["ok"] is True
     assert rec["overall"] == 4
     assert len(handler.calls) == 3
@@ -602,7 +616,7 @@ def test_process_one_429_backoff():
     summary2 = {"ok": 0, "failed": 0, "overall": []}
     handler2 = chat_handler([httpx.Response(429, text="nope")] * 3)
     with tempfile.TemporaryDirectory() as d:
-        out = Path(d) / "out.jsonl"
+        out = Path(d)
         with PatchedSleep(), make_client(handler2) as client:
             rs.process_one(
                 rs.ReviewConfig(client, "http://llm", "", "m", out),
@@ -612,7 +626,7 @@ def test_process_one_429_backoff():
                 show_progress=False,
                 summary=summary2,
             )
-        rec = json.loads(out.read_text(encoding="utf-8"))
+        rec = _read_record(out)
     assert rec["ok"] is False
     assert rec["error"].startswith("HTTP 429:")
 
@@ -623,7 +637,7 @@ def test_process_one_progress():
     handler = chat_handler([review_reply()])
     buf = io.StringIO()
     with tempfile.TemporaryDirectory() as d:
-        out = Path(d) / "out.jsonl"
+        out = Path(d)
 
         with make_client(handler) as client, redirect_stdout(buf):
             rs.process_one(
@@ -659,7 +673,7 @@ def test_run_workers_concurrency():
 
     summary = {"ok": 0, "failed": 0, "overall": []}
     with tempfile.TemporaryDirectory() as d:
-        out = Path(d) / "out.jsonl"
+        out = Path(d)
 
         with make_client(handler) as client:
             rs.run_workers(
@@ -669,12 +683,12 @@ def test_run_workers_concurrency():
                 show_progress=False,
                 summary=summary,
             )
-        lines = [json.loads(line) for line in out.read_text(encoding="utf-8").split("\n") if line.strip()]
+        records = _read_all_records(out)
 
     assert summary == {"ok": 6, "failed": 0, "overall": [4] * 6}
-    assert len(lines) == 6
+    assert len(records) == 6
     # every row processed exactly once
-    assert {r["dataset_id"] for r in lines} == {r["id"] for r in rows}
+    assert {r["dataset_id"] for r in records} == {r["id"] for r in rows}
     assert state["max"] == 3  # concurrency cap honoured
 
 
@@ -691,7 +705,7 @@ def test_run_workers_caps_to_row_count():
 
     summary = {"ok": 0, "failed": 0, "overall": []}
     with tempfile.TemporaryDirectory() as d:
-        out = Path(d) / "out.jsonl"
+        out = Path(d)
 
         with make_client(handler) as client:
             rs.run_workers(

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""One LLM call per dataset: quality scores + theme/tag suggestions → JSONL.
+"""One LLM call per dataset: quality scores + theme/tag suggestions.
 
 Reads datasets from the quality index, sends a curated digest to the
-model, and appends a single structured JSON record per dataset to
-data/dataset-reviews-suggestions.jsonl. Each record has:
+model, and writes one JSON file per dataset to downloads/reviews/<org>/.
+Each record has:
 
   scores   — overall, findability, metadata, resources (0-5 + explanation)
   theme    — suggested primary theme from the 14-theme vocabulary
@@ -53,7 +53,7 @@ from scripts.rate_limit import sleep
 
 app = typer.Typer(add_completion=False)
 
-DEFAULT_OUT = Path(__file__).resolve().parent.parent / "data" / "dataset-reviews-suggestions.jsonl"
+DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "downloads" / "reviews"
 DATABASE_URL = database_url()
 REQUEST_TIMEOUT = 120  # seconds
 RETRIES = 2  # attempts are 0..RETRIES (up to 3 tries)
@@ -84,16 +84,12 @@ THEMES = [
     "business-and-economy",
     "crime-and-justice",
     "defence",
-    "digital-services-performance",
     "education",
     "environment",
-    "government",
-    "government-reference-data",
-    "government-spending",
+    "government-and-parliament",
     "health",
-    "mapping",
-    "society",
-    "towns-and-cities",
+    "land-and-property",
+    "people",
     "transport",
 ]
 
@@ -108,15 +104,10 @@ EXTRAS_WHITELIST = {
     "temporal_coverage": "temporal_coverage",
     "geographic_coverage": "geographic_coverage",
     "publisher": "publisher",
-    "contact-email": "contact_email",
-    "foi-email": "foi_email",
     "access_constraints": "access_constraints",
     "licence": "licence_statement",
     "resource-type": "resource_type",
-    "responsible-party": "responsible_party",
-    "metadata-language": "metadata_language",
     "spatial-reference-system": "spatial_reference_system",
-    "harvest_source_title": "harvest_source",
     "schema-vocabulary": "schema_vocabulary",
     "codelist": "codelist",
 }
@@ -166,8 +157,6 @@ def digest_resource(r: dict) -> dict:
         out["description"] = truncate(r["description"], 1000)
     if r.get("url"):
         out["url"] = r["url"]
-    if r.get("size"):
-        out["size"] = r["size"]
     if r.get("created"):
         out["created"] = str(r["created"])[:10]
     return out
@@ -228,7 +217,7 @@ SYSTEM_CONTENT = """You are a data-quality reviewer and metadata specialist for 
         8 resources, only the first 8 are shown; very long extra values may be
         trimmed. Never criticise these digest limits — judge only what is present.
 
-        The theme vocabulary is fixed — you must pick one of the 14 listed themes.
+        The theme vocabulary is fixed — you must pick one of the listed themes.
         Tags are free-form but should be specific and useful for discovery.
 
         Never invent facts. The suggested description must only rephrase what is
@@ -239,30 +228,26 @@ SYSTEM_CONTENT = """You are a data-quality reviewer and metadata specialist for 
 
 RUBRIC = """## Part 1 — Quality review
 
-Score each dimension 0-5 where:
-5 = excellent, 4 = good, 3 = adequate, 2 = poor, 1 = very poor, 0 = missing/absent.
+Every dimension starts at score 5. Deduct points only for specific, named
+problems — every deduction must cite the concrete issue that caused it.
 
 **findability**
 
-Would the title, description, tags and theme make the dataset easy to
-discover and understand in a site with all kinds of different data?
-The TITLE is the single most important signal — it must plainly say
-what the data is, and must not contradict the description. The title
-and description should not be too short or too long. A vague,
-jargon-heavy or misleading title CAPS findability at 2/5.
+A clear, plain title that says what the data is; a useful description;
+relevant tags; a theme. The TITLE is the single most important signal —
+a vague, jargon-heavy or misleading title caps findability at 2/5.
 
 **metadata**
 
-Is licence, theme, temporal coverage, geographic coverage and
-contact information present and internally consistent?
-Temporal and geographic coverage count as present whether
-stated in dedicated fields or in the description.
+Licence, theme, temporal coverage, geographic coverage, contact
+information — present and internally consistent. Temporal and
+geographic coverage count as present whether in dedicated fields
+or in the description.
 
 **resources**
 
-Are there real downloadable data files with sensible formats
-(CSV/GeoJSON/XLSX/etc.)? Penalise zero resources, missing or
-wrong formats, no size.
+Real downloadable data files in sensible formats (CSV/GeoJSON/XLSX
+etc.).
 
 **overall**
 
@@ -297,6 +282,7 @@ assignment.
 - NEVER include data-structure terms (no "table", "dataset").
 - Never repeat the title verbatim as a tag.
 - Lowercase, space-separated phrases.
+- Prefer plural forms (e.g. "rivers" not "river").
 
 **suggested_title**
 
@@ -304,8 +290,10 @@ A clear improved title, or empty string if the current title is good.
 
 **suggested_description**
 
-A clear, concise (up to 6 sentences) improved description, or empty
-string if the current one is already good.
+A clear improved description, or empty string if the current one is
+already good. Length should match the richness of the metadata — a
+sentence or two is fine when there is little to say, but 3-4 paragraphs
+is appropriate when the metadata supports it.
 STRICT RULE — never invent facts. Only rephrase what the metadata
 actually says. Do not add topics, audiences, purpose, numbers, dates,
 geographies, sources or guidance that are not present in the metadata.
@@ -345,9 +333,10 @@ def build_prompt(digest: dict) -> list[dict]:
             "role": "user",
             "content": (
                 "Evaluate and classify the following dataset metadata.\n"
-                f"{rubric}\n{schema}\n\n"
+                f"{rubric}\n\n"
                 "Dataset metadata (JSON):\n"
-                f"{json.dumps(digest, indent=1, ensure_ascii=False)}\n\n"
+                f"{json.dumps(digest, indent=1, ensure_ascii=False)}\n"
+                f"{schema}\n\n"
                 "Now return the review JSON."
             ),
         },
@@ -371,7 +360,7 @@ def check_server(client: httpx.Client, base_url: str) -> None:
 def _is_anthropic(base_url: str, model: str = "") -> bool:
     # Direct Anthropic API, or a proxy serving Bedrock models (eu./us./ap. prefix).
     return "api.anthropic.com" in base_url or bool(
-        re.match(r"(eu|us|ap)\.anthropic\.", model)
+        re.match(r"(eu|us|ap)\.anthropic\.", model),
     )
 
 
@@ -491,35 +480,46 @@ def extract_json(text: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Store: JSONL, append-only
+# Store: one JSON file per dataset in downloads/reviews/<org>/
 # ---------------------------------------------------------------------------
-def load_processed_ids(out_file: Path) -> tuple[set, set]:
-    """(ok, attempted) dataset-id sets from the JSONL file. Corrupt lines
-    are skipped."""
+def slugify(title: str) -> str:
+    """Lowercase, [^a-z0-9]+ -> '-', trim dashes, [:80]."""
+    s = title.lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = re.sub(r"^-+|-+$", "", s)
+    return s[:80]
+
+
+def load_processed_ids(out_dir: Path) -> tuple[set, set]:
+    """(ok, attempted) dataset-id sets from per-dataset JSON files under
+    out_dir. Corrupt files are skipped."""
 
     ok: set[str] = set()
     attempted: set[str] = set()
-    if not out_file.exists():
+    if not out_dir.exists():
         return ok, attempted
-    with out_file.open(encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                rec = json.loads(line)
-            except ValueError:
-                continue  # ignore corrupt lines
-            attempted.add(rec.get("dataset_id"))
-            if rec.get("ok"):
-                ok.add(rec.get("dataset_id"))
+    for f in out_dir.rglob("*.json"):
+        try:
+            rec = json.loads(f.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        attempted.add(rec.get("dataset_id"))
+        if rec.get("ok"):
+            ok.add(rec.get("dataset_id"))
     return ok, attempted
 
 
-def append_record(out_file: Path, record: dict) -> None:
-    """Append one compact-JSON record per line (no spaces, raw unicode)."""
-
-    with out_file.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+def write_record(out_dir: Path, record: dict) -> None:
+    """Write one JSON file per dataset: out_dir/<org_slug>/<slug>-<id[:8]>.json."""
+    org = record.get("org_slug") or "_unknown"
+    title = record.get("title") or record["dataset_id"]
+    filename = f"{slugify(title)}-{record['dataset_id'][:8]}.json"
+    directory = out_dir / org
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / filename).write_text(
+        json.dumps(record, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -528,14 +528,14 @@ def append_record(out_file: Path, record: dict) -> None:
 @dataclass(frozen=True)
 class ReviewConfig:
     """The five call-wide values every worker needs — client, endpoint,
-    auth, model and output file. Built once in run() and passed down, so
-    the per-row functions stay small."""
+    auth, model and output directory. Built once in run() and passed down,
+    so the per-row functions stay small."""
 
     client: httpx.Client
     base_url: str
     api_key: str
     model: str
-    out_file: Path
+    out_dir: Path
 
 
 def _summary_guard(summary_lock: threading.Lock | None):
@@ -649,7 +649,8 @@ def process_one(
     base = _record_base(row, config.model)
 
     record = _fetch_record(config, base, digest)
-    append_record(config.out_file, record)
+    record["input"] = digest
+    write_record(config.out_dir, record)
     _record_summary(record, summary, summary_lock)
 
     if show_progress:
@@ -709,11 +710,11 @@ def run(
     base_url: str,
     api_key: str,
     concurrency: int,
-    out_file: Path,
+    out_dir: Path,
     include_reviewed: bool,
     show_progress: bool,
 ) -> None:
-    """Fetch + review + append records for the selected rows."""
+    """Fetch + review + write per-dataset records for the selected rows."""
 
     is_remote = bool(api_key)
     org_filter = org or None
@@ -735,7 +736,7 @@ def run(
                 )
                 raise typer.Exit(1) from None
 
-        processed, attempted = load_processed_ids(out_file)
+        processed, attempted = load_processed_ids(out_dir)
         if len(processed) > 0 and not include_reviewed:
             print(
                 f"Skipping {len(processed)} already-processed dataset(s) (--include-reviewed to force)",
@@ -746,7 +747,8 @@ def run(
             select_sql = """SELECT d.id, d.title, d.org_slug, d.org_display_name, j.json
              FROM datasets d
              JOIN dataset_json j ON j.id = d.id
-             WHERE (?::text IS NULL OR d.org_slug = ?)"""
+             WHERE (?::text IS NULL OR d.org_slug = ?)
+               AND d.resource_count > 0"""
 
             if id_filter:
                 rows = db.prepare(select_sql + "\n AND d.id = ?\n LIMIT 1").all(
@@ -787,7 +789,7 @@ def run(
                 base_url=base_url,
                 api_key=api_key,
                 model=model,
-                out_file=out_file,
+                out_dir=out_dir,
             ),
             rows,
             concurrency,
@@ -799,7 +801,7 @@ def run(
         mean = f"{sum(summary['overall']) / len(summary['overall']):.2f}" if summary["overall"] else "n/a"
         print(
             f"Done in {elapsed:.1f}s — {summary['ok']} reviewed, {summary['failed']} failed, "
-            f"mean overall {mean}/5. Results appended to {out_file}",
+            f"mean overall {mean}/5. Results written to {out_dir}",
         )
 
 
@@ -842,7 +844,7 @@ def main(
         help="parallel requests (default 50 for remote APIs, 1 for local llama)",
     ),
     # Annotated form avoids ruff B008 (a typer.Option() call as a default).
-    out: Annotated[Path, typer.Option("--out", help="output JSONL file")] = DEFAULT_OUT,
+    out_dir: Annotated[Path, typer.Option("--out-dir", help="output directory")] = DEFAULT_OUT_DIR,
     include_reviewed: bool = typer.Option(
         False,  # noqa: FBT003 — typer.Option's default is the first positional
         "--include-reviewed",
@@ -860,7 +862,13 @@ def main(
         print("--limit must be >= 1", file=sys.stderr)
         raise typer.Exit(1)
 
-    key = (api_key or os.environ.get("LLM") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    key = (
+        api_key
+        or os.environ.get("LLM")
+        or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        or os.environ.get("ANTHROPIC_API_KEY")
+        or ""
+    ).strip()
     is_remote = bool(key)
     base = base_url or (os.environ.get("LLM_BASE_URL") if is_remote else os.environ.get("LOCAL_BASE_URL"))
     mdl = model or (os.environ.get("LLM_MODEL") if is_remote else os.environ.get("LOCAL_MODEL"))
@@ -891,7 +899,7 @@ def main(
             base_url=base,
             api_key=key,
             concurrency=concurrency,
-            out_file=out,
+            out_dir=out_dir,
             include_reviewed=include_reviewed,
             show_progress=progress or dataset is not None,
         )

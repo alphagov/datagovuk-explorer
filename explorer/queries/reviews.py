@@ -1,5 +1,5 @@
 """Reviews / suggestions helpers — DB-backed, read from the `reviews`
-table (populated by scripts/ingest_reviews.py from the JSONL)."""
+table (populated by scripts/ingest_reviews.py from downloads/reviews/)."""
 
 import json
 from functools import cache

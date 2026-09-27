@@ -25,7 +25,7 @@ scripts/   Standalone pipeline: get datasets, build the DB,
            errors
 explorer/static/  Static assets (collected into staticfiles/ for prod)
 tests/     pytest suite — app tests against the live DB + offline unit tests
-data/      Pipeline inputs (tracked): reviews JSONL, views CSV
+data/      Pipeline inputs (tracked): views CSV, collections
 db/        Local backups (gitignored)
 llm/       Embedding model (gitignored) — fetch with `just download-llm`
 ```
@@ -69,8 +69,7 @@ first too, so missing tables are never a thing to remember.
 rebuild): the build only populates the pipeline tables and leaves
 `reviews` empty, so the Reviews, Suggestions and dataset-review UI all
 show nothing until it's run. It's idempotent (TRUNCATE + reload from
-data/dataset-reviews-suggestions.jsonl), so running it again is always
-safe.
+`downloads/reviews/`), so running it again is always safe.
 
 Embeddings (semantic search over datasets) are optional: run
 `just download-llm` once to fetch the bge-base-en-v1.5 GGUF model into

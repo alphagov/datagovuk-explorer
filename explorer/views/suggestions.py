@@ -1,6 +1,6 @@
 """GET /suggestions — list of LLM-classified datasets with theme/tag/title
 suggestions, read from the reviews table (populated by
-scripts/ingest_reviews.py). Sorted by confidence so low-confidence
+scripts/ingest_reviews.py from downloads/reviews/). Sorted by confidence so low-confidence
 (ambiguous) datasets surface first. Only the latest classification per
 dataset is shown.
 

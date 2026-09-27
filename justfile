@@ -230,7 +230,7 @@ query-datasets *args:
 review-suggest *args:
     uv run --env-file .env python -m scripts.review_suggest {{args}}
 
-# Load the review JSONL into the reviews table (run after review-suggest)
+# Load reviews from downloads/reviews/ into the reviews table (run after review-suggest)
 ingest-reviews:
     uv run --env-file .env python -m scripts.ingest_reviews
 

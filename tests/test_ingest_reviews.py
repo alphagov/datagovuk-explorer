@@ -1,8 +1,7 @@
 """Unit tests for scripts/ingest_reviews.py (offline — no DB).
 
 Covers the deterministic parts:
-- load_records: missing file, corrupt-line skip, file order
-- latest_per_dataset: later lines win (one record per dataset_id)
+- load_records: missing dir, corrupt-file skip, walks org subdirs
 - _subscore / _int: malformed-scores handling for the typed columns
 
 The write path (TRUNCATE + insert into reviews, idempotency, FK against
@@ -18,50 +17,51 @@ from pathlib import Path
 import scripts.ingest_reviews as ir
 
 
-def rec(dataset_id, n):
+def rec(dataset_id, n, org_slug="alpha"):
     """A minimal record — the fields load/dedup care about."""
     return {
         "dataset_id": dataset_id,
         "title": f"Title {n}",
+        "org_slug": org_slug,
         "ok": True,
         "overall": n % 6,
         "reviewed_at": f"2026-08-01T00:00:0{n}.000Z",
     }
 
 
+def test_load_records_missing_dir():
+    assert ir.load_records(Path("/nonexistent")) == []
+
+
 def test_load_records():
     with tempfile.TemporaryDirectory() as d:
-        p = Path(d) / "out.jsonl"
-        # missing file -> []
-        assert ir.load_records(p) == []
+        base = Path(d)
+        org_dir = base / "alpha"
+        org_dir.mkdir()
 
-        p.write_text(
-            json.dumps(rec("a", 1)) + "\n"
-            "corrupt line not json\n" + json.dumps(rec("b", 2)) + "\n"
-            "\n" + json.dumps(rec("c", 3)) + "\n",
+        (org_dir / "title-1-aaaaaaaa.json").write_text(
+            json.dumps(rec("a", 1)),
             encoding="utf-8",
         )
-        records = ir.load_records(p)
-        # corrupt + blank lines skipped, order kept
-        assert [r["dataset_id"] for r in records] == ["a", "b", "c"]
+        (org_dir / "corrupt.json").write_text("not json", encoding="utf-8")
+        (org_dir / "title-3-cccccccc.json").write_text(
+            json.dumps(rec("c", 3)),
+            encoding="utf-8",
+        )
 
+        org_dir2 = base / "beta"
+        org_dir2.mkdir()
+        (org_dir2 / "title-2-bbbbbbbb.json").write_text(
+            json.dumps(rec("b", 2, org_slug="beta")),
+            encoding="utf-8",
+        )
 
-def test_latest_per_dataset():
-    # Build records with duplicate dataset_ids — later lines must win.
-    records = [rec(f"id-{n % 3}", n) for n in range(9)]  # 3 ids x 3 records
-    unique = ir.latest_per_dataset(records)
-    assert len(unique) == 3
-    # one row per id, in first-seen id order
-    assert [r["dataset_id"] for r in unique] == ["id-0", "id-1", "id-2"]
-    # the latest (highest n) per id survives
-    assert {r["dataset_id"]: r["title"] for r in unique} == {
-        "id-0": "Title 6",
-        "id-1": "Title 7",
-        "id-2": "Title 8",
-    }
-    # later duplicate of the same id replaces the earlier record entirely
-    dup = [rec("id-x", 1), rec("id-x", 2)]
-    assert ir.latest_per_dataset(dup) == [rec("id-x", 2)]
+        records = ir.load_records(base)
+        assert len(records) == 3
+        ids = [r["dataset_id"] for r in records]
+        assert "a" in ids
+        assert "b" in ids
+        assert "c" in ids
 
 
 def test_typed_column_helpers():

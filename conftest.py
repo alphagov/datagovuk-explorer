@@ -142,7 +142,7 @@ def _dataset_json(row, org_display_name):
 
 
 def _review(dataset_id, org_slug, org_display_name, overall, *, ok=True, theme="environment"):
-    """One JSONL-shaped review record (mirrors data/dataset-reviews-suggestions.jsonl)."""
+    """One review record (mirrors the per-dataset JSON files in downloads/reviews/)."""
     return {
         "dataset_id": dataset_id,
         "title": f"Review of {dataset_id}",
