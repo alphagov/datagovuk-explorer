@@ -15,9 +15,7 @@
         <tr>
           <th class="col-text">{{ sort_link("name", "Publisher", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("reviewed_datasets", "Datasets", sort, dir, facet_qs) }}</th>
-          <th class="col-num">{{ sort_link("avg_overall", "Overall", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("avg_findability", "Findability", sort, dir, facet_qs) }}</th>
-          <th class="col-num">{{ sort_link("avg_metadata", "Metadata", sort, dir, facet_qs) }}</th>
           <th class="col-num">{{ sort_link("avg_resources", "Links", sort, dir, facet_qs) }}</th>
         </tr>
       </thead>
@@ -28,9 +26,7 @@
               <a href="/organisation/{{ r.org_slug }}">{{ r.name }}</a>
             </th>
             <td class="col-num">{{ r.reviewed_datasets | num }}</td>
-            <td class="col-num">{% if r.avg_overall is not none %}{{ r.avg_overall }}{% else %}—{% endif %}</td>
             <td class="col-num">{% if r.avg_findability is not none %}{{ r.avg_findability }}{% else %}—{% endif %}</td>
-            <td class="col-num">{% if r.avg_metadata is not none %}{{ r.avg_metadata }}{% else %}—{% endif %}</td>
             <td class="col-num">{% if r.avg_resources is not none %}{{ r.avg_resources }}{% else %}—{% endif %}</td>
           </tr>
         {% endfor %}

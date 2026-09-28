@@ -37,7 +37,7 @@ def load_records(directory: Path) -> list[dict]:
 
 
 def _scores(r: dict) -> dict:
-    """The three sub-scores, or {} when scores is missing/malformed."""
+    """The two sub-scores, or {} when scores is missing/malformed."""
     scores = r.get("scores")
     return scores if isinstance(scores, dict) else {}
 
@@ -67,17 +67,15 @@ def ingest(db, records: list[dict]) -> int:
         tx.exec("TRUNCATE reviews RESTART IDENTITY")
         stmt = tx.prepare(
             """INSERT INTO reviews
-               (id, dataset_id, ok, overall, findability, metadata, resources,
+               (id, dataset_id, ok, findability, resources,
                 theme, tags, title, "desc", theme_confidence, created_at, json)
-               VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         )
         for r in present:
             stmt.run(
                 r["dataset_id"],
                 bool(r.get("ok")),
-                _int(r.get("overall")),
                 _subscore(r, "findability"),
-                _subscore(r, "metadata"),
                 _subscore(r, "resources"),
                 r.get("theme"),
                 json.dumps(r["tags"], ensure_ascii=False) if r.get("tags") else None,

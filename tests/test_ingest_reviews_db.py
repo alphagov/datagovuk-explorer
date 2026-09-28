@@ -27,7 +27,6 @@ def test_ingest_round_trip(migrated_db_url):
         records = [
             rec(
                 "ir-1",
-                overall=3,
                 scores={"findability": {"score": 2}},
                 tags=["env", "climate"],
                 suggested_title="T",
@@ -42,16 +41,14 @@ def test_ingest_round_trip(migrated_db_url):
         assert ingest(d, records) == 1
 
         assert d.prepare(
-            "SELECT dataset_id, ok, overall, findability, metadata, resources,"
+            "SELECT dataset_id, ok, findability, resources,"
             ' tags, title, "desc", theme, theme_confidence, created_at'
             " FROM reviews",
         ).all() == [
             {
                 "dataset_id": "ir-1",
                 "ok": True,
-                "overall": 3,
                 "findability": 2,
-                "metadata": None,
                 "resources": None,
                 "tags": json.dumps(["env", "climate"], ensure_ascii=False),
                 "title": "T",

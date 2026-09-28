@@ -14,8 +14,8 @@ dependencies = [
   "httpx>=0.28",
   "jinja2>=3.1",
   "markdown>=3.7",
-  "playwright>=1.49",
   "pgvector>=0.4",
+  "playwright>=1.49",
   "psycopg[binary]>=3.3.4",
   "python-dotenv>=1.2.2",
   "truststore>=0.10.4",
@@ -164,7 +164,7 @@ lint.per-file-ignores."scripts/check_links.py" = [
   "PLR2004"
 ]
 lint.per-file-ignores."scripts/get_datasets.py" = [ "PLR0913" ]
-lint.per-file-ignores."scripts/review_suggest.py" = [ "PLR0913" ]
+lint.per-file-ignores."scripts/review_suggest.py" = [ "B008", "PLR0913" ]
 lint.per-file-ignores."tests/*.py" = [ "PLR2004", "SLF001" ]
 # Fullwidth-digit strings are deliberate fixtures: they prove the date/year
 # regexes use re.ASCII so \d does NOT match U+FF10..U+FF19.

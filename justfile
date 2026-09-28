@@ -18,8 +18,11 @@ start:
     uv run --env-file .env gunicorn config.wsgi --bind 0.0.0.0:{{env_var_or_default("PORT", "3000")}}
 
 # Lint: Run pre-commit checks without the commit (ruff, djlint, django-upgrade, ...)
+# The migration check runs separately so unstaged migration files aren't
+# hidden by pre-commit's stash.
 lint *args:
-    uv run pre-commit run {{args}}
+    SKIP=makemigrations-check uv run pre-commit run {{args}}
+    uv run python manage.py makemigrations --check --dry-run
 
 # Typecheck: Run mypy
 # (Not in pre-commit/CI — run manually, like datagovuk.)

@@ -462,12 +462,12 @@ def test_latest_reviews_dedup_semantics():
 
 
 def test_get_review_returns_latest_review():
-    """The latest ok review for d01 is the later record (overall 5), not the
+    """The latest ok review for d01 is the later record (findability 5), not the
     earlier one or the ok:false one."""
     rev = get_review("d01")
     assert rev is not None
     assert rev["dataset_id"] == "d01"
-    assert rev["overall"] == 5
+    assert rev["scores"]["findability"]["score"] == 5
     assert rev == next(r for r in latest_reviews() if r["dataset_id"] == "d01")
 
 

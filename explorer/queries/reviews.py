@@ -52,8 +52,8 @@ get_classification = _review_for
 
 # --- /reviews query builder ---
 #
-# Compiled per (filters, sort, dir). filters: { overall, findability,
-# metadata, resources } — a score value "0".."5" or "none" (missing
+# Compiled per (filters, sort, dir). filters: { findability,
+# resources } — a score value "0".."5" or "none" (missing
 # score). Same pattern as datasets.py: the WHERE clauses drive the page
 # list + count (filtering, sorting and pagination in the database instead
 # of fetching + json.loads-ing every row in Python), and the sidebar facet
@@ -64,16 +64,15 @@ get_classification = _review_for
 # review per dataset (see _LATEST_REVIEWS). Joining to `datasets` supplies
 # the *current* title/org, not the review-time values in the JSON.
 _DEDUP = """
-    SELECT DISTINCT ON (dataset_id) id, dataset_id, overall,
-           findability, metadata, resources
+    SELECT DISTINCT ON (dataset_id) id, dataset_id,
+           findability, resources
     FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
 """
 
 # Score dimensions — one facet group per dimension, mirroring the sortable
-# columns. overall lives at the top level of a review; the others are the
-# denormalised subscore columns the ingest populates. A missing score is
-# represented by the "none" facet.
-SCORE_KEYS = ("overall", "findability", "metadata", "resources")
+# columns. The denormalised subscore columns the ingest populates. A
+# missing score is represented by the "none" facet.
+SCORE_KEYS = ("findability", "resources")
 
 FACET_KEYS = ("publisher", *SCORE_KEYS)
 
@@ -86,14 +85,12 @@ SCORE_VALUES = ["0", "1", "2", "3", "4", "5"]
 REVIEWS_SORT = {
     "title": "LOWER(COALESCE(d.title, ''))",
     "org": "LOWER(COALESCE(d.org_display_name, ''))",
-    "overall": "COALESCE(r.overall, -1)",
     "resources": "COALESCE(r.resources, -1)",
-    "metadata": "COALESCE(r.metadata, -1)",
     "findability": "COALESCE(r.findability, -1)",
 }
 
 # The order /reviews starts in — shared by parse_sort and preserve_params.
-REVIEWS_SORT_DEFAULT = ("overall", "asc")
+REVIEWS_SORT_DEFAULT = ("findability", "asc")
 
 
 def _publisher_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
@@ -155,7 +152,7 @@ def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
         "count": Query(f"SELECT COUNT(*) AS n FROM {from_sql}{where}"),
         "list": Query(
             "SELECT r.dataset_id, d.title, d.org_slug, d.org_display_name,"
-            "  r.overall, r.findability, r.metadata, r.resources"
+            "  r.findability, r.resources"
             f" FROM {from_sql}{where}"
             f" ORDER BY {order_sql}"
             " LIMIT %s OFFSET %s",

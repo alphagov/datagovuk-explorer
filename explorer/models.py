@@ -379,9 +379,7 @@ class Review(models.Model):
         db_index=False,
     )
     ok = models.BooleanField(db_default=True)
-    overall = models.IntegerField(blank=True, null=True)
     findability = models.IntegerField(blank=True, null=True)
-    metadata = models.IntegerField(blank=True, null=True)
     resources = models.IntegerField(blank=True, null=True)
     theme = models.TextField(blank=True, null=True)
     tags = models.TextField(blank=True, null=True)

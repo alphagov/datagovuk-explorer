@@ -24,7 +24,6 @@ def rec(dataset_id, n, org_slug="alpha"):
         "title": f"Title {n}",
         "org_slug": org_slug,
         "ok": True,
-        "overall": n % 6,
         "reviewed_at": f"2026-08-01T00:00:0{n}.000Z",
     }
 
@@ -69,12 +68,10 @@ def test_typed_column_helpers():
     r = {
         "scores": {
             "findability": {"score": 4},
-            "metadata": "not a dict",
             "resources": {"score": None},
         },
     }
     assert ir._subscore(r, "findability") == 4
-    assert ir._subscore(r, "metadata") is None
     assert ir._subscore(r, "resources") is None
     assert ir._subscore({}, "findability") is None
 

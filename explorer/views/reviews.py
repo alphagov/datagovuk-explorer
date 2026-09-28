@@ -2,7 +2,7 @@
     table (populated by scripts/ingest_reviews.py). Sorted
     worst-first by default so quality problems surface first; every column
     is sortable via ?sort=&dir=, and the sidebar facets filter by each
-    score group (?overall=, ?findability=, ?metadata=, ?resources=).
+    score group (?findability=, ?resources=).
 
 The page list, count, sort and facet counts all run in SQL (the shared
 reviews_stmts/reviews_facet_counts builders in explorer/queries/reviews.py
@@ -27,12 +27,10 @@ from explorer.sort import parse_sort
 
 from .core import paginate, pill
 
-# Score dimensions in sidebar order — the facet-group labels for the four
+# Score dimensions in sidebar order — the facet-group labels for the
 # pools computed in SQL (queries/reviews.py owns the keys/clauses).
 SCORE_GROUPS = [
-    {"key": "overall", "label": "Overall"},
     {"key": "findability", "label": "Findability"},
-    {"key": "metadata", "label": "Metadata"},
     {"key": "resources", "label": "Links"},
 ]
 

@@ -5,7 +5,7 @@ Reads datasets from the quality index, sends a curated digest to the
 model, and writes one JSON file per dataset to downloads/reviews/<org>/.
 Each record has:
 
-  scores   — overall, findability, metadata, resources (0-5 + explanation)
+  scores   — findability, resources (0-5 + explanation)
   theme    — suggested primary theme from the 14-theme vocabulary
   tags     — 3-8 suggested subject-matter tags
   title    — suggested title (or empty if current is good)
@@ -18,6 +18,7 @@ Usage:
   python scripts/review_suggest.py                       # 20 random datasets
   python scripts/review_suggest.py --limit 50
   python scripts/review_suggest.py --org environment-agency
+  python scripts/review_suggest.py --dataset <id> --dataset <id2>
   python scripts/review_suggest.py --dataset <id> --include-reviewed
 
 Env vars:
@@ -79,19 +80,205 @@ class ReviewError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
-# Canonical theme vocabulary
+# Canonical theme vocabulary — each theme maps to example tags that double as
+# the preferred tag vocabulary.  The LLM picks tags from these lists (and may
+# add a small number of freeform tags when nothing fits).
 # ---------------------------------------------------------------------------
 THEMES = {
-    "business-and-economy": "eg. companies, finance, trade",
-    "crime-and-justice": "eg. policing, courts, prisons",
-    "defence": "eg. armed forces, military, veterans",
-    "education": "eg. schools, universities, training",
-    "environment": "eg. climate, nature, pollution",
-    "government-and-parliament": "eg. elections, legislation, transparency",
-    "health": "eg. NHS, mental health, social care",
-    "land-and-property": "eg. housing, planning, land use",
-    "people": "eg. population, demographics, migration",
-    "transport": "eg. roads, public transport, shipping",
+    "business-and-economy": [
+        "business rates",
+        "consumer protection",
+        "contracts",
+        "employment",
+        "exports",
+        "financial regulation",
+        "fish landings",
+        "imports",
+        "international trade",
+        "labour market",
+        "mortgage lending",
+        "oil and gas",
+        "premises licences",
+        "small businesses",
+        "subsidies",
+        "tourism",
+        "unemployment",
+    ],
+    "crime-and-justice": [
+        "anti social behaviour",
+        "community safety",
+        "courts",
+        "crime statistics",
+        "criminal justice",
+        "domestic violence",
+        "enforcement",
+        "policing",
+        "prisons",
+        "probation",
+        "reoffending",
+        "sentencing",
+        "youth justice",
+        "appeals",
+    ],
+    "defence": [
+        "armed forces",
+        "defence spending",
+        "military operations",
+        "military personnel",
+        "military training",
+        "veterans",
+        "war pensions",
+    ],
+    "education": [
+        "adult education",
+        "apprenticeships",
+        "catchment areas",
+        "early years",
+        "free school meals",
+        "further education",
+        "higher education",
+        "key stages",
+        "libraries",
+        "national curriculum",
+        "primary schools",
+        "pupil attainment",
+        "qualifications",
+        "school admissions",
+        "school performance",
+        "secondary schools",
+        "special educational needs",
+        "vocational training",
+    ],
+    "environment": [
+        "agriculture",
+        "air quality",
+        "biodiversity",
+        "climate change",
+        "coastal flooding",
+        "conservation",
+        "crop mapping",
+        "dairy farming",
+        "deforestation",
+        "emissions",
+        "fisheries",
+        "flood risk",
+        "habitats",
+        "hazardous waste",
+        "insects",
+        "livestock",
+        "marine biology",
+        "marine conservation",
+        "marine habitats",
+        "nature reserves",
+        "pollution",
+        "recycling",
+        "river flooding",
+        "species records",
+        "surface water flooding",
+        "waste management",
+        "water quality",
+        "wildlife",
+        "trees",
+        "rivers",
+        "rainfall",
+        "soil",
+    ],
+    "government-and-parliament": [
+        "administrative boundaries",
+        "civil service",
+        "contracts",
+        "electoral boundaries",
+        "electoral wards",
+        "elections",
+        "freedom of information",
+        "government spending",
+        "grants",
+        "legislation",
+        "local government",
+        "organograms",
+        "parliament",
+        "polling stations",
+        "procurement",
+        "transparency",
+    ],
+    "health": [
+        "adult social care",
+        "clinical audit",
+        "dentistry",
+        "disease",
+        "food safety",
+        "health inequalities",
+        "hospital admissions",
+        "laboratory testing",
+        "life expectancy",
+        "mental health",
+        "mortality",
+        "patient outcomes",
+        "prescribing",
+        "primary care",
+        "public health",
+        "social care",
+        "waiting times",
+    ],
+    "land-and-property": [
+        "addresses",
+        "allotments",
+        "article 4 directions",
+        "brownfield land",
+        "compulsory purchase orders",
+        "conservation areas",
+        "contaminated land",
+        "green belt",
+        "house prices",
+        "housing",
+        "land registration",
+        "land use",
+        "listed buildings",
+        "local plans",
+        "planning applications",
+        "planning policy",
+        "postcodes",
+        "public rights of way",
+        "site allocations",
+        "soil surveys",
+        "spatial planning",
+        "tree preservation orders",
+    ],
+    "people": [
+        "census",
+        "community assets",
+        "culture",
+        "demographics",
+        "deprivation",
+        "disability",
+        "ethnicity",
+        "language",
+        "migration",
+        "neet",
+        "population estimates",
+        "population projections",
+        "religion",
+        "art",
+        "music",
+    ],
+    "transport": [
+        "active travel",
+        "air travel",
+        "buses",
+        "car parking",
+        "cycling",
+        "electric vehicles",
+        "footpaths",
+        "freight",
+        "public transport",
+        "railways",
+        "road maintenance",
+        "roads",
+        "road safety",
+        "road traffic",
+        "shipping",
+        "walking routes",
+    ],
 }
 
 
@@ -218,9 +405,6 @@ SYSTEM_CONTENT = """You are a data-quality reviewer and metadata specialist for 
         8 resources, only the first 8 are shown; very long extra values may be
         trimmed. Never criticise these digest limits — judge only what is present.
 
-        The theme vocabulary is fixed — you must pick one of the listed themes.
-        Tags are free-form but should be specific and useful for discovery.
-
         Never invent facts. The suggested description must only rephrase what is
         present in the metadata — no added topics, audiences, purpose, numbers,
         dates, geographies or sources. If the metadata is too thin to improve on
@@ -238,27 +422,12 @@ A clear, plain title that says what the data is; a useful description;
 relevant tags; a theme. The TITLE is the single most important signal —
 a vague, jargon-heavy or misleading title caps findability at 2/5.
 
-**metadata**
-
-Licence, theme, temporal coverage, geographic coverage, contact
-information — present and internally consistent. Temporal and
-geographic coverage count as present whether in dedicated fields
-or in the description.
-
 **resources**
 
 Downloadable data files in sensible formats (CSV/GeoJSON/XLSX etc.).
 HTML alone can be ok in context (eg it represents API documentation).
 They should have clear names.
 Do not penalise National Archives links.
-
-**overall**
-
-Your overall quality judgement, weighted towards the biggest
-problems (e.g. no usable resources caps the overall score).
-Discoverability problems — especially a bad title — weigh
-heavily: a dataset that people cannot find or understand is
-low quality no matter how good the files are.
 
 ## Part 2 — Suggestions
 
@@ -278,16 +447,21 @@ assignment.
 **tags**
 
 3-6 relevant tags
+- Describe what the dataset is actually about.
+- Example tags are listed under each theme. If any are relevant, use
+  them (exact spelling). Tags from any theme are fine, not just the
+  chosen one.
+- Do not feel constrained by the examples — use whatever tags best
+  describe this specific dataset.
 - Describe what the data is ABOUT, not how it's delivered.
-- Be specific — prefer "car parks" over "transport".
-- Include subject-matter terms a domain expert would search for.
 - NEVER include the publishing organisation's name or acronym.
 - NEVER include dates or years (no "2017-18", "2019", "December 2020", etc.)
 - NEVER include format or file-type terms (no "CSV", "shapefile", "WMS", etc.).
 - NEVER include data-structure terms (no "table", "dataset").
-- Never repeat the title verbatim as a tag.
-- Lowercase, space-separated phrases.
+- NEVER include geographic or place names (no "England", "London", "Scotland", etc.)
+- Lowercase, space-separated phrases (no hyphens).
 - Prefer plural forms (e.g. "rivers" not "river").
+- Each tag should add something distinct — avoid near-synonyms.
 
 **suggested_title**
 
@@ -309,10 +483,8 @@ SCHEMA = """
 Respond with ONE JSON object, no markdown fences, no commentary. Schema:
 
 {
-  "overall": <int 0-5>,
   "scores": {
     "findability": { "score": <int 0-5>, "explanation": "<1-2 sentence reason>" },
-    "metadata":    { "score": <int 0-5>, "explanation": "<1-2 sentence reason>" },
     "resources":   { "score": <int 0-5>, "explanation": "<1-2 sentence reason>" }
   },
   "theme": "<exactly one of [${themeKeys}]>",
@@ -328,7 +500,7 @@ def build_prompt(digest: dict) -> list[dict]:
     the schema — the `${themeList}` placeholder is kept verbatim in the
     constants above."""
 
-    theme_list = "\n".join(f'- "{t}" — {d}' for t, d in THEMES.items())
+    theme_list = "\n".join(f'- "{t}" — example tags: {", ".join(tags)}' for t, tags in THEMES.items())
     theme_keys = ", ".join(f'"{t}"' for t in THEMES)
     rubric = RUBRIC.replace("${themeList}", theme_list)
     schema = SCHEMA.replace("${themeKeys}", theme_keys)
@@ -604,8 +776,6 @@ def _record_summary(record: dict, summary: dict, summary_lock: threading.Lock | 
             summary["ok"] += 1
         else:
             summary["failed"] += 1
-        if record["ok"] and isinstance(record.get("overall"), int):
-            summary["overall"].append(record["overall"])
 
 
 def _worst_dimension(record: dict) -> str:
@@ -626,8 +796,7 @@ def _print_progress(record: dict, row, i: int, total: int) -> None:
     """Per-dataset progress line (show_progress only)."""
     if record["ok"]:
         print(
-            f"[{i + 1}/{total}] overall {record.get('overall')}/5"
-            f" | theme {record.get('theme')} ({record.get('theme_confidence') or '?'})"
+            f"[{i + 1}/{total}] theme {record.get('theme')} ({record.get('theme_confidence') or '?'})"
             f" | {row['org_slug']}/{row['title']}{_worst_dimension(record)}",
         )
     else:
@@ -719,7 +888,7 @@ def run(
     *,
     limit: int | None,
     org: str | None,
-    dataset: str | None,
+    dataset: list[str] | None,
     model: str,
     base_url: str,
     api_key: str,
@@ -733,7 +902,7 @@ def run(
 
     is_remote = bool(api_key)
     org_filter = org or None
-    id_filter = dataset or None
+    id_filter = dataset or []
 
     with httpx.Client(follow_redirects=True, timeout=REQUEST_TIMEOUT) as client:
         if not is_remote:
@@ -766,11 +935,10 @@ def run(
                AND d.resource_count > 0"""
 
             if id_filter:
-                rows = db.prepare(select_sql + "\n AND d.id = ?\n LIMIT 1").all(
-                    org_filter,
-                    org_filter,
-                    id_filter,
-                )
+                placeholders = ",".join("?" for _ in id_filter)
+                rows = db.prepare(
+                    select_sql + f"\n AND d.id IN ({placeholders})",
+                ).all(org_filter, org_filter, *id_filter)
             elif include_reviewed:
                 ids = list(attempted)
                 pick = limit if limit is not None else len(ids)
@@ -801,7 +969,7 @@ def run(
             f"Processing {len(rows)} dataset(s) with {model} via {base_url} (concurrency {concurrency})",
         )
 
-        summary = {"ok": 0, "failed": 0, "overall": []}
+        summary = {"ok": 0, "failed": 0}
         t0 = time.monotonic()
         run_workers(
             ReviewConfig(
@@ -819,10 +987,9 @@ def run(
         )
 
         elapsed = time.monotonic() - t0
-        mean = f"{sum(summary['overall']) / len(summary['overall']):.2f}" if summary["overall"] else "n/a"
         print(
-            f"Done in {elapsed:.1f}s — {summary['ok']} reviewed, {summary['failed']} failed, "
-            f"mean overall {mean}/5. Results written to {out_dir}",
+            f"Done in {elapsed:.1f}s — {summary['ok']} reviewed, {summary['failed']} failed. "
+            f"Results written to {out_dir}",
         )
 
 
@@ -839,10 +1006,10 @@ def main(
         "--org",
         help="only process datasets from this organisation",
     ),
-    dataset: str | None = typer.Option(
-        None,
+    dataset: list[str] = typer.Option(
+        [],
         "--dataset",
-        help="only process this specific dataset id",
+        help="dataset id(s) to process (repeat for multiple)",
     ),
     model: str | None = typer.Option(
         None,
@@ -936,7 +1103,7 @@ def main(
             concurrency=concurrency,
             out_dir=out_dir,
             include_reviewed=include_reviewed,
-            show_progress=progress or dataset is not None,
+            show_progress=progress or bool(dataset),
             show_prompt=show_prompt,
         )
     except typer.Exit:

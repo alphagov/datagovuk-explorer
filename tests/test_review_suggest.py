@@ -68,10 +68,8 @@ def fake_row(
 def review_reply(**overrides) -> httpx.Response:
     """A valid model reply (schema-order keys)."""
     review = {
-        "overall": 4,
         "scores": {
             "findability": {"score": 4, "explanation": "Clear title and description."},
-            "metadata": {"score": 3, "explanation": "Licence present."},
             "resources": {"score": 2, "explanation": "Few formats."},
         },
         "theme": "environment",
@@ -304,9 +302,11 @@ def test_build_prompt():
     # theme keys resolved in the schema
     theme_keys = ", ".join(f'"{t}"' for t in rs.THEMES)
     assert f"[{theme_keys}]" in content
-    # theme descriptions resolved in the rubric
-    for theme, desc in rs.THEMES.items():
-        assert f'"{theme}" — {desc}' in content
+    # theme names and example tags resolved in the rubric
+    for theme, tags in rs.THEMES.items():
+        assert f'"{theme}" — example tags:' in content
+        for tag in tags:
+            assert tag in content
 
 
 # ---------------------------------------------------------------------------
@@ -402,13 +402,11 @@ def test_send_request_remote():
         content = rs.send_request(client, "http://llm", "secret", "m1", {"title": "T"})
     assert content == json.dumps(
         {
-            "overall": 4,
             "scores": {
                 "findability": {
                     "score": 4,
                     "explanation": "Clear title and description.",
                 },
-                "metadata": {"score": 3, "explanation": "Licence present."},
                 "resources": {"score": 2, "explanation": "Few formats."},
             },
             "theme": "environment",
@@ -494,7 +492,7 @@ def _read_all_records(out_dir: Path) -> list[dict]:
 
 def test_process_one_ok_record():
     row = fake_row({"title": "T", "resources": [{"format": "CSV"}]})
-    summary = {"ok": 0, "failed": 0, "overall": []}
+    summary = {"ok": 0, "failed": 0}
     handler = chat_handler([review_reply()])
 
     with tempfile.TemporaryDirectory() as d:
@@ -520,7 +518,6 @@ def test_process_one_ok_record():
             "reviewed_at",
             "classified_at",
             "ok",
-            "overall",
             "scores",
             "theme",
             "theme_confidence",
@@ -534,10 +531,9 @@ def test_process_one_ok_record():
         assert rec["org_display_name"] == "Test Org"
         assert rec["model"] == "m1"
         assert rec["ok"] is True
-        assert rec["overall"] == 4
         assert rec["reviewed_at"].endswith("Z")
         assert rec["classified_at"].endswith("Z")
-        assert summary == {"ok": 1, "failed": 0, "overall": [4]}
+        assert summary == {"ok": 1, "failed": 0}
         assert len(handler.calls) == 1  # one request, success on first try
 
 
@@ -552,7 +548,7 @@ def test_process_one_failed_and_validation():
     ]
     for reply, err in cases:
         row = fake_row({"title": "T"})
-        summary = {"ok": 0, "failed": 0, "overall": []}
+        summary = {"ok": 0, "failed": 0}
         handler = chat_handler([reply, reply, reply])  # retries up to 3 times
 
         with tempfile.TemporaryDirectory() as d:
@@ -570,14 +566,14 @@ def test_process_one_failed_and_validation():
             rec = _read_record(out)
         assert rec["ok"] is False
         assert rec["error"] == err
-        assert summary == {"ok": 0, "failed": 1, "overall": []}
+        assert summary == {"ok": 0, "failed": 1}
         # non-429 errors retry immediately (the loop runs to RETRIES+1)
         assert len(handler.calls) == 3
 
 
 def test_process_one_429_backoff():
     row = fake_row({"title": "T"})
-    summary = {"ok": 0, "failed": 0, "overall": []}
+    summary = {"ok": 0, "failed": 0}
     handler = chat_handler(
         [
             httpx.Response(429, text="slow down"),
@@ -599,14 +595,13 @@ def test_process_one_429_backoff():
             )
         rec = _read_record(out)
     assert rec["ok"] is True
-    assert rec["overall"] == 4
     assert len(handler.calls) == 3
     # sleep(2000 * (attempt + 1)) on 429, attempts 0 and 1 only
     assert ps.delays == [2000, 4000]
 
     # 429 on every attempt -> failed record, error is the last message
     row2 = fake_row({"title": "T"})
-    summary2 = {"ok": 0, "failed": 0, "overall": []}
+    summary2 = {"ok": 0, "failed": 0}
     handler2 = chat_handler([httpx.Response(429, text="nope")] * 3)
     with tempfile.TemporaryDirectory() as d:
         out = Path(d)
@@ -626,7 +621,7 @@ def test_process_one_429_backoff():
 
 def test_process_one_progress():
     row = fake_row({"title": "Nice Title"}, title="Nice Title")
-    summary = {"ok": 0, "failed": 0, "overall": []}
+    summary = {"ok": 0, "failed": 0}
     handler = chat_handler([review_reply()])
     buf = io.StringIO()
     with tempfile.TemporaryDirectory() as d:
@@ -643,7 +638,7 @@ def test_process_one_progress():
             )
     line = buf.getvalue().strip()
     assert line.startswith(
-        "[1/1] overall 4/5 | theme environment (medium) | test-org/Nice Title | ",
+        "[1/1] theme environment (medium) | test-org/Nice Title | ",
     )
     # lowest score is resources (2) -> its explanation is the suffix
     assert "Few formats." in line
@@ -664,7 +659,7 @@ def test_run_workers_concurrency():
         state["active"] -= 1
         return review_reply()
 
-    summary = {"ok": 0, "failed": 0, "overall": []}
+    summary = {"ok": 0, "failed": 0}
     with tempfile.TemporaryDirectory() as d:
         out = Path(d)
 
@@ -678,7 +673,7 @@ def test_run_workers_concurrency():
             )
         records = _read_all_records(out)
 
-    assert summary == {"ok": 6, "failed": 0, "overall": [4] * 6}
+    assert summary == {"ok": 6, "failed": 0}
     assert len(records) == 6
     # every row processed exactly once
     assert {r["dataset_id"] for r in records} == {r["id"] for r in rows}
@@ -696,7 +691,7 @@ def test_run_workers_caps_to_row_count():
         state["active"] -= 1
         return review_reply()
 
-    summary = {"ok": 0, "failed": 0, "overall": []}
+    summary = {"ok": 0, "failed": 0}
     with tempfile.TemporaryDirectory() as d:
         out = Path(d)
 

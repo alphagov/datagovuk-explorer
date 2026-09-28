@@ -316,8 +316,8 @@ _ORG_LIST_SELECT = (
 # ── /organisations/reviews — per-publisher average review scores ──
 
 _REVIEW_DEDUP = """
-    SELECT DISTINCT ON (dataset_id) dataset_id, overall,
-           findability, metadata, resources
+    SELECT DISTINCT ON (dataset_id) dataset_id,
+           findability, resources
     FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
 """
 
@@ -326,13 +326,11 @@ _PUBLISHER_REVIEWS_FROM = f"({_REVIEW_DEDUP}) r JOIN datasets d ON d.id = r.data
 PUBLISHER_REVIEWS_SORT = {
     "name": "LOWER(COALESCE(MAX(d.org_display_name), d.org_slug))",
     "reviewed_datasets": "COUNT(*)",
-    "avg_overall": "AVG(r.overall)",
     "avg_findability": "AVG(r.findability)",
-    "avg_metadata": "AVG(r.metadata)",
     "avg_resources": "AVG(r.resources)",
 }
 
-PUBLISHER_REVIEWS_SORT_DEFAULT = ("avg_overall", "desc")
+PUBLISHER_REVIEWS_SORT_DEFAULT = ("avg_findability", "desc")
 
 _PR_BUCKET_CASE = bucket_case("sub.count")
 
@@ -361,9 +359,7 @@ def publisher_reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
             "SELECT d.org_slug,"
             "  COALESCE(NULLIF(MAX(d.org_display_name), ''), d.org_slug) AS name,"
             "  COUNT(*) AS reviewed_datasets,"
-            "  ROUND(AVG(r.overall)::numeric, 2) AS avg_overall,"
             "  ROUND(AVG(r.findability)::numeric, 2) AS avg_findability,"
-            "  ROUND(AVG(r.metadata)::numeric, 2) AS avg_metadata,"
             "  ROUND(AVG(r.resources)::numeric, 2) AS avg_resources"
             f" FROM {_PUBLISHER_REVIEWS_FROM}"
             f" GROUP BY d.org_slug{having}"

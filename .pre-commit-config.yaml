@@ -61,11 +61,6 @@ repos:
       - id: djlint
         files: '\.html$'
 
-  # Django models vs migrations drift check — exits non-zero when models.py
-  # changes without a matching migration committed (or when a migration
-  # diverges from the models). Run via uv so it uses the .venv; --check
-  # --dry-run compares models against migration state on disk and needs no
-  # database. always_run: a schema change isn't tied to any one file.
   - repo: local
     hooks:
       - id: makemigrations-check

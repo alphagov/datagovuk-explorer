@@ -56,7 +56,7 @@ SORTABLE_ROUTES = [
     ("/datasets", {"sort": "resources", "dir": "desc"}),
     ("/collections", {"sort": "title", "dir": "asc"}),
     ("/organisation/alpha", {"sort": "metadata_modified", "dir": "desc"}),
-    ("/reviews", {"sort": "overall", "dir": "desc"}),
+    ("/reviews", {"sort": "findability", "dir": "desc"}),
     ("/suggestions", {"sort": "confidence", "dir": "desc"}),
     ("/series", {"sort": "dataset_count", "dir": "desc"}),
 ]

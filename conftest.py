@@ -39,7 +39,7 @@ FIXTURE = {
     "metadata_section": "top",
     "metadata_name": "type",
     "metadata_value": "dataset",
-    "review_dataset_latest_overall": 5,
+    "review_dataset_latest_findability": 5,
 }
 
 _LONG = "A detailed description of this dataset covering its contents, coverage, provenance and caveats. " * 2
@@ -142,7 +142,7 @@ def _dataset_json(row, org_display_name):
     }
 
 
-def _review(dataset_id, org_slug, org_display_name, overall, *, ok=True, theme="environment"):
+def _review(dataset_id, org_slug, org_display_name, findability, *, ok=True, theme="environment"):
     """One review record (mirrors the per-dataset JSON files in downloads/reviews/)."""
     return {
         "dataset_id": dataset_id,
@@ -153,14 +153,9 @@ def _review(dataset_id, org_slug, org_display_name, overall, *, ok=True, theme="
         "reviewed_at": "2026-01-01T00:00:00.000Z",
         "classified_at": "2026-01-01T00:00:00.000Z",
         "ok": ok,
-        "overall": overall,
         "scores": {
-            "findability": {"score": overall, "explanation": "Clear title and description."},
-            "metadata": {
-                "score": None if overall is None else max(0, overall - 1),
-                "explanation": "Most fields present.",
-            },
-            "resources": {"score": overall, "explanation": "Resources are usable."},
+            "findability": {"score": findability, "explanation": "Clear title and description."},
+            "resources": {"score": findability, "explanation": "Resources are usable."},
         },
         "theme": theme,
         "theme_confidence": "medium",
@@ -359,7 +354,7 @@ _HARVEST_SOURCES = [
 # Two ok reviews for d01 (latest wins), one ok:false, plus d07 and d05.
 _REVIEWS = [
     _review("d01", "alpha", "Alpha Department", 3),
-    _review("d01", "alpha", "Alpha Department", FIXTURE["review_dataset_latest_overall"]),
+    _review("d01", "alpha", "Alpha Department", FIXTURE["review_dataset_latest_findability"]),
     _review("d01", "alpha", "Alpha Department", 1, ok=False),
     _review("d07", "beta", None, 4),
     _review("d05", "alpha", "Alpha Department", None),
@@ -517,9 +512,7 @@ def make_fixtures():
             Review(
                 dataset_id=record["dataset_id"],
                 ok=record["ok"],
-                overall=record["overall"],
                 findability=record["scores"]["findability"]["score"],
-                metadata=record["scores"]["metadata"]["score"],
                 resources=record["scores"]["resources"]["score"],
                 theme=record["theme"],
                 tags=json.dumps(record["tags"]),
