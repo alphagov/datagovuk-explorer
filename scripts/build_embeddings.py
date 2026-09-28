@@ -189,7 +189,7 @@ def main() -> None:
             "SELECT d.id, r.title, d.title AS orig_title,"
             " r.theme, r.tags, r.desc, d.notes"
             " FROM datasets d"
-            " JOIN reviews r ON r.dataset_id = d.id",
+            " JOIN suggestions r ON r.dataset_id = d.id",
         ).all()
         print(f"datasets to embed: {len(rows)}", file=sys.stderr)
 

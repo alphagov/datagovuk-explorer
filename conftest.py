@@ -142,7 +142,7 @@ def _dataset_json(row, org_display_name):
     }
 
 
-def _review(dataset_id, org_slug, org_display_name, findability, *, ok=True, theme="environment"):
+def _review(dataset_id, org_slug, org_display_name, findability, *, ok=True):
     """One review record (mirrors the per-dataset JSON files in downloads/reviews/)."""
     return {
         "dataset_id": dataset_id,
@@ -151,12 +151,24 @@ def _review(dataset_id, org_slug, org_display_name, findability, *, ok=True, the
         "org_display_name": org_display_name,
         "model": "test",
         "reviewed_at": "2026-01-01T00:00:00.000Z",
-        "classified_at": "2026-01-01T00:00:00.000Z",
         "ok": ok,
         "scores": {
             "title-description": {"score": findability, "issues": ""},
             "resources": {"score": findability, "issues": ""},
         },
+    }
+
+
+def _suggestion(dataset_id, org_slug, org_display_name, *, ok=True, theme="environment"):
+    """One suggestion record (mirrors the per-dataset JSON files in downloads/suggestions/)."""
+    return {
+        "dataset_id": dataset_id,
+        "title": f"Suggestion for {dataset_id}",
+        "org_slug": org_slug,
+        "org_display_name": org_display_name,
+        "model": "test",
+        "classified_at": "2026-01-01T00:00:00.000Z",
+        "ok": ok,
         "suggested_theme": theme,
         "suggested_theme_confidence": "medium",
         "suggested_tags": ["tag-one", "tag-two"],
@@ -360,6 +372,14 @@ _REVIEWS = [
     _review("d05", "alpha", "Alpha Department", None),
 ]
 
+_SUGGESTIONS = [
+    _suggestion("d01", "alpha", "Alpha Department"),
+    _suggestion("d01", "alpha", "Alpha Department"),
+    _suggestion("d01", "alpha", "Alpha Department", ok=False),
+    _suggestion("d07", "beta", None, theme="transport"),
+    _suggestion("d05", "alpha", "Alpha Department"),
+]
+
 # fmt: on
 
 # Keys that live only in dataset_json, not on the datasets summary row.
@@ -390,6 +410,7 @@ def make_fixtures():
         Review,
         Series,
         SeriesDataset,
+        Suggestion,
         TemporalPeriod,
     )
 
@@ -506,7 +527,6 @@ def make_fixtures():
         ],
     )
 
-    # Typed columns mirror the JSON written by scripts/ingest_reviews.py.
     Review.objects.bulk_create(
         [
             Review(
@@ -514,15 +534,27 @@ def make_fixtures():
                 ok=record["ok"],
                 findability=record["scores"]["title-description"]["score"],
                 resources=record["scores"]["resources"]["score"],
-                theme=record["suggested_theme"],
-                tags=json.dumps(record["suggested_tags"]),
-                title=record["suggested_title"],
-                desc=record["suggested_description"],
-                theme_confidence=record["suggested_theme_confidence"],
                 created_at=record["reviewed_at"],
                 json=json.dumps(record),
             )
             for record in _REVIEWS
+        ],
+    )
+
+    Suggestion.objects.bulk_create(
+        [
+            Suggestion(
+                dataset_id=record["dataset_id"],
+                ok=record["ok"],
+                theme=record["suggested_theme"],
+                theme_confidence=record["suggested_theme_confidence"],
+                tags=json.dumps(record["suggested_tags"]),
+                title=record["suggested_title"],
+                desc=record["suggested_description"],
+                created_at=record["classified_at"],
+                json=json.dumps(record),
+            )
+            for record in _SUGGESTIONS
         ],
     )
 

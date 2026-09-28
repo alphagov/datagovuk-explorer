@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Load per-dataset suggestion JSON files into the `suggestions` table.
+
+The pipeline writes one JSON file per dataset under
+  downloads/suggestions/<org>/   (theme/tags/title/desc from scripts/suggest.py)
+
+This script (re)populates the DB table the web app reads for /suggestions.
+
+Idempotent: TRUNCATEs `suggestions` then reloads — run it after any
+suggest run to refresh the site. Failed (ok:false) records are kept
+with their flag; the views filter ok = true at query time.
+
+Usage: python -m scripts.ingest_suggestions [--suggestions-dir downloads/suggestions]
+       DATABASE_URL=postgresql://localhost:5432/other python -m scripts.ingest_suggestions
+"""
+
+import json
+import sys
+from pathlib import Path
+
+from scripts.db import connect, database_url
+
+DEFAULT_SUGGESTIONS_DIR = Path(__file__).resolve().parent.parent / "downloads" / "suggestions"
+
+
+def load_records(directory: Path) -> list[dict]:
+    """All records from per-dataset JSON files; corrupt files skipped."""
+    records: list[dict] = []
+    if not directory.exists():
+        return records
+    for f in sorted(directory.rglob("*.json")):
+        try:
+            records.append(json.loads(f.read_text(encoding="utf-8")))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return records
+
+
+def ingest(db, records: list[dict]) -> int:
+    """Truncate + insert records whose dataset exists locally; returns inserted count."""
+    ids = [r["dataset_id"] for r in records]
+    existing = {str(row["id"]) for row in db.prepare("SELECT id FROM datasets WHERE id = ANY(?)").all(ids)}
+    present = [r for r in records if r["dataset_id"] in existing]
+    skipped = len(records) - len(present)
+    if skipped:
+        print(f"Skipped {skipped} suggestion(s) — dataset not in local DB.")
+
+    def _run(tx) -> None:
+        tx.exec("TRUNCATE suggestions RESTART IDENTITY")
+        stmt = tx.prepare(
+            """INSERT INTO suggestions
+               (id, dataset_id, ok, theme, theme_confidence,
+                tags, title, "desc", created_at, json)
+               VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        )
+        for r in present:
+            stmt.run(
+                r["dataset_id"],
+                bool(r.get("ok")),
+                r.get("suggested_theme"),
+                r.get("suggested_theme_confidence"),
+                json.dumps(r["suggested_tags"], ensure_ascii=False) if r.get("suggested_tags") else None,
+                r.get("suggested_title"),
+                r.get("suggested_description"),
+                r.get("classified_at"),
+                json.dumps(r, ensure_ascii=False),
+            )
+
+    db.transaction(_run)
+    return len(present)
+
+
+def main(suggestions_dir: str = str(DEFAULT_SUGGESTIONS_DIR)) -> None:
+    suggestions_path = Path(suggestions_dir)
+    records = load_records(suggestions_path)
+
+    if not records:
+        print(f"No files in {suggestions_path} — nothing to do.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Loaded {len(records)} suggestion(s) from {suggestions_path}.")
+
+    db = connect(database_url())
+    try:
+        n = ingest(db, records)
+    finally:
+        db.close()
+    print(f"Inserted {n} row(s) into suggestions.")
+
+
+if __name__ == "__main__":
+    try:
+        main(*sys.argv[1:])
+    except (RuntimeError, ValueError, OSError, KeyError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

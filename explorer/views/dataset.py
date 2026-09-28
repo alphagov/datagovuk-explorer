@@ -2,8 +2,9 @@
 
 Full CKAN JSON from dataset_json, a sortable resources table, temporal
 coverage, harvest status, related datasets (FTS + pgvector embeddings),
-series membership, and the LLM review/classification from the reviews
-table (explorer/queries — DB-backed: latest per dataset, ok:true only).
+series membership, and the LLM review (from reviews table) and
+classification (from suggestions table) — DB-backed, latest per dataset,
+ok:true only.
 """
 
 import json

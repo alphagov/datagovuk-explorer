@@ -24,9 +24,9 @@
         {{ dataset.title or dataset.name }}
       </a>
     </h1>
-    {% if review and review.suggested_title and review.suggested_title != dataset.title %}
+    {% if classification and classification.suggested_title and classification.suggested_title != dataset.title %}
       <p class="review-suggested review-suggested--title">
-        <span class="badge badge-suggestion">Suggestion</span> {{ review.suggested_title }}
+        <span class="badge badge-suggestion">Suggestion</span> {{ classification.suggested_title }}
       </p>
     {% endif %}
 
@@ -43,9 +43,9 @@
         </div>
       </section>
     {% endif %}
-    {% if review and review.suggested_description %}
+    {% if classification and classification.suggested_description %}
       <p class="review-suggested review-suggested--desc">
-        <span class="badge badge-suggestion">Suggestion</span> {{ review.suggested_description }}
+        <span class="badge badge-suggestion">Suggestion</span> {{ classification.suggested_description }}
       </p>
     {% endif %}
 

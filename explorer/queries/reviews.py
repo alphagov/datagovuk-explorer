@@ -1,5 +1,8 @@
-"""Reviews / suggestions helpers — DB-backed, read from the `reviews`
-table (populated by scripts/ingest_reviews.py from downloads/reviews/)."""
+"""Reviews / suggestions helpers — DB-backed.
+
+Reviews (quality scores) come from the `reviews` table (populated by
+scripts/ingest_reviews.py).  Suggestions (theme/tags/title/desc) come
+from the `suggestions` table (populated by scripts/ingest_suggestions.py)."""
 
 import json
 from functools import cache
@@ -9,7 +12,7 @@ from explorer.sort import order_by
 from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
 # ---------------------------------------------------------------------------
-# Reviews / suggestions — DB-backed, read from the `reviews` table
+# Reviews — quality scores from the `reviews` table
 # ---------------------------------------------------------------------------
 # Only ok:true records count, and only the latest per dataset_id — later in
 # the file = higher id (ingest inserts in file order). json is TEXT, so it
@@ -37,7 +40,7 @@ def latest_reviews() -> list[dict]:
     return [json.loads(row["json"]) for row in _LATEST_REVIEWS.all()]
 
 
-def _review_for(dataset_id: str) -> dict | None:
+def get_review(dataset_id: str) -> dict | None:
     """Latest ok review for one dataset id, or None."""
     rows = _REVIEW_FOR.all(dataset_id)
     if not rows:
@@ -45,9 +48,19 @@ def _review_for(dataset_id: str) -> dict | None:
     return json.loads(rows[0]["json"])
 
 
-# Alias — get_classification is the same query as get_review.
-get_review = _review_for
-get_classification = _review_for
+# --- Suggestions — theme/tags/title/desc from the `suggestions` table ---
+
+_SUGGESTION_FOR = Query(
+    "SELECT json FROM suggestions WHERE ok = true AND dataset_id = %s ORDER BY id DESC LIMIT 1",
+)
+
+
+def get_classification(dataset_id: str) -> dict | None:
+    """Latest ok suggestion for one dataset id, or None."""
+    rows = _SUGGESTION_FOR.all(dataset_id)
+    if not rows:
+        return None
+    return json.loads(rows[0]["json"])
 
 
 # --- /reviews query builder ---
@@ -166,13 +179,12 @@ def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
 # suggestion columns; the join to `datasets` supplies the *current*
 # title/org/theme/tags.
 
-# The dedup subquery for /suggestions — the latest ok review per dataset
-# (as _DEDUP, but selecting the suggestion columns). "desc" is quoted: a
-# reserved word.
+# The dedup subquery for /suggestions — the latest ok suggestion per
+# dataset. "desc" is quoted: a reserved word.
 _SUGGESTIONS_DEDUP = """
     SELECT DISTINCT ON (dataset_id) id, dataset_id, theme,
            theme_confidence, tags, title, "desc"
-    FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
+    FROM suggestions WHERE ok = true ORDER BY dataset_id, id DESC
 """
 
 _SUGGESTIONS_FROM = f"({_SUGGESTIONS_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"

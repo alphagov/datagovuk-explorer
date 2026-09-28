@@ -364,12 +364,7 @@ class SeriesDataset(models.Model):
 
 
 class Review(models.Model):
-    """One row per LLM review record.
-
-    `json` holds the JSONL record verbatim and is what the views read (via
-    explorer/queries), so the dict shape the templates expect is preserved;
-    the typed columns mirror its suggestion fields.
-    """
+    """One row per LLM quality-score record (findability + resources)."""
 
     id = models.AutoField(primary_key=True)
     dataset = models.ForeignKey(
@@ -381,11 +376,6 @@ class Review(models.Model):
     ok = models.BooleanField(db_default=True)
     findability = models.IntegerField(blank=True, null=True)
     resources = models.IntegerField(blank=True, null=True)
-    theme = models.TextField(blank=True, null=True)
-    tags = models.TextField(blank=True, null=True)
-    title = models.TextField(blank=True, null=True)
-    desc = models.TextField(blank=True, null=True)
-    theme_confidence = models.TextField(blank=True, null=True)
     created_at = models.TextField(blank=True, null=True)
     json = models.TextField()
 
@@ -394,6 +384,36 @@ class Review(models.Model):
         db_table = "reviews"
         indexes = [
             models.Index(fields=["dataset"], name="idx_reviews_dataset"),
+        ]
+
+    def __str__(self):
+        return str(self.dataset)
+
+
+class Suggestion(models.Model):
+    """One row per LLM suggestion record (theme, tags, title, description)."""
+
+    id = models.AutoField(primary_key=True)
+    dataset = models.ForeignKey(
+        Dataset,
+        on_delete=models.CASCADE,
+        db_column="dataset_id",
+        db_index=False,
+    )
+    ok = models.BooleanField(db_default=True)
+    theme = models.TextField(blank=True, null=True)
+    theme_confidence = models.TextField(blank=True, null=True)
+    tags = models.TextField(blank=True, null=True)
+    title = models.TextField(blank=True, null=True)
+    desc = models.TextField(blank=True, null=True)
+    created_at = models.TextField(blank=True, null=True)
+    json = models.TextField()
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "suggestions"
+        indexes = [
+            models.Index(fields=["dataset"], name="idx_suggestions_dataset"),
         ]
 
     def __str__(self):

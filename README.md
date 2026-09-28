@@ -56,7 +56,8 @@ just get-organisations        # downloads/organisations.json from the CKAN API
 just get-harvest-sources     # downloads/harvest_sources.json (walks publishers, per-publisher filter)
 just get-datasets             # downloads to downloads/ (default: --continuous --per-org all)
 just fresh-db                 # create DB if missing + apply schema + populate (offline build)
-just ingest-reviews           # load the LLM reviews into the reviews table
+just ingest-reviews           # load LLM review scores into the reviews table
+just ingest-suggestions       # load LLM suggestions into the suggestions table
 just dev                      # runserver on :3000
 ```
 
@@ -65,11 +66,11 @@ runs `migrate` to apply the schema, then populates it. If the database
 already exists you can run `just build-db` instead — it runs `migrate`
 first too, so missing tables are never a thing to remember.
 
-`ingest-reviews` is a required step after every `build-db` (or full
-rebuild): the build only populates the pipeline tables and leaves
-`reviews` empty, so the Reviews, Suggestions and dataset-review UI all
-show nothing until it's run. It's idempotent (TRUNCATE + reload from
-`downloads/reviews/`), so running it again is always safe.
+`ingest-reviews` and `ingest-suggestions` are required steps after every
+`build-db` (or full rebuild): the build only populates the pipeline tables
+and leaves `reviews` and `suggestions` empty, so the Reviews, Suggestions
+and dataset-review UI all show nothing until they're run. Both are
+idempotent (TRUNCATE + reload), so running them again is always safe.
 
 Embeddings (semantic search over datasets) are optional: run
 `just download-llm` once to fetch the bge-base-en-v1.5 GGUF model into
@@ -83,8 +84,8 @@ speed it up). The index is approximate — `HNSW_EF_SEARCH` (default 400)
 trades recall for latency.
 
 Other commands — `just` lists them all: `download-llm`, `build-series`,
-`build-embeddings` (needs llama-server on :8080), `review-suggest` +
-`ingest-reviews` (LLM reviews), `start` (prod: collectstatic + gunicorn).
+`build-embeddings` (needs llama-server on :8080), `review` + `suggest` +
+`ingest-reviews` + `ingest-suggestions` (LLM data), `start` (prod: collectstatic + gunicorn).
 
 ## Environment variables
 
@@ -97,7 +98,7 @@ See `.env.example` for the full list. The essentials:
 | `SECRET_KEY` | Django secret (required in production) |
 | `DEBUG` | Django debug flag; must be `false` in production |
 | `ALLOWED_HOSTS` | Comma-separated; defaults to `*` |
-| `LLM_*` / `LOCAL_*` | LLM provider config for `review-suggest` |
+| `LLM_*` / `LOCAL_*` | LLM provider config for `review` / `suggest` |
 
 ## Tests
 

@@ -1,16 +1,15 @@
 """GET /suggestions — list of LLM-classified datasets with theme/tag/title
-suggestions, read from the reviews table (populated by
-scripts/ingest_reviews.py from downloads/reviews/). Sorted by confidence so low-confidence
-(ambiguous) datasets surface first. Only the latest classification per
-dataset is shown.
+suggestions, read from the suggestions table (populated by
+scripts/ingest_suggestions.py from downloads/suggestions/). Sorted by
+confidence so low-confidence (ambiguous) datasets surface first. Only the
+latest classification per dataset is shown.
 
 The page list, count and sort all run in SQL (the shared
 suggestions_stmts builder in explorer/queries/reviews.py — the /datasets
-pattern), so only the page's rows are fetched, not the whole reviews
+pattern), so only the page's rows are fetched, not the whole suggestions
 table. Title/org/theme/tags come from the current datasets row via the
-join, not review-time values from the JSON; the suggested theme/tags/title/
-description come from the review row (reviews.title is the *suggested*
-title — the naming gotcha).
+join, not suggestion-time values from the JSON; the suggested theme/tags/
+title/description come from the suggestion row.
 
 Sidebar facet: suggested theme (?theme=<slug>).
 """

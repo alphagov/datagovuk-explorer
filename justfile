@@ -228,14 +228,21 @@ get-datasets *args:
 query-datasets *args:
     uv run python -m scripts.query_datasets {{args}}
 
-# LLM review + suggest (loads .env for LLM/LOCAL_* vars — uv only loads
-# .env via --env-file)
-review-suggest *args:
-    uv run --env-file .env python -m scripts.review_suggest {{args}}
+# LLM review — quality scores (loads .env for LLM/LOCAL_* vars)
+review *args:
+    uv run --env-file .env python -m scripts.review {{args}}
 
-# Load reviews from downloads/reviews/ into the reviews table (run after review-suggest)
+# LLM suggest — theme/tags/title/description (loads .env for LLM/LOCAL_* vars)
+suggest *args:
+    uv run --env-file .env python -m scripts.suggest {{args}}
+
+# Load review scores into the reviews table (run after `just review`)
 ingest-reviews:
     uv run --env-file .env python -m scripts.ingest_reviews
+
+# Load suggestions into the suggestions table (run after `just suggest`)
+ingest-suggestions:
+    uv run --env-file .env python -m scripts.ingest_suggestions
 
 # Load collection pages from data/collections/ into the collections table,
 # with combined views from GA page views, GA Google landing pages, and

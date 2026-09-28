@@ -1,35 +1,36 @@
-"""Unit tests for scripts/ingest_reviews.py (offline — no DB).
+"""Unit tests for scripts/ingest_suggestions.py (offline — no DB).
 
 Covers the deterministic parts:
 - load_records: missing dir, corrupt-file skip, walks org subdirs
-- _subscore: malformed-scores handling for the typed columns
 
-The write path (TRUNCATE + insert into reviews, idempotency, FK against
-datasets) is covered by tests/test_ingest_reviews_db.py against a scratch
-migrated database.
-Run with: uv run pytest tests/test_ingest_reviews.py
+Run with: uv run pytest tests/test_ingest_suggestions.py
 """
 
 import json
 import tempfile
 from pathlib import Path
 
-import scripts.ingest_reviews as ir
+import scripts.ingest_suggestions as isug
 
 
 def rec(dataset_id, n, org_slug="alpha"):
-    """A minimal record — the fields load/dedup care about."""
+    """A minimal record — the fields load cares about."""
     return {
         "dataset_id": dataset_id,
         "title": f"Title {n}",
         "org_slug": org_slug,
         "ok": True,
-        "reviewed_at": f"2026-08-01T00:00:0{n}.000Z",
+        "classified_at": f"2026-08-01T00:00:0{n}.000Z",
+        "suggested_theme": "environment",
+        "suggested_theme_confidence": "medium",
+        "suggested_tags": ["tag-one"],
+        "suggested_title": "",
+        "suggested_description": "",
     }
 
 
 def test_load_records_missing_dir():
-    assert ir.load_records(Path("/nonexistent")) == []
+    assert isug.load_records(Path("/nonexistent")) == []
 
 
 def test_load_records():
@@ -55,22 +56,9 @@ def test_load_records():
             encoding="utf-8",
         )
 
-        records = ir.load_records(base)
+        records = isug.load_records(base)
         assert len(records) == 3
         ids = [r["dataset_id"] for r in records]
         assert "a" in ids
         assert "b" in ids
         assert "c" in ids
-
-
-def test_typed_column_helpers():
-    # _subscore pulls scores.<key>.score; malformed -> None
-    r = {
-        "scores": {
-            "findability": {"score": 4},
-            "resources": {"score": None},
-        },
-    }
-    assert ir._subscore(r, "findability") == 4
-    assert ir._subscore(r, "resources") is None
-    assert ir._subscore({}, "findability") is None

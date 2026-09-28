@@ -40,7 +40,7 @@ from explorer.queries.organisations import (
     organisations_facet_counts,
     organisations_stmts,
 )
-from explorer.queries.reviews import get_review, latest_reviews
+from explorer.queries.reviews import get_classification, get_review, latest_reviews
 from explorer.queries.series import SERIES_COUNT, series_list_stmt
 from explorer.views.core import PAGE_SIZE
 
@@ -62,6 +62,7 @@ def test_fixture_world_loads():
     assert Query("SELECT COUNT(*) AS n FROM links").get()["n"] > 0
     assert Query("SELECT COUNT(*) AS n FROM link_check_results").get()["n"] > 0
     assert latest_reviews(), "fixture reviews should be seeded"
+    assert Query("SELECT COUNT(*) AS n FROM suggestions").get()["n"] > 0
 
 
 def test_no_arg_statements_execute():
@@ -473,3 +474,15 @@ def test_get_review_returns_latest_review():
 
 def test_get_review_missing():
     assert get_review("__no_such_dataset__") is None
+
+
+def test_get_classification():
+    """get_classification reads from the suggestions table."""
+    cls = get_classification("d01")
+    assert cls is not None
+    assert cls["dataset_id"] == "d01"
+    assert cls.get("suggested_theme") is not None
+
+
+def test_get_classification_missing():
+    assert get_classification("__no_such_dataset__") is None

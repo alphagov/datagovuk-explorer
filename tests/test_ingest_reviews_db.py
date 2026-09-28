@@ -28,11 +28,6 @@ def test_ingest_round_trip(migrated_db_url):
             rec(
                 "ir-1",
                 scores={"title-description": {"score": 2}},
-                suggested_tags=["env", "climate"],
-                suggested_title="T",
-                suggested_description="D",
-                suggested_theme="environment",
-                suggested_theme_confidence="high",
                 reviewed_at="2026-08-01T00:00:00Z",
             ),
             rec("ir-absent"),  # not in datasets -> dropped by the FK guard
@@ -41,8 +36,7 @@ def test_ingest_round_trip(migrated_db_url):
         assert ingest(d, records) == 1
 
         assert d.prepare(
-            "SELECT dataset_id, ok, findability, resources,"
-            ' tags, title, "desc", theme, theme_confidence, created_at'
+            "SELECT dataset_id, ok, findability, resources, created_at"
             " FROM reviews",
         ).all() == [
             {
@@ -50,15 +44,9 @@ def test_ingest_round_trip(migrated_db_url):
                 "ok": True,
                 "findability": 2,
                 "resources": None,
-                "tags": json.dumps(["env", "climate"], ensure_ascii=False),
-                "title": "T",
-                "desc": "D",
-                "theme": "environment",
-                "theme_confidence": "high",
                 "created_at": "2026-08-01T00:00:00Z",
             },
         ]
-        # The raw JSONL record is kept verbatim in `json` for the views.
         stored = d.prepare("SELECT json FROM reviews").get()
         assert json.loads(stored["json"])["dataset_id"] == "ir-1"
     finally:
