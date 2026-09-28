@@ -1,4 +1,4 @@
-"""Unit tests for scripts/llm_common.py (offline — no live LLM, no DB).
+"""Unit tests for scripts/llm/common.py (offline — no live LLM, no DB).
 
 Covers the deterministic shared parts:
 - constants: EXTRAS_WHITELIST
@@ -26,7 +26,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://localhost:5432/test-db")
 import httpx
 import pytest
 
-import scripts.llm_common as lc
+import scripts.llm.common as lc
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +346,7 @@ def test_send_request_local():
 def test_send_request_errors():
     handler = chat_handler([httpx.Response(429, text="rate limited " + "x" * 300)])
     with make_client(handler) as client:
-        with pytest.raises(lc.ReviewError, match="HTTP 429: ") as exc:
+        with pytest.raises(lc.LLMError, match="HTTP 429: ") as exc:
             lc.send_request(client, "http://llm", "", "m", {"title": "T"}, _dummy_build_prompt)
         assert exc.value.status == 429
         assert str(exc.value).startswith("HTTP 429: ")
@@ -356,7 +356,7 @@ def test_send_request_errors():
         [httpx.Response(200, json={"choices": [{"message": {"content": ""}}]})],
     )
     with make_client(handler) as client:
-        with pytest.raises(lc.ReviewError) as exc:
+        with pytest.raises(lc.LLMError) as exc:
             lc.send_request(client, "http://llm", "", "m", {"title": "T"}, _dummy_build_prompt)
         assert str(exc.value) == "empty reply content (max_tokens may be too low)"
 

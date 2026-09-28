@@ -1,4 +1,4 @@
-"""Unit tests for scripts/suggest.py (offline — no live LLM, no DB).
+"""Unit tests for scripts/llm/suggest.py (offline — no live LLM, no DB).
 
 Covers:
 - THEMES vocabulary
@@ -9,7 +9,7 @@ Covers:
 - CLI error paths: --limit 0, missing env, remote --concurrency 0, local
   health-check down
 
-Run with: uv run pytest tests/test_suggest.py
+Run with: uv run pytest tests/test_llm_suggest.py
 """
 
 import io
@@ -24,26 +24,9 @@ os.environ.setdefault("DATABASE_URL", "postgresql://localhost:5432/test-db")
 import httpx
 from typer.testing import CliRunner
 
-import scripts.llm_common as lc
-import scripts.suggest as sg
-
-
-# ---------------------------------------------------------------------------
-# Test data helpers
-# ---------------------------------------------------------------------------
-def fake_row(
-    pkg,
-    id_="11111111-1111-1111-1111-111111111111",
-    org="test-org",
-    title="Test Dataset",
-):
-    return {
-        "id": id_,
-        "title": title,
-        "org_slug": org,
-        "org_display_name": "Test Org",
-        "json": pkg,
-    }
+import scripts.llm.common as lc
+import scripts.llm.suggest as sg
+from tests.llm_helpers import PatchedSleep, chat_handler, fake_row, make_client, read_record
 
 
 def suggest_reply(**overrides) -> httpx.Response:
@@ -59,48 +42,6 @@ def suggest_reply(**overrides) -> httpx.Response:
         200,
         json={"choices": [{"message": {"content": json.dumps(suggestion)}}]},
     )
-
-
-def chat_handler(responses):
-    calls = []
-    state = {"n": 0}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request)
-        i = state["n"]
-        state["n"] += 1
-        fn = responses[i] if i < len(responses) else responses[-1]
-        return fn(request) if callable(fn) else fn
-
-    handler.calls = calls
-    return handler
-
-
-def make_client(handler) -> httpx.Client:
-    return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
-
-
-class PatchedSleep:
-    def __init__(self):
-        self.delays = []
-
-    def __enter__(self):
-        self._orig = lc.sleep
-
-        def fake_sleep(ms):
-            self.delays.append(ms)
-
-        lc.sleep = fake_sleep
-        return self
-
-    def __exit__(self, *exc):
-        lc.sleep = self._orig
-
-
-def _read_record(out_dir: Path) -> dict:
-    files = list(out_dir.rglob("*.json"))
-    assert len(files) == 1, f"expected 1 file, got {len(files)}: {files}"
-    return json.loads(files[0].read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +95,7 @@ def test_process_one_ok_record():
                 show_progress=False,
                 summary=summary,
             )
-        rec = _read_record(out)
+        rec = read_record(out)
         assert list(rec) == [
             "dataset_id",
             "title",
@@ -205,7 +146,7 @@ def test_process_one_failed_and_validation():
                     show_progress=False,
                     summary=summary,
                 )
-            rec = _read_record(out)
+            rec = read_record(out)
         assert rec["ok"] is False
         assert rec["error"] == err
         assert summary == {"ok": 0, "failed": 1}
@@ -234,7 +175,7 @@ def test_process_one_429_backoff():
                 show_progress=False,
                 summary=summary,
             )
-        rec = _read_record(out)
+        rec = read_record(out)
     assert rec["ok"] is True
     assert len(handler.calls) == 3
     assert ps.delays == [2000, 4000]
@@ -253,7 +194,7 @@ def test_process_one_429_backoff():
                 show_progress=False,
                 summary=summary2,
             )
-        rec = _read_record(out)
+        rec = read_record(out)
     assert rec["ok"] is False
     assert rec["error"].startswith("HTTP 429:")
 

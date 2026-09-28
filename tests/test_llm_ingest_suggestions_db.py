@@ -1,4 +1,4 @@
-"""Scratch-DB tests for the write path in ``scripts/ingest_suggestions.py``.
+"""Scratch-DB tests for the write path in ``scripts/llm/ingest_suggestions.py``.
 
 Runs the real ``ingest()`` (TRUNCATE + INSERT) against a throwaway migrated
 database, so a column rename, an arity slip, or a field-mapping bug fails
@@ -9,7 +9,7 @@ dev DB — see ``tests/conftest.py``.
 import json
 
 from scripts import db
-from scripts.ingest_suggestions import ingest
+from scripts.llm.ingest_suggestions import ingest
 
 
 def rec(dataset_id, **over):

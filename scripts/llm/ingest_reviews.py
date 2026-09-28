@@ -2,7 +2,7 @@
 """Load per-dataset review JSON files into the `reviews` table.
 
 The pipeline writes one JSON file per dataset under
-  downloads/reviews/<org>/   (quality scores from scripts/review.py)
+  downloads/reviews/<org>/   (quality scores from scripts/llm/review.py)
 
 This script (re)populates the DB table the web app reads for /reviews.
 
@@ -10,8 +10,8 @@ Idempotent: TRUNCATEs `reviews` then reloads — run it after any
 review run to refresh the site. Failed (ok:false) records are kept
 with their flag; the views filter ok = true at query time.
 
-Usage: python -m scripts.ingest_reviews [--reviews-dir downloads/reviews]
-       DATABASE_URL=postgresql://localhost:5432/other python -m scripts.ingest_reviews
+Usage: python -m scripts.llm.ingest_reviews [--reviews-dir downloads/reviews]
+       DATABASE_URL=postgresql://localhost:5432/other python -m scripts.llm.ingest_reviews
 """
 
 import json

@@ -21,8 +21,9 @@ from explorer.queries.datasets import (
 from explorer.queries.embeddings import EMBEDDING_LITERAL, SEMANTIC_RELATED
 from explorer.queries.harvesters import HARVEST_SOURCE
 from explorer.queries.organisations import ORG
-from explorer.queries.reviews import get_classification, get_review
+from explorer.queries.reviews import get_review
 from explorer.queries.series import DATASET_SERIES, SERIES_DATASETS_EXCEPT
+from explorer.queries.suggestions import get_classification
 from explorer.sort import RESOURCE_SORT_COLUMNS, parse_sort, sort_resources
 
 # Common English stopwords, plus CKAN boilerplate terms that pollute the

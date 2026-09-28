@@ -14,11 +14,11 @@ Remote mode reads the API key from the LLM env var; local mode targets a
 llama.cpp server using LOCAL_MODEL and LOCAL_BASE_URL from .env.
 
 Usage:
-  python scripts/suggest.py                       # 20 random datasets
-  python scripts/suggest.py --limit 50
-  python scripts/suggest.py --org environment-agency
-  python scripts/suggest.py --dataset <id> --dataset <id2>
-  python scripts/suggest.py --dataset <id> --include-reviewed
+  python -m scripts.llm.suggest                       # 20 random datasets
+  python -m scripts.llm.suggest --limit 50
+  python -m scripts.llm.suggest --org environment-agency
+  python -m scripts.llm.suggest --dataset <id> --dataset <id2>
+  python -m scripts.llm.suggest --dataset <id> --include-reviewed
 
 Env vars:
   LLM            API key for remote LLM
@@ -41,9 +41,9 @@ from typing import Annotated
 import httpx
 import typer
 
-from scripts.llm_common import (
+from scripts.llm.common import (
     LLMConfig,
-    ReviewError,
+    LLMError,
     build_digest,
     cli_resolve_config,
     fetch_record,
@@ -371,11 +371,11 @@ def build_prompt(digest: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 def _validate(parsed: dict) -> None:
     if parsed.get("suggested_theme") and parsed["suggested_theme"] not in THEMES:
-        raise ReviewError(
+        raise LLMError(
             f'invalid theme "{parsed["suggested_theme"]}" — not in vocabulary',
         )
     if not isinstance(parsed.get("suggested_tags"), list):
-        raise ReviewError("suggested_tags must be an array")
+        raise LLMError("suggested_tags must be an array")
 
 
 def process_one(

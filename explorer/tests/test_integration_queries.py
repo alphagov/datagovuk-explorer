@@ -40,8 +40,9 @@ from explorer.queries.organisations import (
     organisations_facet_counts,
     organisations_stmts,
 )
-from explorer.queries.reviews import get_classification, get_review, latest_reviews
+from explorer.queries.reviews import get_review, latest_reviews
 from explorer.queries.series import SERIES_COUNT, series_list_stmt
+from explorer.queries.suggestions import get_classification
 from explorer.views.core import PAGE_SIZE
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]

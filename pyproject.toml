@@ -164,9 +164,9 @@ lint.per-file-ignores."scripts/check_links.py" = [
   "PLR2004"
 ]
 lint.per-file-ignores."scripts/get_datasets.py" = [ "PLR0913" ]
-lint.per-file-ignores."scripts/llm_common.py" = [ "PLR0913", "PLR0917" ]
-lint.per-file-ignores."scripts/review.py" = [ "B008", "PLR0913" ]
-lint.per-file-ignores."scripts/suggest.py" = [ "B008", "PLR0913" ]
+lint.per-file-ignores."scripts/llm/common.py" = [ "PLR0913", "PLR0917" ]
+lint.per-file-ignores."scripts/llm/review.py" = [ "B008", "PLR0913" ]
+lint.per-file-ignores."scripts/llm/suggest.py" = [ "B008", "PLR0913" ]
 lint.per-file-ignores."tests/*.py" = [ "PLR2004", "SLF001" ]
 # Fullwidth-digit strings are deliberate fixtures: they prove the date/year
 # regexes use re.ASCII so \d does NOT match U+FF10..U+FF19.

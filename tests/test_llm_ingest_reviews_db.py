@@ -1,6 +1,6 @@
-"""Scratch-DB tests for the write path in ``scripts/ingest_reviews.py``.
+"""Scratch-DB tests for the write path in ``scripts/llm/ingest_reviews.py``.
 
-``test_ingest_reviews.py`` covers parsing/dedup with no database. This file
+``test_llm_ingest_reviews.py`` covers parsing/dedup with no database. This file
 runs the real ``ingest()`` (TRUNCATE + INSERT) against a throwaway migrated
 database, so a column rename, an arity slip, or a field-mapping bug fails
 here instead of at the next ``just ingest-reviews``. Never touches the dev
@@ -10,7 +10,7 @@ DB — see ``tests/conftest.py``.
 import json
 
 from scripts import db
-from scripts.ingest_reviews import ingest
+from scripts.llm.ingest_reviews import ingest
 
 
 def rec(dataset_id, **over):

@@ -1,11 +1,11 @@
 """GET /suggestions — list of LLM-classified datasets with theme/tag/title
 suggestions, read from the suggestions table (populated by
-scripts/ingest_suggestions.py from downloads/suggestions/). Sorted by
+scripts/llm/ingest_suggestions.py from downloads/suggestions/). Sorted by
 confidence so low-confidence (ambiguous) datasets surface first. Only the
 latest classification per dataset is shown.
 
 The page list, count and sort all run in SQL (the shared
-suggestions_stmts builder in explorer/queries/reviews.py — the /datasets
+suggestions_stmts builder in explorer/queries/suggestions.py — the /datasets
 pattern), so only the page's rows are fetched, not the whole suggestions
 table. Title/org/theme/tags come from the current datasets row via the
 join, not suggestion-time values from the JSON; the suggested theme/tags/
@@ -20,7 +20,7 @@ from django.shortcuts import render
 
 from explorer import facets
 from explorer.helpers import theme_label
-from explorer.queries.reviews import (
+from explorer.queries.suggestions import (
     SUGGESTIONS_SORT,
     SUGGESTIONS_SORT_DEFAULT,
     suggestions_facet_counts,

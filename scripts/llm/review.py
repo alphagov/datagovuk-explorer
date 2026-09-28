@@ -11,11 +11,11 @@ Remote mode reads the API key from the LLM env var; local mode targets a
 llama.cpp server using LOCAL_MODEL and LOCAL_BASE_URL from .env.
 
 Usage:
-  python scripts/review.py                       # 20 random datasets
-  python scripts/review.py --limit 50
-  python scripts/review.py --org environment-agency
-  python scripts/review.py --dataset <id> --dataset <id2>
-  python scripts/review.py --dataset <id> --include-reviewed
+  python -m scripts.llm.review                       # 20 random datasets
+  python -m scripts.llm.review --limit 50
+  python -m scripts.llm.review --org environment-agency
+  python -m scripts.llm.review --dataset <id> --dataset <id2>
+  python -m scripts.llm.review --dataset <id> --include-reviewed
 
 Env vars:
   LLM            API key for remote LLM
@@ -38,9 +38,9 @@ from typing import Annotated
 import httpx
 import typer
 
-from scripts.llm_common import (
+from scripts.llm.common import (
     LLMConfig,
-    ReviewError,
+    LLMError,
     build_digest,
     cli_resolve_config,
     fetch_record,
@@ -142,7 +142,7 @@ def build_prompt(digest: dict) -> list[dict]:
 def _validate(parsed: dict) -> None:
     scores = parsed.get("scores")
     if not isinstance(scores, dict):
-        raise ReviewError("scores must be an object")
+        raise LLMError("scores must be an object")
 
 
 def process_one(

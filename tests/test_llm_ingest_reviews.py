@@ -1,20 +1,21 @@
-"""Unit tests for scripts/ingest_reviews.py (offline — no DB).
+"""Unit tests for scripts/llm/ingest_reviews.py (offline — no DB).
 
 Covers the deterministic parts:
 - load_records: missing dir, corrupt-file skip, walks org subdirs
 - _subscore: malformed-scores handling for the typed columns
 
 The write path (TRUNCATE + insert into reviews, idempotency, FK against
-datasets) is covered by tests/test_ingest_reviews_db.py against a scratch
+datasets) is covered by tests/test_llm_ingest_reviews_db.py against a scratch
 migrated database.
-Run with: uv run pytest tests/test_ingest_reviews.py
+Run with: uv run pytest tests/test_llm_ingest_reviews.py
+
 """
 
 import json
 import tempfile
 from pathlib import Path
 
-import scripts.ingest_reviews as ir
+import scripts.llm.ingest_reviews as ir
 
 
 def rec(dataset_id, n, org_slug="alpha"):

@@ -1,5 +1,5 @@
 """GET /reviews — list of LLM-reviewed datasets, read from the reviews
-    table (populated by scripts/ingest_reviews.py). Sorted
+    table (populated by scripts/llm/ingest_reviews.py). Sorted
     worst-first by default so quality problems surface first; every column
     is sortable via ?sort=&dir=, and the sidebar facets filter by each
     score group (?findability=, ?resources=).

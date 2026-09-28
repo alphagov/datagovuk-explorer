@@ -1,16 +1,16 @@
-"""Unit tests for scripts/ingest_suggestions.py (offline — no DB).
+"""Unit tests for scripts/llm/ingest_suggestions.py (offline — no DB).
 
 Covers the deterministic parts:
 - load_records: missing dir, corrupt-file skip, walks org subdirs
 
-Run with: uv run pytest tests/test_ingest_suggestions.py
+Run with: uv run pytest tests/test_llm_ingest_suggestions.py
 """
 
 import json
 import tempfile
 from pathlib import Path
 
-import scripts.ingest_suggestions as isug
+import scripts.llm.ingest_suggestions as isug
 
 
 def rec(dataset_id, n, org_slug="alpha"):

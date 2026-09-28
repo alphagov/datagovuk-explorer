@@ -34,7 +34,7 @@ TEMPERATURE = 0.2
 MAX_DIGEST_RESOURCES = 8
 
 
-class ReviewError(RuntimeError):
+class LLMError(RuntimeError):
     """LLM/HTTP error carrying an optional HTTP status (for the 429 retry).
 
     status is set only for HTTP errors; the retry loop checks status ==
@@ -157,10 +157,10 @@ def check_server(client: httpx.Client, base_url: str) -> None:
 
     res = client.get(f"{base_url}/health", timeout=10)
     if not res.is_success:
-        raise ReviewError(f"health check failed with HTTP {res.status_code}")
+        raise LLMError(f"health check failed with HTTP {res.status_code}")
     body = res.json()
     if body.get("status") != "ok":
-        raise ReviewError(f'server reports status "{body.get("status")}"')
+        raise LLMError(f'server reports status "{body.get("status")}"')
 
 
 def _is_anthropic(base_url: str, model: str = "") -> bool:
@@ -213,7 +213,7 @@ def _send_openai_compat(
         content=json.dumps(body, ensure_ascii=False, separators=(",", ":")),
     )
     if not res.is_success:
-        raise ReviewError(
+        raise LLMError(
             f"HTTP {res.status_code}: {truncate(res.text, 200)}",
             status=res.status_code,
         )
@@ -224,7 +224,7 @@ def _send_openai_compat(
         message = None
     content = (message or {}).get("content")
     if not isinstance(content, str) or not content.strip():
-        raise ReviewError("empty reply content (max_tokens may be too low)")
+        raise LLMError("empty reply content (max_tokens may be too low)")
     return content.strip()
 
 
@@ -258,7 +258,7 @@ def _send_anthropic(
         content=json.dumps(body, ensure_ascii=False, separators=(",", ":")),
     )
     if not res.is_success:
-        raise ReviewError(
+        raise LLMError(
             f"HTTP {res.status_code}: {truncate(res.text, 200)}",
             status=res.status_code,
         )
@@ -268,7 +268,7 @@ def _send_anthropic(
     except (KeyError, IndexError, StopIteration, TypeError):
         content = None
     if not isinstance(content, str) or not content.strip():
-        raise ReviewError("empty reply content (max_tokens may be too low)")
+        raise LLMError("empty reply content (max_tokens may be too low)")
     return content.strip()
 
 
@@ -374,7 +374,7 @@ def fetch_record(
     is ok:true with the parsed model output, or ok:false with the last
     error message.
 
-    validate(parsed) should raise ReviewError if the parsed response is invalid.
+    validate(parsed) should raise LLMError if the parsed response is invalid.
     """
     record: dict = {**base, "ok": False, "error": "unknown"}
     for attempt in range(RETRIES + 1):
@@ -384,7 +384,7 @@ def fetch_record(
             validate(parsed)
             record = {**base, "ok": True, **parsed}
             break
-        except (httpx.HTTPError, ReviewError, ValueError) as err:
+        except (httpx.HTTPError, LLMError, ValueError) as err:
             record["error"] = str(err)
             if getattr(err, "status", None) == HTTPStatus.TOO_MANY_REQUESTS and attempt < RETRIES:
                 sleep(2000 * (attempt + 1))
@@ -473,7 +473,7 @@ def run(
         if not is_remote:
             try:
                 check_server(client, base_url)
-            except (httpx.HTTPError, ReviewError, ValueError) as err:
+            except (httpx.HTTPError, LLMError, ValueError) as err:
                 print(
                     f"Cannot reach the model server at {base_url}: {err}",
                     file=sys.stderr,

@@ -2,7 +2,7 @@
 """Load per-dataset suggestion JSON files into the `suggestions` table.
 
 The pipeline writes one JSON file per dataset under
-  downloads/suggestions/<org>/   (theme/tags/title/desc from scripts/suggest.py)
+  downloads/suggestions/<org>/   (theme/tags/title/desc from scripts/llm/suggest.py)
 
 This script (re)populates the DB table the web app reads for /suggestions.
 
@@ -10,8 +10,8 @@ Idempotent: TRUNCATEs `suggestions` then reloads — run it after any
 suggest run to refresh the site. Failed (ok:false) records are kept
 with their flag; the views filter ok = true at query time.
 
-Usage: python -m scripts.ingest_suggestions [--suggestions-dir downloads/suggestions]
-       DATABASE_URL=postgresql://localhost:5432/other python -m scripts.ingest_suggestions
+Usage: python -m scripts.llm.ingest_suggestions [--suggestions-dir downloads/suggestions]
+       DATABASE_URL=postgresql://localhost:5432/other python -m scripts.llm.ingest_suggestions
 """
 
 import json
