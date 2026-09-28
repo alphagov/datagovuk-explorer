@@ -301,9 +301,12 @@ def test_build_prompt():
     content = messages[1]["content"]
     digest_json = json.dumps(digest, indent=1, ensure_ascii=False)
     assert digest_json in content
-    # both occurrences of the theme list resolved (rubric + schema)
-    theme_list = ", ".join(f'"{t}"' for t in rs.THEMES)
-    assert content.count(f"[{theme_list}]") == 2
+    # theme keys resolved in the schema
+    theme_keys = ", ".join(f'"{t}"' for t in rs.THEMES)
+    assert f"[{theme_keys}]" in content
+    # theme descriptions resolved in the rubric
+    for theme, desc in rs.THEMES.items():
+        assert f'"{theme}" — {desc}' in content
 
 
 # ---------------------------------------------------------------------------
