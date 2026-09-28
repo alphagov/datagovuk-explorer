@@ -30,7 +30,7 @@ from .core import paginate, pill
 # Score dimensions in sidebar order — the facet-group labels for the
 # pools computed in SQL (queries/reviews.py owns the keys/clauses).
 SCORE_GROUPS = [
-    {"key": "findability", "label": "Findability"},
+    {"key": "findability", "label": "Description"},
     {"key": "resources", "label": "Links"},
 ]
 

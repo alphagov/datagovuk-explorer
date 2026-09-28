@@ -467,7 +467,7 @@ def test_get_review_returns_latest_review():
     rev = get_review("d01")
     assert rev is not None
     assert rev["dataset_id"] == "d01"
-    assert rev["scores"]["findability"]["score"] == 5
+    assert rev["scores"]["title-description"]["score"] == 5
     assert rev == next(r for r in latest_reviews() if r["dataset_id"] == "d01")
 
 

@@ -5,7 +5,7 @@ Reads datasets from the quality index, sends a curated digest to the
 model, and writes one JSON file per dataset to downloads/reviews/<org>/.
 Each record has:
 
-  scores   — findability, resources (0-5 + explanation)
+  scores   — findability, resources (0-5 + issues)
   theme    — suggested primary theme from the 14-theme vocabulary
   tags     — 3-8 suggested subject-matter tags
   title    — suggested title (or empty if current is good)
@@ -395,8 +395,8 @@ SYSTEM_CONTENT = """You are a data-quality reviewer and metadata specialist for 
         the UK open data portal. You evaluate dataset metadata against open-data
         best practice and suggest improvements.
 
-        Be specific and evidence-based — every score must be justified by the
-        explanation, referencing the metadata provided. Be critical but fair: a
+        Be specific and evidence-based — every score must reference the
+        metadata provided. Be critical but fair: a
         small public-sector dataset published as a monthly CSV can be high quality.
         Flag unexplained jargon or technical language that a non-specialist could
         not understand.
@@ -415,23 +415,33 @@ RUBRIC = """## Part 1 — Quality review
 
 Every dimension starts at score 5. Deduct points only for specific, named
 problems — every deduction must cite the concrete issue that caused it.
+If there are no issues, set issues to an empty string.
 
-**findability**
+**title-description**
 
-A clear, plain title that says what the data is; a useful description;
-relevant tags; a theme. The TITLE is the single most important signal —
-a vague, jargon-heavy or misleading title caps findability at 2/5.
+Review the title and description only.
+The title and description should be clear and relevant.
+The title is the most important signal. It should not be too
+long or short, and a vague, jargon-heavy or misleading title caps
+title-description at 2/5.
 
 **resources**
 
-Downloadable data files in sensible formats (CSV/GeoJSON/XLSX etc.).
+Data files in sensible formats (CSV/GeoJSON/XLSX etc.).
 HTML alone can be ok in context (eg it represents API documentation).
 They should have clear names.
 Do not penalise National Archives links.
+You cannot access URLs so never comment on whether they work or download.
+
+**theme-tags**
+
+Are the existing theme and tags relevant and descriptive?
+(This dimension is a decoy — its scores are unused, but without it the model
+leaks theme/tag commentary into the title-description score.)
 
 ## Part 2 — Suggestions
 
-**theme**
+**suggested_theme**
 
 Pick the single best primary theme from:
 ${themeList}
@@ -444,7 +454,7 @@ make up a theme outside the list.
 "high" | "medium" | "low" — how confident you are in the theme
 assignment.
 
-**tags**
+**suggested_tags**
 
 3-6 relevant tags
 - Describe what the dataset is actually about.
@@ -484,12 +494,13 @@ Respond with ONE JSON object, no markdown fences, no commentary. Schema:
 
 {
   "scores": {
-    "findability": { "score": <int 0-5>, "explanation": "<1-2 sentence reason>" },
-    "resources":   { "score": <int 0-5>, "explanation": "<1-2 sentence reason>" }
+    "title-description": { "score": <int 0-5>, "issues": "<concrete issues, or empty string if none>" },
+    "resources":   { "score": <int 0-5>, "issues": "<concrete issues, or empty string if none>" },
+    "theme-tags":  { "score": <int 0-5>, "issues": "<concrete issues, or empty string if none>" }
   },
-  "theme": "<exactly one of [${themeKeys}]>",
-  "theme_confidence": "<high | medium | low>",
-  "tags": ["<tag1>", "<tag2>", "..."],
+  "suggested_theme": "<exactly one of [${themeKeys}]>",
+  "suggested_theme_confidence": "<high | medium | low>",
+  "suggested_tags": ["<tag1>", "<tag2>", "..."],
   "suggested_title": "<improved title or empty string>",
   "suggested_description": "<improved description or empty string>"
 }"""
@@ -752,12 +763,12 @@ def _fetch_record(config: ReviewConfig, base: dict, digest: dict) -> dict:
             parsed = extract_json(content)
 
             # Validate theme / tags before accepting the record.
-            if parsed.get("theme") and parsed["theme"] not in THEMES:
+            if parsed.get("suggested_theme") and parsed["suggested_theme"] not in THEMES:
                 raise ReviewError(  # noqa: TRY301 — validation errors are caught by the same try to record failed records
-                    f'invalid theme "{parsed["theme"]}" — not in vocabulary',
+                    f'invalid theme "{parsed["suggested_theme"]}" — not in vocabulary',
                 )
-            if not isinstance(parsed.get("tags"), list):
-                raise ReviewError("tags must be an array")  # noqa: TRY301 — validation, caught by the same try
+            if not isinstance(parsed.get("suggested_tags"), list):
+                raise ReviewError("suggested_tags must be an array")  # noqa: TRY301 — validation, caught by the same try
 
             record = {**base, "ok": True, **parsed}
             break
@@ -778,27 +789,12 @@ def _record_summary(record: dict, summary: dict, summary_lock: threading.Lock | 
             summary["failed"] += 1
 
 
-def _worst_dimension(record: dict) -> str:
-    """The lowest-scoring dimension's explanation as a ' | …' suffix ('' when
-    the lowest dimension has no explanation)."""
-    lowest = None
-    for s in (record.get("scores") or {}).values():
-        if not isinstance(s, dict):
-            continue
-        sc = s.get("score")
-        key = 5 if sc is None else sc
-        if lowest is None or key < lowest[0]:
-            lowest = (key, s)
-    return f" | {lowest[1]['explanation']}" if lowest and lowest[1].get("explanation") else ""
-
-
 def _print_progress(record: dict, row, i: int, total: int) -> None:
     """Per-dataset progress line (show_progress only)."""
     if record["ok"]:
-        print(
-            f"[{i + 1}/{total}] theme {record.get('theme')} ({record.get('theme_confidence') or '?'})"
-            f" | {row['org_slug']}/{row['title']}{_worst_dimension(record)}",
-        )
+        theme = record.get("suggested_theme")
+        conf = record.get("suggested_theme_confidence") or "?"
+        print(f"[{i + 1}/{total}] theme {theme} ({conf}) | {row['org_slug']}/{row['title']}")
     else:
         print(
             f"[{i + 1}/{total}] FAILED: {record['error']} | {row['org_slug']}/{row['title']}",

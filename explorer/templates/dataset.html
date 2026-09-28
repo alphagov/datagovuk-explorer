@@ -107,12 +107,13 @@
           <summary>LLM review</summary>
           <ul class="review-criteria">
             <li>
-              <span class="score-badge score-{{ review.scores.findability.score }}">Findability {{ review.scores.findability.score if review.scores.findability else "—" }}/5</span>
-              <span class="review-explanation">{{ review.scores.findability.explanation }}</span>
+              {% set td = review.scores["title-description"] %}
+              <span class="score-badge score-{{ td.score }}">Description {{ td.score if td else "—" }}/5</span>
+              <span class="review-explanation">{{ td.issues }}</span>
             </li>
             <li>
               <span class="score-badge score-{{ review.scores.resources.score }}">Links {{ review.scores.resources.score if review.scores.resources else "—" }}/5</span>
-              <span class="review-explanation">{{ review.scores.resources.explanation }}</span>
+              <span class="review-explanation">{{ review.scores.resources.issues }}</span>
             </li>
           </ul>
         </details>

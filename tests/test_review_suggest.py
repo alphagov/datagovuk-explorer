@@ -69,12 +69,12 @@ def review_reply(**overrides) -> httpx.Response:
     """A valid model reply (schema-order keys)."""
     review = {
         "scores": {
-            "findability": {"score": 4, "explanation": "Clear title and description."},
-            "resources": {"score": 2, "explanation": "Few formats."},
+            "findability": {"score": 4, "issues": ""},
+            "resources": {"score": 2, "issues": "Few formats."},
         },
-        "theme": "environment",
-        "theme_confidence": "medium",
-        "tags": ["geology", "boreholes"],
+        "suggested_theme": "environment",
+        "suggested_theme_confidence": "medium",
+        "suggested_tags": ["geology", "boreholes"],
         "suggested_title": "",
         "suggested_description": "",
     }
@@ -405,13 +405,13 @@ def test_send_request_remote():
             "scores": {
                 "findability": {
                     "score": 4,
-                    "explanation": "Clear title and description.",
+                    "issues": "",
                 },
-                "resources": {"score": 2, "explanation": "Few formats."},
+                "resources": {"score": 2, "issues": "Few formats."},
             },
-            "theme": "environment",
-            "theme_confidence": "medium",
-            "tags": ["geology", "boreholes"],
+            "suggested_theme": "environment",
+            "suggested_theme_confidence": "medium",
+            "suggested_tags": ["geology", "boreholes"],
             "suggested_title": "",
             "suggested_description": "",
         },
@@ -519,9 +519,9 @@ def test_process_one_ok_record():
             "classified_at",
             "ok",
             "scores",
-            "theme",
-            "theme_confidence",
-            "tags",
+            "suggested_theme",
+            "suggested_theme_confidence",
+            "suggested_tags",
             "suggested_title",
             "suggested_description",
             "input",
@@ -540,10 +540,10 @@ def test_process_one_ok_record():
 def test_process_one_failed_and_validation():
     cases = [
         (
-            review_reply(theme="not-a-theme"),
+            review_reply(suggested_theme="not-a-theme"),
             'invalid theme "not-a-theme" — not in vocabulary',
         ),
-        (review_reply(tags="nope"), "tags must be an array"),
+        (review_reply(suggested_tags="nope"), "suggested_tags must be an array"),
         (httpx.Response(500, text="boom"), "HTTP 500: boom"),
     ]
     for reply, err in cases:
@@ -637,12 +637,7 @@ def test_process_one_progress():
                 summary=summary,
             )
     line = buf.getvalue().strip()
-    assert line.startswith(
-        "[1/1] theme environment (medium) | test-org/Nice Title | ",
-    )
-    # lowest score is resources (2) -> its explanation is the suffix
-    assert "Few formats." in line
-    assert "Clear title and description." not in line
+    assert line == "[1/1] theme environment (medium) | test-org/Nice Title"
 
 
 # ---------------------------------------------------------------------------

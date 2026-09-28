@@ -201,10 +201,10 @@ def test_facet_links_omit_default_sort(client, url):
 
 
 def test_dataset_detail_renders_review(client):
-    """The dataset detail page renders the latest ok review's findability score
+    """The dataset detail page renders the latest ok review's title-description score
     (the fixture holds two for d01; the later one wins)."""
     html = client.get("/dataset/alpha/d01").content.decode()
-    assert "Findability 5/5" in html
+    assert "Description 5/5" in html
     assert "LLM review" in html
 
 

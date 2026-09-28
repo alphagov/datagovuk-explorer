@@ -27,12 +27,12 @@ def test_ingest_round_trip(migrated_db_url):
         records = [
             rec(
                 "ir-1",
-                scores={"findability": {"score": 2}},
-                tags=["env", "climate"],
+                scores={"title-description": {"score": 2}},
+                suggested_tags=["env", "climate"],
                 suggested_title="T",
                 suggested_description="D",
-                theme="environment",
-                theme_confidence="high",
+                suggested_theme="environment",
+                suggested_theme_confidence="high",
                 reviewed_at="2026-08-01T00:00:00Z",
             ),
             rec("ir-absent"),  # not in datasets -> dropped by the FK guard

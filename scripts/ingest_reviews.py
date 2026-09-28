@@ -75,13 +75,13 @@ def ingest(db, records: list[dict]) -> int:
             stmt.run(
                 r["dataset_id"],
                 bool(r.get("ok")),
-                _subscore(r, "findability"),
+                _subscore(r, "title-description"),
                 _subscore(r, "resources"),
-                r.get("theme"),
-                json.dumps(r["tags"], ensure_ascii=False) if r.get("tags") else None,
+                r.get("suggested_theme"),
+                json.dumps(r["suggested_tags"], ensure_ascii=False) if r.get("suggested_tags") else None,
                 r.get("suggested_title"),
                 r.get("suggested_description"),
-                r.get("theme_confidence"),
+                r.get("suggested_theme_confidence"),
                 r.get("reviewed_at"),
                 json.dumps(r, ensure_ascii=False),
             )
