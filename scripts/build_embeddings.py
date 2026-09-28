@@ -47,7 +47,7 @@ DATABASE_URL = database_url()
 
 _WS_RE = re.compile(r"\s+")
 
-# The embedding tables are migration-owned (0001 + 0002's vector column);
+# The embedding tables are migration-owned (0001);
 # this script truncates + repopulates, never creates.
 TRUNCATE_SQL = "TRUNCATE TABLE embedding_map, dataset_embeddings CASCADE"
 

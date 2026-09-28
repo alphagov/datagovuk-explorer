@@ -15,6 +15,7 @@ dependencies = [
   "jinja2>=3.1",
   "markdown>=3.7",
   "playwright>=1.49",
+  "pgvector>=0.4",
   "psycopg[binary]>=3.3.4",
   "python-dotenv>=1.2.2",
   "truststore>=0.10.4",

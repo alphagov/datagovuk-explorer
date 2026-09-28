@@ -14,7 +14,7 @@ Usage: python scripts/build_db.py
 
 Phases: wipe, organisations, datasets (batched, parallel file reads),
 full-text search, views, metadata, dataset_api, dataset_content_hash.
-Indexes are migration-owned (0003) — the build populates, never creates.
+Indexes are migration-owned (0001) — the build populates, never creates.
 
 Embeddings are a separate step: run scripts/build_embeddings.py after building.
 """
@@ -1197,12 +1197,12 @@ def build() -> None:
             if st.count % 10000 == 0 or st.count == len(all_files):
                 print(f"  {st.count} datasets...", file=sys.stderr)
 
-        # Indexes are migration-owned (0003) — the build populates, it never
+        # Indexes are migration-owned (0001) — the build populates, it never
         # creates. On the baseline DB they pre-exist.
-        print("  indexes: migration-owned (0003)", file=sys.stderr)
+        print("  indexes: migration-owned (0001)", file=sys.stderr)
 
         # Phase 5: full-text search — tags + fts (tsvector) columns.
-        # idx_datasets_fts (GIN) is migration-owned (0003) — the populated
+        # idx_datasets_fts (GIN) is migration-owned (0001) — the populated
         # fts rows are indexed by the migration-created index.
         db.transaction(partial(_populate_fts_tx, fts_rows=st.fts_rows))
         print(f"  tsvector populated: {len(st.fts_rows)} datasets", file=sys.stderr)

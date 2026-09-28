@@ -33,8 +33,8 @@ llm/       Embedding model (gitignored) — fetch with `just download-llm`
 ## Quickstart
 
 Requires Python 3.13, `uv`, and PostgreSQL 16+ with the `vector` extension
-(pgvector). The extension is not optional: migration 0002 creates it and a
-`vector(768)` column, so a Postgres without pgvector fails at `migrate`.
+(pgvector). The extension is not optional: the initial migration creates it
+and `vector(768)` columns, so a Postgres without pgvector fails at `migrate`.
 
 ### PostgreSQL
 
@@ -77,7 +77,7 @@ Embeddings (semantic search over datasets) are optional: run
 run `just build-embeddings` with llama-server serving the model on :8080 —
 see `scripts/build_embeddings.py`.
 Semantic "more like this" is served by an HNSW index on the embedding
-column (migration 0012); `migrate` builds it, which takes a few minutes on
+column; `migrate` builds it, which takes a few minutes on
 an already-populated DB (raise `maintenance_work_mem` for the session to
 speed it up). The index is approximate — `HNSW_EF_SEARCH` (default 400)
 trades recall for latency.

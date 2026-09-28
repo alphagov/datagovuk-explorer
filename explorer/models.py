@@ -2,16 +2,17 @@
 
 Schema notes:
 - Timestamps are TEXT in the DB (format_date exists for a reason) — TextField,
-  not DateTimeField.
+  not DateTimeField. The one exception is LinkCheckResult.checked_at
+  (DateTimeField, converted in migration history).
 - links.id / series.id are SERIAL -> AutoField.
 - embedding_map.rowid / dataset_embeddings.rowid are plain INTEGER PRIMARY KEY
   (embed_batch assigns dense rowids from 1) -> IntegerField(primary_key=True),
   not AutoField.
-- datasets.fts (tsvector) and dataset_embeddings.embedding (vector(768)) are
-  deliberately NOT here — they're added by a RunSQL migration (0002) that
-  creates the vector extension first.
-- Indexes are migration-owned (0003: the 10 idx_* + GIN) — FK fields are
-  db_index=False so Django doesn't emit its own.
+- datasets.fts is a SearchVectorField (tsvector), populated by build_db.py.
+- dataset_embeddings.embedding and collection_embeddings.embedding are
+  VectorField(dimensions=768) from pgvector.django.
+- All indexes are declared in Meta.indexes — FK fields use db_index=False so
+  Django doesn't emit its own.
 - metadata_values and series_datasets use Django 6 composite primary keys
   (pk = CompositePrimaryKey(...)) — no implicit id column.
 
@@ -19,7 +20,10 @@ The query layer is raw SQL via django.db.connection; these models exist to
 own the schema via migrations.
 """
 
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.db import models
+from pgvector.django import HnswIndex, VectorField
 
 
 class Organisation(models.Model):
@@ -81,10 +85,19 @@ class Dataset(models.Model):
     harvest_source_id = models.TextField(blank=True, null=True)
     views = models.IntegerField(db_default=0)
     tags = models.TextField(blank=True, null=True)
+    fts = SearchVectorField(null=True)
 
     class Meta:
         app_label = "explorer"
         db_table = "datasets"
+        indexes = [
+            models.Index(fields=["org_slug"], name="idx_datasets_org"),
+            models.Index(fields=["org_slug", "resource_count"], name="idx_datasets_org_resource"),
+            models.Index(fields=["theme_primary"], name="idx_datasets_theme"),
+            models.Index(fields=["metadata_created"], name="idx_datasets_created"),
+            models.Index(fields=["metadata_modified"], name="idx_datasets_modified"),
+            GinIndex(fields=["fts"], name="idx_datasets_fts"),
+        ]
 
     def __str__(self):
         return self.title or self.name or self.id
@@ -121,11 +134,9 @@ class TemporalPeriod(models.Model):
 class DatasetApi(models.Model):
     """One row per dataset that has an API, populated at build time.
 
-    api_category is 'map-layers' or 'data-apis'. api_links is the jsonb
-    aggregate of every matched link (name/format_norm/url). The table is
-    wiped and rebuilt on every build; the report and datasets-page facet
-    query it instead of running the full 22-condition EXISTS chain at
-    request time."""
+    api_category is 'map-layers' or 'data-apis'. The table is wiped and
+    rebuilt on every build; the report and datasets-page facet query it
+    instead of running the full 22-condition EXISTS chain at request time."""
 
     dataset = models.OneToOneField(
         Dataset,
@@ -149,12 +160,8 @@ class DatasetApi(models.Model):
 
 class DatasetContentHash(models.Model):
     """One row per dataset: an md5 hash of its normalised title, notes and
-    resource URL set, for exact-duplicate detection (Tier 1 — see
-    docs/ideas.md "Duplicate dataset detection"). Computed by a single
-    INSERT...SELECT in scripts/build_db.py, TRUNCATE + rebuilt like
-    dataset_api, so the hash algorithm can be tweaked without a full
-    rebuild. content_hash is indexed (not unique — that's the point:
-    GROUP BY content_hash HAVING COUNT(*) > 1 finds the duplicate sets)
+    resource URL set, for exact-duplicate detection. content_hash is indexed
+    (not unique — GROUP BY content_hash HAVING COUNT(*) > 1 finds duplicates)
     so other queries can join/filter on it cheaply."""
 
     dataset = models.OneToOneField(
@@ -220,6 +227,13 @@ class Link(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "links"
+        indexes = [
+            models.Index(fields=["host"], name="idx_links_host"),
+            models.Index(fields=["format_norm"], name="idx_links_format"),
+            models.Index(fields=["year_created"], name="idx_links_year"),
+            models.Index(fields=["dataset"], name="idx_links_dataset"),
+            models.Index(fields=["org_slug"], name="idx_links_org"),
+        ]
 
     def __str__(self):
         return self.name or self.dataset_title or self.resource_id
@@ -260,12 +274,7 @@ class MetadataValue(models.Model):
 
 
 class EmbeddingMap(models.Model):
-    """Maps a dataset id to its dense rowid in dataset_embeddings.
-
-    The vector itself lives only in dataset_embeddings (the pgvector probe
-    is derived from it); 0001's duplicate `vector_text` column was dropped
-    in 0014.
-    """
+    """Maps a dataset id to its dense rowid in dataset_embeddings."""
 
     rowid = models.IntegerField(primary_key=True)
     dataset = models.ForeignKey(
@@ -278,6 +287,9 @@ class EmbeddingMap(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "embedding_map"
+        indexes = [
+            models.Index(fields=["dataset"], name="idx_embedding_map_dataset"),
+        ]
 
     def __str__(self):
         return str(self.dataset)
@@ -285,10 +297,18 @@ class EmbeddingMap(models.Model):
 
 class DatasetEmbedding(models.Model):
     rowid = models.IntegerField(primary_key=True)
+    embedding = VectorField(dimensions=768, null=True)
 
     class Meta:
         app_label = "explorer"
         db_table = "dataset_embeddings"
+        indexes = [
+            HnswIndex(
+                fields=["embedding"],
+                name="idx_dataset_embeddings_hnsw",
+                opclasses=["vector_l2_ops"],
+            ),
+        ]
 
     def __str__(self):
         return str(self.rowid)
@@ -334,6 +354,10 @@ class SeriesDataset(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "series_datasets"
+        indexes = [
+            models.Index(fields=["series"], name="idx_series_datasets_series"),
+            models.Index(fields=["dataset_id"], name="idx_series_datasets_dataset"),
+        ]
 
     def __str__(self):
         return self.dataset_title
@@ -352,7 +376,7 @@ class Review(models.Model):
         Dataset,
         on_delete=models.CASCADE,
         db_column="dataset_id",
-        db_index=True,
+        db_index=False,
     )
     ok = models.BooleanField(db_default=True)
     overall = models.IntegerField(blank=True, null=True)
@@ -370,6 +394,9 @@ class Review(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "reviews"
+        indexes = [
+            models.Index(fields=["dataset"], name="idx_reviews_dataset"),
+        ]
 
     def __str__(self):
         return self.title or str(self.dataset)
@@ -432,3 +459,24 @@ class Collection(models.Model):
 
     def __str__(self):
         return self.title or self.slug
+
+
+class CollectionEmbedding(models.Model):
+    """Pre-computed vector for a collection page, used as a KNN probe
+    against the dataset_embeddings HNSW index."""
+
+    slug = models.OneToOneField(
+        Collection,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        db_column="slug",
+        db_index=False,
+    )
+    embedding = VectorField(dimensions=768)
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "collection_embeddings"
+
+    def __str__(self):
+        return str(self.slug)

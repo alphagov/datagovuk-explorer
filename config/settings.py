@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     # Stock Django static files — templates reference assets via
     # {{ static(...) }}.
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
     "explorer",
 ]
 
