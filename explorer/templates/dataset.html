@@ -109,11 +109,23 @@
             <li>
               {% set td = review.scores["title-description"] %}
               <span class="score-badge score-{{ td.score }}">Description {{ td.score if td else "—" }}/5</span>
-              <span class="review-explanation">{{ td.issues }}</span>
+              {% if td.issues %}
+                <ul class="review-issues">
+                  {% for issue in td.issues %}
+                    <li>{{ issue }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
             </li>
             <li>
               <span class="score-badge score-{{ review.scores.resources.score }}">Links {{ review.scores.resources.score if review.scores.resources else "—" }}/5</span>
-              <span class="review-explanation">{{ review.scores.resources.issues }}</span>
+              {% if review.scores.resources.issues %}
+                <ul class="review-issues">
+                  {% for issue in review.scores.resources.issues %}
+                    <li>{{ issue }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
             </li>
           </ul>
         </details>

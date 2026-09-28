@@ -69,8 +69,8 @@ def review_reply(**overrides) -> httpx.Response:
     """A valid model reply (schema-order keys)."""
     review = {
         "scores": {
-            "findability": {"score": 4, "issues": ""},
-            "resources": {"score": 2, "issues": "Few formats."},
+            "findability": {"score": 4, "issues": []},
+            "resources": {"score": 2, "issues": ["Few formats"]},
         },
         "suggested_theme": "environment",
         "suggested_theme_confidence": "medium",
@@ -405,9 +405,9 @@ def test_send_request_remote():
             "scores": {
                 "findability": {
                     "score": 4,
-                    "issues": "",
+                    "issues": [],
                 },
-                "resources": {"score": 2, "issues": "Few formats."},
+                "resources": {"score": 2, "issues": ["Few formats"]},
             },
             "suggested_theme": "environment",
             "suggested_theme_confidence": "medium",

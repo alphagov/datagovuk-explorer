@@ -415,21 +415,32 @@ RUBRIC = """## Part 1 — Quality review
 
 Every dimension starts at score 5. Deduct points only for specific, named
 problems — every deduction must cite the concrete issue that caused it.
-If there are no issues, set issues to an empty string.
+Return issues as an array of concise strings, one issue per item.
+If there are no issues, set issues to an empty array [].
 
 **title-description**
 
 Review the title and description only.
-The title and description should be clear and relevant.
-The title is the most important signal. It should not be too
-long or short, and a vague, jargon-heavy or misleading title caps
-title-description at 2/5.
+
+The title is the most important signal. It should tell a reader what the
+dataset contains. Reference codes and identifiers are fine — they help
+specialists find the right record. What hurts is a title that is vague,
+meaningless or actively misleading. Dates in the title are good if they
+don't conflict with other metadata.
+
+The description should expand on the title with enough context to decide
+whether the dataset is relevant. Penalise unexpanded acronyms (e.g.
+"MBES" without saying "multibeam echo sounder"). Overuse of jargon is bad
+But do not flag proper nouns, equipment names or place names as jargon —
+domain-specific named things are expected in specialist datasets.
 
 **resources**
 
 Data files in sensible formats (CSV/GeoJSON/XLSX etc.).
 HTML alone can be ok in context (eg it represents API documentation).
-They should have clear names.
+Resources should have clear names and a declared format. A resource
+with no name, no format or no description is poorly catalogued — the
+more of these are missing, the lower the score.
 Do not penalise National Archives links.
 You cannot access URLs so never comment on whether they work or download.
 
@@ -494,9 +505,9 @@ Respond with ONE JSON object, no markdown fences, no commentary. Schema:
 
 {
   "scores": {
-    "title-description": { "score": <int 0-5>, "issues": "<concrete issues, or empty string if none>" },
-    "resources":   { "score": <int 0-5>, "issues": "<concrete issues, or empty string if none>" },
-    "theme-tags":  { "score": <int 0-5>, "issues": "<concrete issues, or empty string if none>" }
+    "title-description": { "score": <int 0-5>, "issues": ["<concise issue>", ...] },
+    "resources":   { "score": <int 0-5>, "issues": ["<concise issue>", ...] },
+    "theme-tags":  { "score": <int 0-5>, "issues": ["<concise issue>", ...] }
   },
   "suggested_theme": "<exactly one of [${themeKeys}]>",
   "suggested_theme_confidence": "<high | medium | low>",
