@@ -385,7 +385,7 @@ class LinkCheckResult(models.Model):
     """
 
     url = models.TextField(primary_key=True)
-    checked_at = models.TextField(blank=True, null=True)
+    checked_at = models.DateTimeField(blank=True, null=True)
     method = models.TextField(blank=True, null=True)
     ok = models.BooleanField(blank=True, null=True)
     http_status = models.IntegerField(blank=True, null=True)

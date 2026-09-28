@@ -212,7 +212,7 @@ def _make_result(
 ) -> dict[str, Any]:
     return {
         "url": url,
-        "checked_at": datetime.now(tz=UTC).isoformat(),
+        "checked_at": datetime.now(tz=UTC),
         "method": method,
         "ok": ok,
         "http_status": status,

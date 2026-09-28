@@ -12,6 +12,7 @@ The ``# fmt: off`` block is data — the formatter would destroy its shape.
 
 import json
 import os
+from datetime import UTC, datetime
 
 import pytest
 from dotenv import load_dotenv
@@ -481,7 +482,7 @@ def make_fixtures():
     Link.objects.bulk_create(links)
 
     LinkCheckResult.objects.bulk_create(
-        [LinkCheckResult(checked_at="2026-01-01T00:00:00", **row) for row in _LINK_CHECK_RESULTS],
+        [LinkCheckResult(checked_at=datetime(2026, 1, 1, tzinfo=UTC), **row) for row in _LINK_CHECK_RESULTS],
     )
 
     MetadataKey.objects.bulk_create(
