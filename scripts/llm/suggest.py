@@ -75,207 +75,9 @@ def build_digest(pkg: dict) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Canonical theme vocabulary — each theme maps to example tags that double as
-# the preferred tag vocabulary.  The LLM picks tags from these lists (and may
-# add a small number of freeform tags when nothing fits).
-# ---------------------------------------------------------------------------
-THEMES = {
-    "business-and-economy": [
-        "business rates",
-        "consumer protection",
-        "contracts",
-        "employment",
-        "exports",
-        "financial regulation",
-        "fish landings",
-        "imports",
-        "international trade",
-        "labour market",
-        "mortgage lending",
-        "oil and gas",
-        "premises licences",
-        "small businesses",
-        "subsidies",
-        "tourism",
-        "unemployment",
-    ],
-    "crime-and-justice": [
-        "anti social behaviour",
-        "community safety",
-        "courts",
-        "crime statistics",
-        "criminal justice",
-        "domestic violence",
-        "enforcement",
-        "policing",
-        "prisons",
-        "probation",
-        "reoffending",
-        "sentencing",
-        "youth justice",
-        "appeals",
-    ],
-    "defence": [
-        "armed forces",
-        "defence spending",
-        "military operations",
-        "military personnel",
-        "military training",
-        "veterans",
-        "war pensions",
-    ],
-    "education": [
-        "adult education",
-        "apprenticeships",
-        "catchment areas",
-        "early years",
-        "free school meals",
-        "further education",
-        "higher education",
-        "key stages",
-        "libraries",
-        "national curriculum",
-        "primary schools",
-        "pupil attainment",
-        "qualifications",
-        "school admissions",
-        "school performance",
-        "secondary schools",
-        "special educational needs",
-        "vocational training",
-    ],
-    "environment": [
-        "agriculture",
-        "air quality",
-        "biodiversity",
-        "climate change",
-        "coastal flooding",
-        "conservation",
-        "crop mapping",
-        "dairy farming",
-        "deforestation",
-        "emissions",
-        "fisheries",
-        "flood risk",
-        "habitats",
-        "hazardous waste",
-        "insects",
-        "livestock",
-        "marine biology",
-        "marine conservation",
-        "marine habitats",
-        "nature reserves",
-        "pollution",
-        "recycling",
-        "river flooding",
-        "species records",
-        "surface water flooding",
-        "waste management",
-        "water quality",
-        "wildlife",
-        "trees",
-        "rivers",
-        "rainfall",
-        "soil",
-    ],
-    "government-and-parliament": [
-        "administrative boundaries",
-        "civil service",
-        "contracts",
-        "electoral boundaries",
-        "electoral wards",
-        "elections",
-        "freedom of information",
-        "government spending",
-        "grants",
-        "legislation",
-        "local government",
-        "organograms",
-        "parliament",
-        "polling stations",
-        "procurement",
-        "transparency",
-    ],
-    "health": [
-        "adult social care",
-        "clinical audit",
-        "dentistry",
-        "disease",
-        "food safety",
-        "health inequalities",
-        "hospital admissions",
-        "laboratory testing",
-        "life expectancy",
-        "mental health",
-        "mortality",
-        "patient outcomes",
-        "prescribing",
-        "primary care",
-        "public health",
-        "social care",
-        "waiting times",
-    ],
-    "land-and-property": [
-        "addresses",
-        "allotments",
-        "article 4 directions",
-        "brownfield land",
-        "compulsory purchase orders",
-        "conservation areas",
-        "contaminated land",
-        "green belt",
-        "house prices",
-        "housing",
-        "land registration",
-        "land use",
-        "listed buildings",
-        "local plans",
-        "planning applications",
-        "planning policy",
-        "postcodes",
-        "public rights of way",
-        "site allocations",
-        "soil surveys",
-        "spatial planning",
-        "tree preservation orders",
-    ],
-    "people": [
-        "census",
-        "community assets",
-        "culture",
-        "demographics",
-        "deprivation",
-        "disability",
-        "ethnicity",
-        "language",
-        "migration",
-        "neet",
-        "population estimates",
-        "population projections",
-        "religion",
-        "art",
-        "music",
-    ],
-    "transport": [
-        "active travel",
-        "air travel",
-        "buses",
-        "car parking",
-        "cycling",
-        "electric vehicles",
-        "footpaths",
-        "freight",
-        "public transport",
-        "railways",
-        "road maintenance",
-        "roads",
-        "road safety",
-        "road traffic",
-        "shipping",
-        "walking routes",
-    ],
-}
+THEMES: dict[str, list[str]] = json.loads(
+    (Path(__file__).resolve().parent / "themes.json").read_text()
+)
 
 
 # ---------------------------------------------------------------------------
@@ -293,11 +95,42 @@ metadata provided.
 
 Never invent facts. The suggested description must only rephrase what is
 present in the metadata — no added topics, audiences, purpose, numbers,
-dates, geographies or sources. If the metadata is too thin to improve on
-without inventing details, set suggested_title / suggested_description to
-empty strings rather than elaborating."""
+dates, geographies or sources."""
 
 RUBRIC = """## Suggestions
+
+**suggested_title**
+
+A clear improved title, or empty string if the current title is good.
+Reference codes and identifiers are fine in addition to
+a clear title — they help specialists. A poor title
+is vague, meaningless, misleading, pure jargon.
+Dates in the title are good if they don't conflict with other metadata.
+Do not add publisher names to title - they will be visible on the page.
+
+Example good titles:
+ - Ancient Woodland (England)
+ - Speed Camera Locations in Greater Manchester
+ - Derbyshire Local Nature Recovery Strategy (LNRS)
+
+Example poor titles:
+ - GM Accessibility Levels (GMAL)
+ - MiniScale
+ - AIMS Asset Bundle
+
+If there is not enough metadata to go on, set suggested_title to blank string "".
+
+**suggested_description**
+
+The description should expand on the title with enough context to decide
+whether the dataset is relevant. Acronyms are fine unless too many unexplained ones -
+something like Linear Regression Rate (LRR) is fine.
+Overuse of jargon is bad but proper nouns, equipment
+names or place names are valid — domain-specific named things are
+expected in specialist datasets. Stick strictly to facts from the title and description.
+Two relevant lines or less is too short, 10 paragraphs is too long.
+
+If there is not enough metadata to go on, set suggested_description to blank string "".
 
 **suggested_theme**
 
@@ -306,11 +139,11 @@ ${themeList}
 If the dataset genuinely spans multiple themes or none clearly
 fit, pick the closest one and set theme_confidence low. Never
 make up a theme outside the list.
+If there is not enough metadata to go on, set it to blank string "".
 
 **theme_confidence**
 
-"high" | "medium" | "low" — how confident you are in the theme
-assignment.
+"high" | "low" — how confident you are in the theme assignment
 
 **suggested_tags**
 
@@ -331,31 +164,17 @@ assignment.
 - Prefer plural forms (e.g. "rivers" not "river").
 - Each tag should add something distinct — avoid near-synonyms.
 
-**suggested_title**
-
-A clear improved title, or empty string if the current title is good.
-
-**suggested_description**
-
-A clear improved description, or empty string if the current one is
-already good. Length should match the richness of the metadata — a
-sentence or two is fine when there is little to say, but 3-4 paragraphs
-is appropriate when the metadata supports it.
-STRICT RULE — never invent facts. Only rephrase what the metadata
-actually says. Do not add topics, audiences, purpose, numbers, dates,
-geographies, sources or guidance that are not present in the metadata.
-If the metadata is too thin to write a description that adds value
-without inventing details, return an empty string."""
+If there is not enough metadata to go on, set it to empty array []."""
 
 SCHEMA = """
-Respond with ONE JSON object, no markdown fences, no commentary. Schema:
+Respond with ONE JSON object, no markdown, no commentary. Schema:
 
 {
-  "suggested_theme": "<exactly one of [${themeKeys}]>",
-  "suggested_theme_confidence": "<high | medium | low>",
-  "suggested_tags": ["<tag1>", "<tag2>", "..."],
   "suggested_title": "<improved title or empty string>",
-  "suggested_description": "<improved description or empty string>"
+  "suggested_description": "<improved description or empty string>",
+  "suggested_theme": "<exactly one of [${themeKeys}]> or empty string",
+  "suggested_theme_confidence": "<high | low>",
+  "suggested_tags": ["<tag1>", "<tag2>", "..."]
 }"""
 
 
