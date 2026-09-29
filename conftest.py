@@ -152,10 +152,8 @@ def _review(dataset_id, org_slug, org_display_name, findability, *, ok=True):
         "model": "test",
         "reviewed_at": "2026-01-01T00:00:00.000Z",
         "ok": ok,
-        "scores": {
-            "title-description": {"score": findability, "issues": ""},
-            "resources": {"score": findability, "issues": ""},
-        },
+        "title-description": {"score": findability, "issues": ""},
+        "resources": {"score": findability, "issues": ""},
     }
 
 
@@ -532,8 +530,8 @@ def make_fixtures():
             Review(
                 dataset_id=record["dataset_id"],
                 ok=record["ok"],
-                findability=record["scores"]["title-description"]["score"],
-                resources=record["scores"]["resources"]["score"],
+                findability=record["title-description"]["score"],
+                resources=record["resources"]["score"],
                 created_at=record["reviewed_at"],
                 json=json.dumps(record),
             )

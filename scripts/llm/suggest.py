@@ -44,19 +44,35 @@ import typer
 from scripts.llm.common import (
     LLMConfig,
     LLMError,
-    build_digest,
     cli_resolve_config,
     fetch_record,
     iso_now,
     record_base,
     record_summary,
     run,
+    strip_html,
+    truncate,
     write_record,
 )
 
 app = typer.Typer(add_completion=False)
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "downloads" / "suggestions"
+
+
+# ---------------------------------------------------------------------------
+# Suggest digest — title, description, theme, tags only
+# ---------------------------------------------------------------------------
+def build_digest(pkg: dict) -> dict:
+    return {
+        "title": pkg.get("title"),
+        "organisation": (
+            (pkg.get("_organisation") or {}).get("display_name") or (pkg.get("organization") or {}).get("title") or None
+        ),
+        "description": truncate(strip_html(pkg.get("notes")), 20000),
+        "theme": pkg.get("theme-primary") or None,
+        "tags": [t if isinstance(t, str) else t.get("name") for t in (pkg.get("tags") or [])][:10],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -272,10 +288,6 @@ SYSTEM_CONTENT = """You are a metadata specialist for data.gov.uk,
         Be specific and evidence-based — every suggestion must reference the
         metadata provided.
 
-        Descriptions and resource URLs are sent in full. If a dataset has more than
-        8 resources, only the first 8 are shown; very long extra values may be
-        trimmed. Never criticise these digest limits — judge only what is present.
-
         Never invent facts. The suggested description must only rephrase what is
         present in the metadata — no added topics, audiences, purpose, numbers,
         dates, geographies or sources. If the metadata is too thin to improve on
@@ -345,6 +357,8 @@ Respond with ONE JSON object, no markdown fences, no commentary. Schema:
 
 
 def build_prompt(digest: dict) -> list[dict]:
+    from datetime import date
+
     theme_list = "\n".join(f'- "{t}" — example tags: {", ".join(tags)}' for t, tags in THEMES.items())
     theme_keys = ", ".join(f'"{t}"' for t in THEMES)
     rubric = RUBRIC.replace("${themeList}", theme_list)
@@ -355,6 +369,7 @@ def build_prompt(digest: dict) -> list[dict]:
         {
             "role": "user",
             "content": (
+                f"Today's date is {date.today().isoformat()}.\n\n"
                 "Classify the following dataset metadata and suggest improvements.\n"
                 f"{rubric}\n\n"
                 "Dataset metadata (JSON):\n"

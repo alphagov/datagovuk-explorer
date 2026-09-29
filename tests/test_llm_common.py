@@ -1,10 +1,7 @@
 """Unit tests for scripts/llm/common.py (offline — no live LLM, no DB).
 
 Covers the deterministic shared parts:
-- constants: EXTRAS_WHITELIST
-- truncate / strip_html / digest_resource / build_digest (whitelist
-  filtering, truncation, resource digest + _note, org fallback chain, tags
-  object-vs-string, key order)
+- truncate / strip_html
 - extract_json: fence stripping, first-{-to-last-} slicing, error paths
 - load_processed_ids / write_record: ok vs attempted sets, corrupt-file
   skip, per-dataset JSON files
@@ -86,10 +83,6 @@ def make_client(handler) -> httpx.Client:
 # Constants
 # ---------------------------------------------------------------------------
 def test_constants():
-    assert len(lc.EXTRAS_WHITELIST) > 0
-    assert lc.EXTRAS_WHITELIST["frequency-of-update"] == "update_frequency"
-    assert lc.EXTRAS_WHITELIST["update_frequency"] == "update_frequency"
-    assert lc.EXTRAS_WHITELIST["licence"] == "licence_statement"
     assert lc.RETRIES == 2
     assert lc.REMOTE_CONCURRENCY == 50
     assert lc.MAX_TOKENS == 2048
@@ -117,119 +110,6 @@ def test_strip_html():
     assert lc.strip_html("<b>x</b> &amp; <i>y</i>") == "x & y"
     assert lc.strip_html(None) == ""
     assert lc.strip_html("") == ""
-
-
-def test_digest_resource():
-    r = {
-        "format": "CSV",
-        "name": "Data",
-        "description": "d",
-        "url": "http://x",
-        "size": 5,
-        "created": "2020-01-02T03:04:05Z",
-    }
-    out = lc.digest_resource(r)
-    assert list(out) == ["format", "name", "description", "url", "created"]
-    assert out["format"] == "CSV"
-    assert out["created"] == "2020-01-02"
-    assert lc.digest_resource({"url": "u"}) == {"format": None, "url": "u"}
-    assert lc.digest_resource({"format": ""}) == {"format": None}
-    out = lc.digest_resource({"format": "x", "name": "n" * 300})
-    assert out["name"] == "n" * 200 + "…"
-    assert "size" not in out
-    assert "created" not in out
-    assert lc.digest_resource({"format": "x", "name": 0, "size": 0}) == {"format": "x"}
-
-
-# ---------------------------------------------------------------------------
-# build_digest
-# ---------------------------------------------------------------------------
-def test_build_digest_extras_and_resources():
-    pkg = {
-        "title": "T",
-        "extras": [
-            {"key": "frequency-of-update", "value": "monthly"},
-            {"key": "unknown-key", "value": "ignored"},
-            {"key": "publisher", "value": "x" * 2500},
-        ],
-        "resources": [{"format": "CSV", "name": f"r{i}"} for i in range(10)],
-        "num_resources": 10,
-    }
-    d = lc.build_digest(pkg)
-    assert d["extras"] == {
-        "update_frequency": "monthly",
-        "publisher": "x" * 2000 + "…",
-    }
-    assert len(d["resources"]) == 9
-    assert d["resources"][-1] == {"_note": "…and 2 more resources"}
-    assert d["resources"][0] == {"format": "CSV", "name": "r0"}
-
-    pkg2 = {**pkg, "resources": [{"format": "CSV"} for _ in range(10)]}
-    del pkg2["num_resources"]
-    d2 = lc.build_digest(pkg2)
-    assert d2["resources"][-1] == {"_note": "…and 2 more resources"}
-
-    d3 = lc.build_digest(
-        {"title": "T", "resources": [{"format": "CSV"} for _ in range(8)]},
-    )
-    assert len(d3["resources"]) == 8
-    assert all("_note" not in r for r in d3["resources"])
-
-
-def _small():
-    return {"title": "T", "resources": []}
-
-
-def test_build_digest_fields():
-    pkg = {
-        "title": "  My <b>Dataset</b>  ",
-        "_organisation": {"name": "x", "display_name": "Org A"},
-        "organization": {"title": "Org B"},
-        "theme-primary": "environment",
-        "license_title": "OGL",
-        "isopen": False,
-        "metadata_created": "2019-06-01T10:00:00Z",
-        "metadata_modified": "2021-12-31T23:59:59Z",
-        "notes": "Some <p>notes</p>   with&nbsp;spaces",
-        "tags": ["a", {"name": "b"}, "c"],
-        "resources": [],
-    }
-    d = lc.build_digest(pkg)
-    assert d["title"] == "  My <b>Dataset</b>  "
-    assert d["organisation"] == "Org A"
-    assert d["theme"] == "environment"
-    assert d["licence"] == "OGL"
-    assert d["open_licence"] is False
-    assert d["created"] == "2019-06-01"
-    assert d["last_modified"] == "2021-12-31"
-    assert d["description"] == "Some notes with spaces"
-    assert d["tags"] == ["a", "b", "c"]
-
-    d = lc.build_digest(
-        {**_small(), "organization": {"title": "Org B"}, "_organisation": {"name": "x"}},
-    )
-    assert d["organisation"] == "Org B"
-    d = lc.build_digest({**_small(), "organization": {"title": "Org B"}})
-    assert d["organisation"] == "Org B"
-    d = lc.build_digest(_small())
-    assert d["organisation"] is None
-
-    pkg2 = {**_small(), "tags": [f"t{i}" for i in range(12)]}
-    assert len(lc.build_digest(pkg2)["tags"]) == 10
-
-    assert list(d.keys()) == [
-        "title",
-        "organisation",
-        "theme",
-        "licence",
-        "open_licence",
-        "created",
-        "last_modified",
-        "description",
-        "tags",
-        "resources",
-        "extras",
-    ]
 
 
 # ---------------------------------------------------------------------------
@@ -391,13 +271,24 @@ def test_run_workers_concurrency():
     processed = []
 
     def fake_process_one(  # noqa: PLR0913
-        config, row, i, total, *, show_progress, summary, summary_lock=None,
+        config,
+        row,
+        i,
+        total,
+        *,
+        show_progress,
+        summary,
+        summary_lock=None,
     ):
         lc.send_request(
-            config.client, config.base_url, config.api_key, config.model,
-            {"title": "T"}, _dummy_build_prompt,
+            config.client,
+            config.base_url,
+            config.api_key,
+            config.model,
+            {"title": "T"},
+            _dummy_build_prompt,
         )
-        with (summary_lock if summary_lock else lc.nullcontext()):
+        with summary_lock if summary_lock else lc.nullcontext():
             summary["ok"] += 1
             processed.append(row["id"])
 
@@ -433,13 +324,24 @@ def test_run_workers_caps_to_row_count():
     summary = {"ok": 0, "failed": 0}
 
     def fake_process_one(  # noqa: PLR0913
-        config, row, i, total, *, show_progress, summary, summary_lock=None,
+        config,
+        row,
+        i,
+        total,
+        *,
+        show_progress,
+        summary,
+        summary_lock=None,
     ):
         lc.send_request(
-            config.client, config.base_url, config.api_key, config.model,
-            {"title": "T"}, _dummy_build_prompt,
+            config.client,
+            config.base_url,
+            config.api_key,
+            config.model,
+            {"title": "T"},
+            _dummy_build_prompt,
         )
-        with (summary_lock if summary_lock else lc.nullcontext()):
+        with summary_lock if summary_lock else lc.nullcontext():
             summary["ok"] += 1
 
     with tempfile.TemporaryDirectory() as d:

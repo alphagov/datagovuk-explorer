@@ -5,7 +5,7 @@ Reads datasets from the quality index, sends a curated digest to the
 model, and writes one JSON file per dataset to downloads/reviews/<org>/.
 Each record has:
 
-  scores   — title-description, resources (0-5 + issues)
+  title-description, resources — score (0-5) + issues
 
 Remote mode reads the API key from the LLM env var; local mode targets a
 llama.cpp server using LOCAL_MODEL and LOCAL_BASE_URL from .env.
@@ -41,19 +41,54 @@ import typer
 from scripts.llm.common import (
     LLMConfig,
     LLMError,
-    build_digest,
     cli_resolve_config,
     fetch_record,
     iso_now,
     record_base,
     record_summary,
     run,
+    strip_html,
+    truncate,
     write_record,
 )
 
 app = typer.Typer(add_completion=False)
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "downloads" / "reviews"
+MAX_RESOURCES = 8
+
+
+# ---------------------------------------------------------------------------
+# Review digest — title, description, resources only
+# ---------------------------------------------------------------------------
+def _digest_resource(r: dict) -> dict:
+    out = {"format": r.get("format") or None}
+    name = (r.get("name") or "").strip()
+    desc = (r.get("description") or "").strip()
+    label = name or desc
+    if label:
+        out["name"] = truncate(label, 1000)
+    if r.get("url"):
+        out["url"] = r["url"]
+    if r.get("created"):
+        out["created"] = str(r["created"])[:10]
+    return out
+
+
+def build_digest(pkg: dict) -> dict:
+    resources = [_digest_resource(r) for r in (pkg.get("resources") or [])[:MAX_RESOURCES]]
+    total = pkg.get("num_resources") or len(pkg.get("resources") or [])
+    if total > MAX_RESOURCES:
+        resources.append({"_note": f"…and {total - MAX_RESOURCES} more resources"})
+
+    return {
+        "title": pkg.get("title"),
+        "organisation": (
+            (pkg.get("_organisation") or {}).get("display_name") or (pkg.get("organization") or {}).get("title") or None
+        ),
+        "description": truncate(strip_html(pkg.get("notes")), 20000),
+        "resources": resources,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -66,8 +101,6 @@ SYSTEM_CONTENT = """You are a data-quality reviewer for data.gov.uk,
         Be specific and evidence-based — every score must reference the
         metadata provided. Be critical but fair: a
         small public-sector dataset published as a monthly CSV can be high quality.
-        Flag unexplained jargon or technical language that a non-specialist could
-        not understand.
 
         Descriptions and resource URLs are sent in full. If a dataset has more than
         8 resources, only the first 8 are shown; very long extra values may be
@@ -75,35 +108,52 @@ SYSTEM_CONTENT = """You are a data-quality reviewer for data.gov.uk,
 
         Never invent facts."""
 
-RUBRIC = """## Quality review
+RUBRIC = """## Scores and issues
 
-Every dimension starts at score 5. Deduct points only for specific, named
-problems — every deduction must cite the concrete issue that caused it.
-Return issues as an array of concise strings, one issue per item.
-If there are no issues, set issues to an empty array [].
+Start scores at 5. Deduct points only for specific, named
+issues — every deduction must cite the concrete issue that caused it.
+A serious issue can deduct more than one point.
+Return issues as an array of clear, very concise strings, easily scannable,
+one issue per item.
+Max 4 issues, prefer less, if there are no issues, set issues to an empty array [].
+Issues should be clearly distinct and ordered by priority.
 
 **title-description**
 
 Review the title and description only.
 
 The title is the most important signal. It should tell a reader what the
-dataset contains. Reference codes and identifiers are fine — they help
-specialists find the right record. What hurts is a title that is vague,
-meaningless or actively misleading. Dates in the title are good if they
-don't conflict with other metadata.
+dataset contains. Reference codes and identifiers are fine in addition to
+a clear title — they help specialists. A poor title
+is vague, meaningless, misleading, pure jargon. Dates in the title are
+good if they don't conflict with other metadata.
+
+Example good titles:
+ - Ancient Woodland (England)
+ - Speed Camera Locations in Greater Manchester
+ - Derbyshire Local Nature Recovery Strategy (LNRS)
+
+Example poor titles:
+ - GM Accessibility Levels (GMAL)
+ - MiniScale
+ - AIMS Asset Bundle
 
 The description should expand on the title with enough context to decide
-whether the dataset is relevant. Penalise unexpanded acronyms (e.g.
-"MBES" without saying "multibeam echo sounder"). Overuse of jargon is bad
-But do not flag proper nouns, equipment names or place names as jargon —
-domain-specific named things are expected in specialist datasets.
+whether the dataset is relevant. Penalise unexplained acronyms.
+Overuse of jargon is bad but do not flag proper nouns, equipment
+names or place names as jargon — domain-specific named things are
+expected in specialist datasets. Two lines or less is too short, 5
+paragraphs is too long.
 
 **resources**
 
-Data files in sensible formats (CSV/GeoJSON/XLSX etc.).
-HTML alone can be ok in context (eg it represents API documentation).
+Data in sensible formats - downloads (CSV/GeoJSON/XLSX etc.)
+or APIs (WMS, WFS, REST, etc.) it doesn't have to be both -
+download only or API only is fine.
+Accompanying documentation links are fine.
+HTML alone can be ok only with good reason (eg it represents API documentation).
 Resources should have clear names and a declared format. A resource
-with no name, no format or no description is poorly catalogued — the
+with no name, no format is poorly catalogued — the
 more of these are missing, the lower the score.
 Do not penalise National Archives links.
 You cannot access URLs so never comment on whether they work or download."""
@@ -112,19 +162,26 @@ SCHEMA = """
 Respond with ONE JSON object, no markdown fences, no commentary. Schema:
 
 {
-  "scores": {
-    "title-description": { "score": <int 0-5>, "issues": ["<concise issue>", ...] },
-    "resources":   { "score": <int 0-5>, "issues": ["<concise issue>", ...] }
+  "title-description": {
+    "score": <int 0-5>,
+    "issues": ["<concise issue>", ...]
+  },
+  "resources": {
+    "score": <int 0-5>,
+    "issues": ["<concise issue>", ...]
   }
 }"""
 
 
 def build_prompt(digest: dict) -> list[dict]:
+    from datetime import date
+
     return [
         {"role": "system", "content": SYSTEM_CONTENT},
         {
             "role": "user",
             "content": (
+                f"Today's date is {date.today().isoformat()}.\n\n"
                 "Evaluate the following dataset metadata.\n"
                 f"{RUBRIC}\n\n"
                 "Dataset metadata (JSON):\n"
@@ -140,9 +197,9 @@ def build_prompt(digest: dict) -> list[dict]:
 # Validation + per-dataset processing
 # ---------------------------------------------------------------------------
 def _validate(parsed: dict) -> None:
-    scores = parsed.get("scores")
-    if not isinstance(scores, dict):
-        raise LLMError("scores must be an object")
+    for key in ("title-description", "resources"):
+        if not isinstance(parsed.get(key), dict):
+            raise LLMError(f"{key} must be an object")
 
 
 def process_one(
@@ -172,9 +229,8 @@ def process_one(
 
     if show_progress:
         if record["ok"]:
-            scores = record.get("scores", {})
-            td = scores.get("title-description", {}).get("score", "?")
-            res = scores.get("resources", {}).get("score", "?")
+            td = record.get("title-description", {}).get("score", "?")
+            res = record.get("resources", {}).get("score", "?")
             print(f"[{i + 1}/{total}] scores td={td} res={res} | {row['org_slug']}/{row['title']}")
         else:
             print(

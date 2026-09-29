@@ -36,14 +36,8 @@ def load_records(directory: Path) -> list[dict]:
     return records
 
 
-def _scores(r: dict) -> dict:
-    """The two sub-scores, or {} when scores is missing/malformed."""
-    scores = r.get("scores")
-    return scores if isinstance(scores, dict) else {}
-
-
 def _subscore(r: dict, key: str):
-    sub = _scores(r).get(key)
+    sub = r.get(key)
     if not isinstance(sub, dict):
         return None
     score = sub.get("score")

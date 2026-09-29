@@ -29,10 +29,8 @@ from tests.llm_helpers import PatchedSleep, chat_handler, fake_row, make_client,
 
 def review_reply(**overrides) -> httpx.Response:
     review = {
-        "scores": {
-            "title-description": {"score": 4, "issues": []},
-            "resources": {"score": 2, "issues": ["Few formats"]},
-        },
+        "title-description": {"score": 4, "issues": []},
+        "resources": {"score": 2, "issues": ["Few formats"]},
     }
     review.update(overrides)
     return httpx.Response(
@@ -89,7 +87,8 @@ def test_process_one_ok_record():
             "model",
             "reviewed_at",
             "ok",
-            "scores",
+            "title-description",
+            "resources",
             "input",
         ]
         assert rec["dataset_id"] == row["id"]

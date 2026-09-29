@@ -31,8 +31,6 @@ REMOTE_CONCURRENCY = 50
 MAX_TOKENS = 2048
 TEMPERATURE = 0.2
 
-MAX_DIGEST_RESOURCES = 8
-
 
 class LLMError(RuntimeError):
     """LLM/HTTP error carrying an optional HTTP status (for the 429 retry).
@@ -44,25 +42,6 @@ class LLMError(RuntimeError):
     def __init__(self, message: str, status: int | None = None):
         super().__init__(message)
         self.status = status
-
-
-# ---------------------------------------------------------------------------
-# Curated digest (shared between review and suggest — identical logic)
-# ---------------------------------------------------------------------------
-EXTRAS_WHITELIST = {
-    "frequency-of-update": "update_frequency",
-    "update_frequency": "update_frequency",
-    "dataset-reference-date": "temporal_reference",
-    "temporal_coverage": "temporal_coverage",
-    "geographic_coverage": "geographic_coverage",
-    "publisher": "publisher",
-    "access_constraints": "access_constraints",
-    "licence": "licence_statement",
-    "resource-type": "resource_type",
-    "spatial-reference-system": "spatial_reference_system",
-    "schema-vocabulary": "schema_vocabulary",
-    "codelist": "codelist",
-}
 
 
 # ---------------------------------------------------------------------------
@@ -96,57 +75,6 @@ def strip_html(s) -> str:
     s = s.replace("&nbsp;", " ")
     s = re.sub(r"\s+", " ", s)
     return s.strip()
-
-
-def digest_resource(r: dict) -> dict:
-    """One resource -> the slim digest object (key order matters: format,
-    then name/description/url/size/created as present)."""
-
-    out = {"format": r.get("format") or None}
-    if r.get("name"):
-        out["name"] = truncate(r["name"], 200)
-    if r.get("description"):
-        out["description"] = truncate(r["description"], 1000)
-    if r.get("url"):
-        out["url"] = r["url"]
-    if r.get("created"):
-        out["created"] = str(r["created"])[:10]
-    return out
-
-
-def build_digest(pkg: dict) -> dict:
-    """Curated digest sent to the model."""
-
-    extras = {}
-    for e in pkg.get("extras") or []:
-        if not isinstance(e, dict):
-            continue
-        key = EXTRAS_WHITELIST.get(e.get("key"))
-        if key:
-            extras[key] = truncate(e.get("value"), 2000)
-
-    resources = [digest_resource(r) for r in (pkg.get("resources") or [])[:MAX_DIGEST_RESOURCES]]
-    total = pkg.get("num_resources")
-    if total is None:
-        total = len(pkg.get("resources") or [])
-    if total > MAX_DIGEST_RESOURCES:
-        resources.append({"_note": f"…and {total - MAX_DIGEST_RESOURCES} more resources"})
-
-    return {
-        "title": pkg.get("title"),
-        "organisation": (
-            (pkg.get("_organisation") or {}).get("display_name") or (pkg.get("organization") or {}).get("title") or None
-        ),
-        "theme": pkg.get("theme-primary") or None,
-        "licence": pkg.get("license_title") or None,
-        "open_licence": pkg.get("isopen"),
-        "created": str(pkg.get("metadata_created") or "")[:10],
-        "last_modified": str(pkg.get("metadata_modified") or "")[:10],
-        "description": truncate(strip_html(pkg.get("notes")), 20000),
-        "tags": [t if isinstance(t, str) else t.get("name") for t in (pkg.get("tags") or [])][:10],
-        "resources": resources,
-        "extras": extras,
-    }
 
 
 # ---------------------------------------------------------------------------

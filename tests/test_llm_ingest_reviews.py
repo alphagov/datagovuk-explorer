@@ -65,12 +65,10 @@ def test_load_records():
 
 
 def test_typed_column_helpers():
-    # _subscore pulls scores.<key>.score; malformed -> None
+    # _subscore pulls r.<key>.score; malformed -> None
     r = {
-        "scores": {
-            "findability": {"score": 4},
-            "resources": {"score": None},
-        },
+        "findability": {"score": 4},
+        "resources": {"score": None},
     }
     assert ir._subscore(r, "findability") == 4
     assert ir._subscore(r, "resources") is None
