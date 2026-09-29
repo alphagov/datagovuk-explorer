@@ -21,7 +21,13 @@ def get_classification(dataset_id: str) -> dict | None:
     rows = _SUGGESTION_FOR.all(dataset_id)
     if not rows:
         return None
-    return json.loads(rows[0]["json"])
+    raw = json.loads(rows[0]["json"])
+    return {
+        **raw,
+        "theme": raw.get("suggested_theme"),
+        "theme_confidence": raw.get("suggested_theme_confidence"),
+        "tags": raw.get("suggested_tags") or [],
+    }
 
 
 # --- /suggestions query builder ---
