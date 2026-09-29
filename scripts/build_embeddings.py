@@ -186,10 +186,10 @@ def main() -> None:
         print("HNSW index dropped; will rebuild after inserts.", file=sys.stderr)
 
         rows = db.prepare(
-            "SELECT d.id, r.title, d.title AS orig_title,"
-            " r.theme, r.tags, r.desc, d.notes"
+            "SELECT d.id, s.title, d.title AS orig_title,"
+            " s.theme, s.tags, s.desc, d.notes"
             " FROM datasets d"
-            " JOIN suggestions r ON r.dataset_id = d.id",
+            " JOIN suggestions s ON s.dataset_id = d.id",
         ).all()
         print(f"datasets to embed: {len(rows)}", file=sys.stderr)
 
