@@ -1,4 +1,4 @@
-exclude: '^docs/|/migrations/|staticfiles/'
+exclude: '^docs/|/migrations/|staticfiles/|/vendor/'
 default_stages: [pre-commit]
 minimum_pre_commit_version: "3.2.0"
 
@@ -10,7 +10,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude_types: [csv]
       - id: end-of-file-fixer
+        exclude_types: [csv]
       - id: check-json
       - id: check-toml
       - id: check-xml
