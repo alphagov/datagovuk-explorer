@@ -85,7 +85,7 @@ class HostGate:
     """Per-host rate limiter with dead-host detection.
 
     Rate logic:
-      - success (any 2xx–4xx except 429): count streak; every SPEED_UP_AFTER
+      - success (any 2xx-4xx except 429): count streak; every SPEED_UP_AFTER
         consecutive successes steps the interval down by floor_ms toward floor_ms.
       - 429: permanently lock acceleration; step interval up by floor_ms toward start_ms.
       - 5xx / timeout / connect error: count toward DEAD_THRESHOLD; no rate change.
@@ -163,10 +163,9 @@ class HostGate:
         is_429 = status == 429
         is_dead_signal = (
             (status is not None and status >= 500)
-            or err.startswith("timeout:")
-            or err.startswith("connect:")
-            or err.startswith("dns:")
-            or err.startswith("ssl:")
+            or err.startswith(
+                ("timeout:", "connect:", "dns:", "ssl:"),
+            )
             or (err.startswith("playwright:") and err != "playwright:unavailable")
         )
 
@@ -642,8 +641,8 @@ async def _log_progress(
         rate = (n - last_n) / interval
         last_n = n
         pct = n * 100 // total if total else 0
-        w_used = workers - worker_sem._value
-        pw_used = pw_pages - pw_sem._value
+        w_used = workers - worker_sem._value  # noqa: SLF001
+        pw_used = pw_pages - pw_sem._value  # noqa: SLF001
         q_depth = queue.qsize()
         print(
             f"  {n}/{total} ({pct}%) | {rate:.1f}/s"
@@ -670,7 +669,7 @@ def main(
     dead_threshold: int = typer.Option(10, help="Mark host dead after N consecutive failures (0 = disable)"),
     force: bool = typer.Option(False, help="Recheck URLs already in link_check_results"),
     errors_only: bool = typer.Option(False, help="Recheck only URLs whose last result was an error (ok=false)"),
-    group_hosts: list[str] = typer.Option(
+    group_hosts: list[str] = typer.Option(  # noqa: B008
         [],
         help="Comma-separated hosts that share one rate-limit gate (repeat for multiple groups)",
     ),

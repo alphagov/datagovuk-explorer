@@ -35,6 +35,7 @@ import json
 import shutil
 import sys
 import threading
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -179,15 +180,13 @@ Respond with ONE JSON object, no markdown, no commentary. Schema:
 
 
 def build_prompt(digest: dict) -> list[dict]:
-    from datetime import date
-
     theme_list = "\n".join(f'- "{t}" — example tags: {", ".join(tags)}' for t, tags in THEMES.items())
     theme_keys = ", ".join(f'"{t}"' for t in THEMES)
     rubric = RUBRIC.replace("${themeList}", theme_list)
     schema = SCHEMA.replace("${themeKeys}", theme_keys)
 
     return [
-        {"role": "system", "content": SYSTEM_CONTENT.format(today=date.today().isoformat())},
+        {"role": "system", "content": SYSTEM_CONTENT.format(today=datetime.now(tz=UTC).date().isoformat())},
         {
             "role": "user",
             "content": (

@@ -15,6 +15,7 @@ import json
 import os
 import tempfile
 from contextlib import redirect_stdout
+from datetime import UTC, datetime
 from pathlib import Path
 
 os.environ.setdefault("DATABASE_URL", "postgresql://localhost:5432/test-db")
@@ -43,12 +44,13 @@ def review_reply(**overrides) -> httpx.Response:
 # build_prompt
 # ---------------------------------------------------------------------------
 def test_build_prompt():
-    from datetime import date
-
     digest = {"title": "X", "organisation": None}
     messages = rv.build_prompt(digest)
     assert len(messages) == 2
-    assert messages[0] == {"role": "system", "content": rv.SYSTEM_CONTENT.format(today=date.today().isoformat())}
+    assert messages[0] == {
+        "role": "system",
+        "content": rv.SYSTEM_CONTENT.format(today=datetime.now(tz=UTC).date().isoformat()),
+    }
     assert messages[1]["role"] == "user"
 
     content = messages[1]["content"]

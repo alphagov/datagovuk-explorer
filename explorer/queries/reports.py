@@ -357,7 +357,7 @@ REPORTS = [
     {
         "key": "links-suspicious-redirects",
         "label": "Suspicious redirects",
-        "description": "Links where 5 or more distinct URLs all redirect to the same destination — a likely sign of a catch-all redirect for content that no longer exists.",
+        "description": "Links where 5 or more distinct URLs all redirect to the same destination — a likely sign of a catch-all redirect for content that no longer exists.",  # noqa: E501
         "kind": "suspicious-redirects",
         "percent_of": "links",
         "facets": [
@@ -487,7 +487,7 @@ def report_unfiltered_options(key: str) -> dict[str, list[dict]]:
     return {facet_key: Query(sql).all(*params) for facet_key, (sql, params) in entry.items()}
 
 
-def report_stmts(
+def report_stmts(  # noqa: C901
     report: dict,
     filters: dict[str, str] | None = None,
     sort: str | None = None,

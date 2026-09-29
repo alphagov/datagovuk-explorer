@@ -32,6 +32,7 @@ import json
 import shutil
 import sys
 import threading
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -180,10 +181,8 @@ Respond with ONE JSON object, no markdown fences, no commentary. Schema:
 
 
 def build_prompt(digest: dict) -> list[dict]:
-    from datetime import date
-
     return [
-        {"role": "system", "content": SYSTEM_CONTENT.format(today=date.today().isoformat())},
+        {"role": "system", "content": SYSTEM_CONTENT.format(today=datetime.now(tz=UTC).date().isoformat())},
         {
             "role": "user",
             "content": (
