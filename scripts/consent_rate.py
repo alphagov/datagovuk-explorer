@@ -130,11 +130,7 @@ def main() -> None:
 
     # ── Distribution (all pages with >= 1 SC click) ───────────────────
     min_clicks = 10
-    ratios_all = sorted(
-        ga[u] / sc[u]
-        for u in overlap
-        if sc[u] >= min_clicks
-    )
+    ratios_all = sorted(ga[u] / sc[u] for u in overlap if sc[u] >= min_clicks)
     if not ratios_all:
         return
 

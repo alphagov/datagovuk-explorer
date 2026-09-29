@@ -76,7 +76,7 @@ def build_digest(pkg: dict) -> dict:
 
 
 THEMES: dict[str, list[str]] = json.loads(
-    (Path(__file__).resolve().parent / "themes.json").read_text()
+    (Path(__file__).resolve().parent / "themes.json").read_text(),
 )
 
 
