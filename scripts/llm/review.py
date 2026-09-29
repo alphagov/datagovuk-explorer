@@ -94,28 +94,33 @@ def build_digest(pkg: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Review prompt — quality scores only
 # ---------------------------------------------------------------------------
-SYSTEM_CONTENT = """You are a data-quality reviewer for data.gov.uk,
-        the UK open data portal. You evaluate dataset metadata against open-data
-        best practice.
+SYSTEM_CONTENT = """
+For context, today's date is {today}.
 
-        Be specific and evidence-based — every score must reference the
-        metadata provided. Be critical but fair: a
-        small public-sector dataset published as a monthly CSV can be high quality.
+You are a data-quality reviewer for data.gov.uk,
+the UK open data portal. You evaluate dataset metadata against open-data
+best practice.
 
-        Descriptions and resource URLs are sent in full. If a dataset has more than
-        8 resources, only the first 8 are shown; very long extra values may be
-        trimmed. Never criticise these digest limits — judge only what is present.
+Be specific and evidence-based — every score must reference the
+metadata provided. Be critical but fair: a small public-sector dataset
+published as a monthly CSV can be high quality.
 
-        Never invent facts."""
+Do not make suggestions for fixes, your role is only to review.
 
-RUBRIC = """## Scores and issues
+Descriptions and resource URLs are sent in full. If a dataset has more than
+8 resources, only the first 8 are shown; very long extra values may be
+trimmed. Never criticise these digest limits — judge only what is present.
+
+"""
+
+RUBRIC = """
+## Scores and issues
 
 Start scores at 5. Deduct points only for specific, named
 issues — every deduction must cite the concrete issue that caused it.
-A serious issue can deduct more than one point.
-Return issues as an array of clear, very concise strings, easily scannable,
-one issue per item.
-Max 4 issues, prefer less, if there are no issues, set issues to an empty array [].
+A serious issue can deduct more than one point depending on severity.
+Issues should be very short and clear, easy to scan - no need for full sentences
+Add no issues if there aren't any, 1 - 4 issues if there are, prefer fewer.
 Issues should be clearly distinct and ordered by priority.
 
 **title-description**
@@ -125,7 +130,8 @@ Review the title and description only.
 The title is the most important signal. It should tell a reader what the
 dataset contains. Reference codes and identifiers are fine in addition to
 a clear title — they help specialists. A poor title
-is vague, meaningless, misleading, pure jargon. Dates in the title are
+is vague, meaningless, misleading, pure jargon and can pull down the score a lot
+regardless of description. Dates in the title are
 good if they don't conflict with other metadata.
 
 Example good titles:
@@ -139,10 +145,11 @@ Example poor titles:
  - AIMS Asset Bundle
 
 The description should expand on the title with enough context to decide
-whether the dataset is relevant. Penalise unexplained acronyms.
+whether the dataset is relevant. Acronyms are fine unless too many unexplained ones -
+something like Linear Regression Rate (LRR) is fine.
 Overuse of jargon is bad but do not flag proper nouns, equipment
 names or place names as jargon — domain-specific named things are
-expected in specialist datasets. Two lines or less is too short, 5
+expected in specialist datasets. Two relevant lines or less is too short, 10
 paragraphs is too long.
 
 **resources**
@@ -152,9 +159,8 @@ or APIs (WMS, WFS, REST, etc.) it doesn't have to be both -
 download only or API only is fine.
 Accompanying documentation links are fine.
 HTML alone can be ok only with good reason (eg it represents API documentation).
-Resources should have clear names and a declared format. A resource
-with no name, no format is poorly catalogued — the
-more of these are missing, the lower the score.
+Resources should have clear names in the context of the dataset title and description,
+and a declared format that makes sense.
 Do not penalise National Archives links.
 You cannot access URLs so never comment on whether they work or download."""
 
@@ -177,12 +183,10 @@ def build_prompt(digest: dict) -> list[dict]:
     from datetime import date
 
     return [
-        {"role": "system", "content": SYSTEM_CONTENT},
+        {"role": "system", "content": SYSTEM_CONTENT.format(today=date.today().isoformat())},
         {
             "role": "user",
             "content": (
-                f"Today's date is {date.today().isoformat()}.\n\n"
-                "Evaluate the following dataset metadata.\n"
                 f"{RUBRIC}\n\n"
                 "Dataset metadata (JSON):\n"
                 f"{json.dumps(digest, indent=1, ensure_ascii=False)}\n"

@@ -281,18 +281,21 @@ THEMES = {
 # ---------------------------------------------------------------------------
 # Suggestion prompt — theme/tag/title/description only
 # ---------------------------------------------------------------------------
-SYSTEM_CONTENT = """You are a metadata specialist for data.gov.uk,
-        the UK open data portal. You classify datasets by theme and suggest
-        improved metadata.
+SYSTEM_CONTENT = """
+context, today's date is {today}.
 
-        Be specific and evidence-based — every suggestion must reference the
-        metadata provided.
+You are a metadata specialist for data.gov.uk,
+the UK open data portal. You classify datasets by theme and suggest
+improved metadata.
 
-        Never invent facts. The suggested description must only rephrase what is
-        present in the metadata — no added topics, audiences, purpose, numbers,
-        dates, geographies or sources. If the metadata is too thin to improve on
-        without inventing details, set suggested_title / suggested_description to
-        empty strings rather than elaborating."""
+Be specific and evidence-based — every suggestion must reference the
+metadata provided.
+
+Never invent facts. The suggested description must only rephrase what is
+present in the metadata — no added topics, audiences, purpose, numbers,
+dates, geographies or sources. If the metadata is too thin to improve on
+without inventing details, set suggested_title / suggested_description to
+empty strings rather than elaborating."""
 
 RUBRIC = """## Suggestions
 
@@ -365,12 +368,10 @@ def build_prompt(digest: dict) -> list[dict]:
     schema = SCHEMA.replace("${themeKeys}", theme_keys)
 
     return [
-        {"role": "system", "content": SYSTEM_CONTENT},
+        {"role": "system", "content": SYSTEM_CONTENT.format(today=date.today().isoformat())},
         {
             "role": "user",
             "content": (
-                f"Today's date is {date.today().isoformat()}.\n\n"
-                "Classify the following dataset metadata and suggest improvements.\n"
                 f"{rubric}\n\n"
                 "Dataset metadata (JSON):\n"
                 f"{json.dumps(digest, indent=1, ensure_ascii=False)}\n"
