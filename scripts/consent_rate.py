@@ -128,25 +128,24 @@ def main() -> None:
 
     print()
 
-    # ── Distribution (all pages with >= 50 SC clicks) ────────────────
-    ratios_50 = sorted(
+    # ── Distribution (all pages with >= 1 SC click) ───────────────────
+    min_clicks = 10
+    ratios_all = sorted(
         ga[u] / sc[u]
         for u in overlap
-        if sc[u] >= 50  # noqa: PLR2004
+        if sc[u] >= min_clicks
     )
-    if not ratios_50:
+    if not ratios_all:
         return
 
-    print(f"Distribution of consent rate (pages with 50+ SC clicks, n={len(ratios_50):,}):")
+    print(f"Distribution of consent rate (pages with {min_clicks}+ SC clicks, n={len(ratios_all):,}):")
     print()
 
     band_pct = 2
     max_pct = 50
     n_bands = max_pct // band_pct
-    # Integer-percentage buckets: each ratio maps to exactly one bucket, so
-    # values on a boundary cannot be double-counted (unlike float ranges).
     counts = [0] * (n_bands + 1)
-    for r in ratios_50:
+    for r in ratios_all:
         counts[min(int(r * 100) // band_pct, n_bands)] += 1
 
     max_count = max(counts)
