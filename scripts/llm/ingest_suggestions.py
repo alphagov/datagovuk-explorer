@@ -16,6 +16,7 @@ Usage: python -m scripts.llm.ingest_suggestions [--suggestions-dir downloads/sug
 
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from scripts.db import connect, database_url
@@ -23,21 +24,29 @@ from scripts.db import connect, database_url
 DEFAULT_SUGGESTIONS_DIR = Path(__file__).resolve().parent.parent / "downloads" / "suggestions"
 
 
+def _read_file(f: Path) -> dict | None:
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 def load_records(directory: Path) -> list[dict]:
     """All records from per-dataset JSON files; corrupt files skipped."""
-    records: list[dict] = []
     if not directory.exists():
-        return records
-    for f in sorted(directory.rglob("*.json")):
-        try:
-            records.append(json.loads(f.read_text(encoding="utf-8")))
-        except (json.JSONDecodeError, OSError):
-            continue
+        return []
+    files = sorted(directory.rglob("*.json"))
+    records: list[dict] = []
+    with ThreadPoolExecutor(max_workers=32) as pool:
+        for result in as_completed(pool.submit(_read_file, f) for f in files):
+            r = result.result()
+            if r is not None:
+                records.append(r)
     return records
 
 
 def ingest(db, records: list[dict]) -> int:
-    """Truncate + insert records whose dataset exists locally; returns inserted count."""
+    """Truncate + COPY records whose dataset exists locally; returns inserted count."""
     ids = [r["dataset_id"] for r in records]
     existing = {str(row["id"]) for row in db.prepare("SELECT id FROM datasets WHERE id = ANY(?)").all(ids)}
     present = [r for r in records if r["dataset_id"] in existing]
@@ -45,28 +54,27 @@ def ingest(db, records: list[dict]) -> int:
     if skipped:
         print(f"Skipped {skipped} suggestion(s) — dataset not in local DB.")
 
-    def _run(tx) -> None:
-        tx.exec("TRUNCATE suggestions RESTART IDENTITY")
-        stmt = tx.prepare(
-            """INSERT INTO suggestions
-               (id, dataset_id, ok, theme, theme_confidence,
-                tags, title, "desc", created_at, json)
-               VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        )
-        for r in present:
-            stmt.run(
-                r["dataset_id"],
-                bool(r.get("ok")),
-                r.get("suggested_theme"),
-                r.get("suggested_theme_confidence"),
-                json.dumps(r["suggested_tags"], ensure_ascii=False) if r.get("suggested_tags") else None,
-                r.get("suggested_title"),
-                r.get("suggested_description"),
-                r.get("classified_at"),
-                json.dumps(r, ensure_ascii=False),
-            )
+    copy_sql = (
+        'COPY suggestions (dataset_id, ok, theme, theme_confidence, tags, title, "desc", created_at, json) FROM STDIN'
+    )
+    with db.conn.transaction(), db.conn.cursor() as cur:
+        cur.execute("TRUNCATE suggestions RESTART IDENTITY")
+        with cur.copy(copy_sql) as copy:
+            for r in present:
+                copy.write_row(
+                    (
+                        r["dataset_id"],
+                        bool(r.get("ok")),
+                        r.get("suggested_theme"),
+                        r.get("suggested_theme_confidence"),
+                        json.dumps(r["suggested_tags"], ensure_ascii=False) if r.get("suggested_tags") else None,
+                        r.get("suggested_title"),
+                        r.get("suggested_description"),
+                        r.get("classified_at"),
+                        json.dumps(r, ensure_ascii=False),
+                    ),
+                )
 
-    db.transaction(_run)
     return len(present)
 
 
