@@ -23,7 +23,7 @@
         {% for r in rows %}
           <tr>
             <th scope="row" class="col-text">
-              <a href="/organisation/{{ r.org_slug }}">{{ r.name }}</a>
+              <a href="/reviews?publisher={{ r.org_slug }}">{{ r.name }}</a>
             </th>
             <td class="col-num">{{ r.reviewed_datasets | num }}</td>
             <td class="col-num">{% if r.avg_findability is not none %}{{ r.avg_findability }}{% else %}—{% endif %}</td>
