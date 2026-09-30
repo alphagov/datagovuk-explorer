@@ -384,6 +384,11 @@ class Review(models.Model):
         db_table = "reviews"
         indexes = [
             models.Index(fields=["dataset"], name="idx_reviews_dataset"),
+            models.Index(
+                fields=["dataset", "-id"],
+                name="idx_reviews_dataset_id_desc",
+                condition=models.Q(ok=True),
+            ),
         ]
 
     def __str__(self):

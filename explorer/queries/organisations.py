@@ -105,6 +105,26 @@ def org_created_years() -> list[str]:
     return sorted({r["year"] for r in YEARLY_ORGS.all()}, reverse=True)
 
 
+@functools.cache
+def org_last_published_years() -> list[str]:
+    """Years in which orgs last published (YYYY) — latest first, memoised."""
+    return sorted(
+        {r["last_published"][:4] for r in org_aggregate_rows() if r["last_published"]},
+        reverse=True,
+    )
+
+
+@functools.cache
+def org_link_health_rows() -> list[dict[str, Any]]:
+    """Per-org link health % — memoised: build-time snapshot."""
+    return Query(
+        "SELECT l.org_slug,"
+        "  COUNT(*) FILTER (WHERE lcr.ok) * 100.0 / NULLIF(COUNT(*), 0) AS link_health"
+        " FROM links l LEFT JOIN link_check_results lcr ON l.url = lcr.url"
+        " GROUP BY l.org_slug"
+    ).all()
+
+
 # --- /organisations sidebar facet pools (self-excluding SQL aggregates) ---
 # Each group counts over the pool filtered by the other two groups via
 # core.facet_where — the same algorithm as /datasets.
@@ -302,13 +322,15 @@ _LINK_HEALTH_AGG = (
 )
 
 # The list select — ORGS' columns plus the aggregate columns.
+# link_health is NOT included here: it comes from the memoised org_link_health_rows()
+# dict in the view, avoiding a links × link_check_results scan on every page load.
+# _LINK_HEALTH_AGG is still joined when sort == "link_health" so the ORDER BY works.
 _ORG_LIST_SELECT = (
     "SELECT o.slug, o.name, o.display_name, o.package_count, o.type, o.state,"
     "       o.approval_status, o.created, o.title,"
     "       COALESCE(a.total_resources, 0) AS total_resources,"
     "       COALESCE(a.total_views, 0) AS total_views,"
-    "       a.last_published,"
-    "       lh.link_health"
+    "       a.last_published"
     " FROM organisations o"
 )
 
@@ -389,10 +411,15 @@ def organisations_stmts(filters: dict, sort: str, dir_: str) -> dict:
     _ORG_FACET_CLAUSES, the ORDER BY from ORG_SORT."""
     where, params = facet_where(_ORG_FACET_CLAUSES, filters)
     order_sql = order_by(ORG_SORT, sort, dir_, "LOWER(o.display_name), o.slug")
+
+    # _LINK_HEALTH_AGG is only joined when sorting by link_health so the ORDER BY
+    # resolves lh.*. For every other sort the data comes from org_link_health_rows().
+    lh_join = _LINK_HEALTH_AGG if sort == "link_health" else ""
+
     return {
         "params": params,
         "count": Query(f"SELECT COUNT(*) AS n FROM organisations o {_ORG_AGG}{where}"),
         "list": Query(
-            f"{_ORG_LIST_SELECT} {_ORG_AGG}{_LINK_HEALTH_AGG}{where} ORDER BY {order_sql} LIMIT %s OFFSET %s",
+            f"{_ORG_LIST_SELECT} {_ORG_AGG}{lh_join}{where} ORDER BY {order_sql} LIMIT %s OFFSET %s",
         ),
     }

@@ -17,9 +17,9 @@ from explorer.queries.organisations import (
     ORG_SORT,
     ORG_SORT_DEFAULT,
     VALID_DATASET_BUCKETS,
-    all_org_rows,
-    org_aggregate_rows,
     org_created_years,
+    org_last_published_years,
+    org_link_health_rows,
     organisations_facet_counts,
     organisations_stmts,
 )
@@ -28,45 +28,16 @@ from explorer.sort import parse_sort
 from .core import paginate, pill
 
 
-def _merge_org_rows(org_rows, agg_rows) -> list[dict]:
-    """Merge the org rows with their per-org aggregates into display rows.
-    Orgs absent from agg_rows have no datasets."""
-    resources_by_org = {r["org_slug"]: r["total_resources"] for r in agg_rows}
-    views_by_org = {r["org_slug"]: r["total_views"] for r in agg_rows}
-    last_published_by_org = {r["org_slug"]: r["last_published"] for r in agg_rows}
-
-    rows = []
-    for o in org_rows:
-        last_pub = last_published_by_org.get(o["slug"])
-        rows.append(
-            {
-                "slug": o["slug"],
-                "name": o["display_name"] or o["title"] or o["name"],
-                "dataset_count": o["package_count"] or 0,
-                "resource_count": resources_by_org.get(o["slug"]) or 0,
-                "views": views_by_org.get(o["slug"]) or 0,
-                "type": o["type"],
-                "state": o["state"],
-                "approval_status": o["approval_status"],
-                "created": format_date(o["created"]),
-                "created_year": o["created"][:4] if o["created"] else None,
-                "last_published": format_date(last_pub),
-                "last_published_year": last_pub[:4] if last_pub else None,
-            },
-        )
-    return rows
-
-
-def _page_row(r: dict) -> dict:
-    """One SQL page row → display row, minus the year fields the filters
-    don't display."""
+def _page_row(r: dict, link_health: dict) -> dict:
+    """One SQL page row → display row. link_health comes from the memoised
+    org_link_health_rows() dict rather than from the SQL result."""
     return {
         "slug": r["slug"],
         "name": r["display_name"] or r["title"] or r["name"],
         "dataset_count": r["package_count"] or 0,
         "resource_count": r["total_resources"] or 0,
         "views": r["total_views"] or 0,
-        "link_health": r["link_health"],
+        "link_health": link_health.get(r["slug"]),
         "type": r["type"],
         "state": r["state"],
         "created": format_date(r["created"]),
@@ -107,19 +78,10 @@ def _parse_filters(request, valid_created_years, valid_pub_years) -> OrgFilters:
 
 
 def organisations(request):
-    # Memoised fetches feed the facet pools and the year whitelist; only the
-    # page list is fetched per request.
-    org_rows = all_org_rows()
-    agg_rows = org_aggregate_rows()
-    rows = _merge_org_rows(org_rows, agg_rows)
-
     sort, dir_ = parse_sort(request, ORG_SORT, *ORG_SORT_DEFAULT)
 
     created_years = org_created_years()
-    last_published_years = sorted(
-        {o["last_published_year"] for o in rows if o["last_published_year"]},
-        reverse=True,
-    )
+    last_published_years = org_last_published_years()
 
     filters = _parse_filters(request, set(created_years), set(last_published_years))
 
@@ -134,8 +96,10 @@ def organisations(request):
     )
     shown_orgs = stmts["count"].get(*stmts["params"])["n"]
     pagination = paginate(request, shown_orgs)
+    link_health = {r["org_slug"]: r["link_health"] for r in org_link_health_rows()}
     page_rows = [
-        _page_row(r) for r in stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
+        _page_row(r, link_health)
+        for r in stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
     ]
 
     last_published_param = ",".join(filters.last_published_years) if filters.last_published_years else None
