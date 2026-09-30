@@ -73,13 +73,15 @@ def main() -> None:
     sc = _read_sc()
     ga = _read_ga_landing()
     overlap = ga.keys() & sc.keys()
+    sc_only = {u for u in sc.keys() - ga.keys() if sc[u] > 100}
 
     print(f"Datasets in Search Console:  {len(sc):,}")
     print(f"Datasets in GA landing:      {len(ga):,}")
     print(f"Datasets in both:            {len(overlap):,}")
+    print(f"SC-only (>100 clicks):       {len(sc_only):,}  ({sum(sc[u] for u in sc_only):,} clicks)")
     print()
 
-    # ── Overall ──────────────────────────────────────────────────────
+    # ── Overall (overlap only) ───────────────────────────────────────
     total_ga = sum(ga[u] for u in overlap)
     total_sc = sum(sc[u] for u in overlap)
     all_ratios = sorted(ga[u] / sc[u] for u in overlap if sc[u] >= 10)  # noqa: PLR2004
@@ -87,6 +89,17 @@ def main() -> None:
     print(f"Total SC clicks:             {total_sc:,}")
     print(f"Aggregate consent rate:      {total_ga / total_sc:.1%}")
     print(f"Median consent rate (10+):   {statistics.median(all_ratios):.1%}")
+
+    # ── Including SC-only zeros (>100 clicks) ────────────────────────
+    total_sc_incl = total_sc + sum(sc[u] for u in sc_only)
+    ratios_incl = sorted(
+        [ga[u] / sc[u] for u in overlap if sc[u] >= 10]  # noqa: PLR2004
+        + [0.0] * len(sc_only),
+    )
+    print()
+    print(f"Including SC-only >100 as 0% consent:")
+    print(f"  Aggregate consent rate:    {total_ga / total_sc_incl:.1%}")
+    print(f"  Median consent rate:       {statistics.median(ratios_incl):.1%}")
     print()
 
     # ── By volume bucket ─────────────────────────────────────────────

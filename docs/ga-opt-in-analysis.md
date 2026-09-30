@@ -18,7 +18,11 @@ GA only sees users who accepted the cookie banner. Search Console counts every G
 
 Analysis period: 2026-04-01 to 2026-09-01 (April – August 2026, 5 months; GA functioning correctly).
 
-**Overall: ~10% aggregate, ~8% median** — GA sees about 1 in 10-12 real Google arrivals.
+**Overlap-only: ~10% aggregate, ~8% median** — GA sees about 1 in 10-12 real Google arrivals.
+
+However, this only counts pages that appear in both GA landing and Search Console. There are 92 pages with >100 SC clicks and zero GA landing sessions (44,887 clicks total) — effective consent rate of 0%. Including these:
+
+**Including SC-only zeros (>100 clicks): ~8% aggregate, ~8% median.**
 
 ### By traffic volume
 
@@ -87,12 +91,15 @@ For pages without overlap data: keep the simple formula `ga_views - ga_landing +
 
 Capping at 1.0 handles pages where GA landing sessions exceed SC clicks (due to repeat visits inflating GA) — for those pages, no scaling is applied.
 
-The `0.10` floor handles the opposite tail. A page with only a handful of opted-in landings against many Search Console clicks yields a near-zero rate, and dividing by it inflates views without bound — up to ~230x on the Apr–Aug data, which pushed a low-traffic page to the top of the rankings. Ratios below ~10% are treated as sampling noise and floored at the corpus-wide pooled rate (10.2%). Pages at or above 10% keep their exact rate, so a 50%-consent page still scales 2x.
+The `0.10` floor handles the opposite tail. A page with only a handful of opted-in landings against many Search Console clicks yields a near-zero rate, and dividing by it inflates views without bound — up to ~230x on the Apr–Aug data, which pushed a low-traffic page to the top of the rankings. Ratios below ~10% are treated as sampling noise and floored at 10%. Pages at or above 10% keep their exact rate, so a 50%-consent page still scales 2x.
+
+Note: the floor (10%) is above the adjusted corpus-wide rate (~8.4% aggregate when SC-only zeros are included). This means the floor is slightly conservative — it under-inflates rather than over-inflates the non-Google component for pages near the boundary.
 
 ## Assumptions and limitations
 
 - **The Google consent rate is applied to non-Google traffic.** The scaling assumes direct/referral visitors consent at the same rate as search visitors. That is the opposite of what §Why the variance finds (professional and public audiences behave differently), so the estimate likely **over-inflates high-consent audiences**. It also mixes units: `ga_views - ga_landing` is Views minus Sessions.
-- **The 0.10 floor overstates genuinely low-consent pages.** It bounds the error rather than removing it, and is a deliberate simplification — this is an estimate, not a measurement.
+- **The 0.10 floor is above the true corpus-wide rate.** When SC-only pages (>100 clicks, 0 GA sessions) are included, the aggregate consent rate drops to ~8.4%. The floor at 10% is therefore conservative — it under-counts rather than over-counts for pages near the boundary.
+- **SC-only pages get no non-Google inflation.** 92 pages with >100 SC clicks have zero GA landing data. They receive raw SC clicks as their view count, with no scaling for non-Google traffic, so their total views are undercounted.
 - **The tail is noisy.** Individual page rates run from ~1% to ~53%, and before the floor some multipliers reached ~230x. Treat small per-page differences as noise.
 
 ## Scripts
