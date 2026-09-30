@@ -97,6 +97,7 @@ class Dataset(models.Model):
             models.Index(fields=["metadata_created"], name="idx_datasets_created"),
             models.Index(fields=["metadata_modified"], name="idx_datasets_modified"),
             models.Index(fields=["-views"], name="idx_datasets_views_desc"),
+            models.Index(fields=["id"], include=["org_slug", "org_display_name", "title", "theme_primary"], name="idx_datasets_reviews_cover"),
             GinIndex(fields=["fts"], name="idx_datasets_fts"),
         ]
 
@@ -370,7 +371,11 @@ class SeriesDataset(models.Model):
 
 
 class Review(models.Model):
-    """One row per LLM quality-score record (findability + resources)."""
+    """One row per dataset — exactly one LLM quality-score record per dataset_id.
+
+    Ingest is TRUNCATE + COPY; failed (ok:false) records are skipped at ingest
+    time so the one-per-dataset invariant is enforced here as a UNIQUE constraint.
+    """
 
     id = models.AutoField(primary_key=True)
     dataset = models.ForeignKey(
@@ -379,7 +384,6 @@ class Review(models.Model):
         db_column="dataset_id",
         db_index=False,
     )
-    ok = models.BooleanField(db_default=True)
     findability = models.IntegerField(blank=True, null=True)
     resources = models.IntegerField(blank=True, null=True)
     created_at = models.TextField(blank=True, null=True)
@@ -388,12 +392,11 @@ class Review(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "reviews"
-        indexes = [
-            models.Index(fields=["dataset"], name="idx_reviews_dataset"),
-            models.Index(
-                fields=["dataset", "-id"],
-                name="idx_reviews_dataset_id_desc",
-                condition=models.Q(ok=True),
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dataset"],
+                include=["findability", "resources"],
+                name="uniq_reviews_dataset",
             ),
         ]
 
@@ -402,7 +405,11 @@ class Review(models.Model):
 
 
 class Suggestion(models.Model):
-    """One row per LLM suggestion record (theme, tags, title, description)."""
+    """One row per dataset — exactly one LLM suggestion record per dataset_id.
+
+    Ingest is TRUNCATE + COPY; failed (ok:false) records are skipped at ingest
+    time so the one-per-dataset invariant is enforced here as a UNIQUE constraint.
+    """
 
     id = models.AutoField(primary_key=True)
     dataset = models.ForeignKey(
@@ -411,7 +418,6 @@ class Suggestion(models.Model):
         db_column="dataset_id",
         db_index=False,
     )
-    ok = models.BooleanField(db_default=True)
     theme = models.TextField(blank=True, null=True)
     theme_confidence = models.TextField(blank=True, null=True)
     tags = models.TextField(blank=True, null=True)
@@ -423,8 +429,12 @@ class Suggestion(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "suggestions"
-        indexes = [
-            models.Index(fields=["dataset"], name="idx_suggestions_dataset"),
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dataset"],
+                include=["theme", "theme_confidence", "tags", "title", "desc"],
+                name="uniq_suggestions_dataset",
+            ),
         ]
 
     def __str__(self):

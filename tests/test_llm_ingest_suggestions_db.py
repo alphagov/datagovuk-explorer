@@ -39,11 +39,10 @@ def test_ingest_round_trip(migrated_db_url):
         assert ingest(d, records) == 1
 
         assert d.prepare(
-            'SELECT dataset_id, ok, theme, theme_confidence, tags, title, "desc", created_at FROM suggestions',
+            'SELECT dataset_id, theme, theme_confidence, tags, title, "desc", created_at FROM suggestions',
         ).all() == [
             {
                 "dataset_id": "is-1",
-                "ok": True,
                 "theme": "environment",
                 "theme_confidence": "high",
                 "tags": json.dumps(["env", "climate"], ensure_ascii=False),

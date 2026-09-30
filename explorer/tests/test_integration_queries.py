@@ -455,17 +455,15 @@ def test_metadata_values_pagination():
     assert METADATA_VALUES.all(full_key, 100, 10_000_000) == []
 
 
-def test_latest_reviews_dedup_semantics():
+def test_latest_reviews_one_per_dataset():
     rows = latest_reviews()
     assert rows
     ids = [r["dataset_id"] for r in rows]
-    assert len(ids) == len(set(ids)), "latest_reviews must dedup to one per dataset"
-    assert all(r.get("ok") is True for r in rows), "only ok:true records survive"
+    assert len(ids) == len(set(ids)), "one review per dataset"
 
 
-def test_get_review_returns_latest_review():
-    """The latest ok review for d01 is the later record (findability 5), not the
-    earlier one or the ok:false one."""
+def test_get_review_returns_review():
+    """get_review returns the single review for d01 (findability 5)."""
     rev = get_review("d01")
     assert rev is not None
     assert rev["dataset_id"] == "d01"

@@ -361,19 +361,15 @@ _HARVEST_SOURCES = [
     ("hs3", "Gamma Harvester", "gamma", False, "manual", None),
 ]
 
-# Two ok reviews for d01 (latest wins), one ok:false, plus d07 and d05.
+# One review per dataset (ingest guarantees this; UNIQUE constraint enforces it).
 _REVIEWS = [
-    _review("d01", "alpha", "Alpha Department", 3),
     _review("d01", "alpha", "Alpha Department", FIXTURE["review_dataset_latest_findability"]),
-    _review("d01", "alpha", "Alpha Department", 1, ok=False),
     _review("d07", "beta", None, 4),
     _review("d05", "alpha", "Alpha Department", None),
 ]
 
 _SUGGESTIONS = [
     _suggestion("d01", "alpha", "Alpha Department"),
-    _suggestion("d01", "alpha", "Alpha Department"),
-    _suggestion("d01", "alpha", "Alpha Department", ok=False),
     _suggestion("d07", "beta", None, theme="transport"),
     _suggestion("d05", "alpha", "Alpha Department"),
 ]
@@ -529,7 +525,6 @@ def make_fixtures():
         [
             Review(
                 dataset_id=record["dataset_id"],
-                ok=record["ok"],
                 findability=record["title-description"]["score"],
                 resources=record["resources"]["score"],
                 created_at=record["reviewed_at"],
@@ -543,7 +538,6 @@ def make_fixtures():
         [
             Suggestion(
                 dataset_id=record["dataset_id"],
-                ok=record["ok"],
                 theme=record["suggested_theme"],
                 theme_confidence=record["suggested_theme_confidence"],
                 tags=json.dumps(record["suggested_tags"]),

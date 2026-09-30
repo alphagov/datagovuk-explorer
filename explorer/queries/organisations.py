@@ -337,13 +337,7 @@ _ORG_LIST_SELECT = (
 
 # ── /organisations/reviews — per-publisher average review scores ──
 
-_REVIEW_DEDUP = """
-    SELECT DISTINCT ON (dataset_id) dataset_id,
-           findability, resources
-    FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
-"""
-
-_PUBLISHER_REVIEWS_FROM = f"({_REVIEW_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
+_PUBLISHER_REVIEWS_FROM = "reviews r JOIN datasets d ON d.id = r.dataset_id"
 
 PUBLISHER_REVIEWS_SORT = {
     "name": "LOWER(COALESCE(MAX(d.org_display_name), d.org_slug))",

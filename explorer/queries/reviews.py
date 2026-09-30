@@ -1,7 +1,8 @@
 """Reviews helpers — DB-backed.
 
 Reviews (quality scores) come from the ``reviews`` table (populated by
-scripts/llm/ingest_reviews.py)."""
+scripts/llm/ingest_reviews.py). Ingest is TRUNCATE + COPY — exactly one row
+per dataset_id — so no dedup is needed at query time."""
 
 import json
 from functools import cache
@@ -13,34 +14,22 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 # ---------------------------------------------------------------------------
 # Reviews — quality scores from the `reviews` table
 # ---------------------------------------------------------------------------
-# Only ok:true records count, and only the latest per dataset_id — later in
-# the file = higher id (ingest inserts in file order). json is TEXT, so it
-# comes back as a plain string the views json.loads.
+# One row per dataset_id (enforced by UNIQUE constraint). json is TEXT,
+# so it comes back as a plain string the views json.loads.
 
-# All ok reviews, one (latest) per dataset — DISTINCT ON keeps the
-# highest-id (latest) record per dataset_id.
-_LATEST_REVIEWS = Query(
-    """SELECT json FROM (
-      SELECT DISTINCT ON (dataset_id) dataset_id, id, json
-      FROM reviews WHERE ok = true
-      ORDER BY dataset_id, id DESC
-    ) latest ORDER BY id""",
-)
+_LATEST_REVIEWS = Query("SELECT json FROM reviews ORDER BY dataset_id")
 
-# Latest ok review for one dataset id.
-_REVIEW_FOR = Query(
-    "SELECT json FROM reviews WHERE ok = true AND dataset_id = %s ORDER BY id DESC LIMIT 1",
-)
+_REVIEW_FOR = Query("SELECT json FROM reviews WHERE dataset_id = %s")
 
 
 @cache
 def latest_reviews() -> list[dict]:
-    """All ok reviews, one (latest) per dataset."""
+    """All reviews, one per dataset."""
     return [json.loads(row["json"]) for row in _LATEST_REVIEWS.all()]
 
 
 def get_review(dataset_id: str) -> dict | None:
-    """Latest ok review for one dataset id, or None."""
+    """Review for one dataset id, or None."""
     rows = _REVIEW_FOR.all(dataset_id)
     if not rows:
         return None
@@ -56,15 +45,6 @@ def get_review(dataset_id: str) -> dict | None:
 # of fetching + json.loads-ing every row in Python), and the sidebar facet
 # counts use the same builder with their own group excluded — one clause
 # builder, both consumers.
-
-# The dedup subquery every statement below is built on — the latest ok
-# review per dataset (see _LATEST_REVIEWS). Joining to `datasets` supplies
-# the *current* title/org, not the review-time values in the JSON.
-_DEDUP = """
-    SELECT DISTINCT ON (dataset_id) id, dataset_id,
-           findability, resources
-    FROM reviews WHERE ok = true ORDER BY dataset_id, id DESC
-"""
 
 # Score dimensions — one facet group per dimension, mirroring the sortable
 # columns. The denormalised subscore columns the ingest populates. A
@@ -134,15 +114,10 @@ def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
 
 
 def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
-    """Return { count, list, params } for one (filters, sort, dir) combo.
-
-    The dedup subquery joined to datasets supplies the current title/org.
-    The ORDER BY appends title (ascending regardless of direction) then id,
-    so tied rows keep a stable order.
-    """
+    """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = _facet_where(filters)
-    order_sql = order_by(REVIEWS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.id")
-    from_sql = f"({_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
+    order_sql = order_by(REVIEWS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.dataset_id")
+    from_sql = "reviews r JOIN datasets d ON d.id = r.dataset_id"
 
     return {
         "params": params,
@@ -167,7 +142,7 @@ def _facet_pool(filters: dict, key: str) -> Query:
     where, _ = _facet_where(filters, exclude=key)
     return Query(
         f"SELECT COALESCE(r.{key}::text, '__none__') AS value, COUNT(*) AS count"
-        f" FROM ({_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id{where}"
+        f" FROM reviews r JOIN datasets d ON d.id = r.dataset_id{where}"
         f" GROUP BY COALESCE(r.{key}::text, '__none__')",
     )
 
@@ -186,7 +161,7 @@ def reviews_facet_counts(filters: dict) -> dict:
     pub_q = Query(
         "SELECT d.org_slug AS value,"
         f"       {_PUBLISHER_NAME} AS name, COUNT(*) AS count"
-        f" FROM ({_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id{pub_where}"
+        f" FROM reviews r JOIN datasets d ON d.id = r.dataset_id{pub_where}"
         " GROUP BY d.org_slug"
         f" ORDER BY count DESC, LOWER({_PUBLISHER_NAME})",
     )

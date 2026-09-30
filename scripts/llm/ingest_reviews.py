@@ -7,8 +7,7 @@ The pipeline writes one JSON file per dataset under
 This script (re)populates the DB table the web app reads for /reviews.
 
 Idempotent: TRUNCATEs `reviews` then reloads — run it after any
-review run to refresh the site. Failed (ok:false) records are kept
-with their flag; the views filter ok = true at query time.
+review run to refresh the site. Failed (ok:false) records are skipped.
 
 Usage: python -m scripts.llm.ingest_reviews [--reviews-dir downloads/reviews]
        DATABASE_URL=postgresql://localhost:5432/other python -m scripts.llm.ingest_reviews
@@ -54,15 +53,15 @@ def _subscore(r: dict, key: str):
 
 
 def ingest(db, records: list[dict]) -> int:
-    """Truncate + COPY records whose dataset exists locally; returns inserted count."""
+    """Truncate + COPY ok records whose dataset exists locally; returns inserted count."""
     ids = [r["dataset_id"] for r in records]
     existing = {str(row["id"]) for row in db.prepare("SELECT id FROM datasets WHERE id = ANY(?)").all(ids)}
-    present = [r for r in records if r["dataset_id"] in existing]
+    present = [r for r in records if r.get("ok") and r["dataset_id"] in existing]
     skipped = len(records) - len(present)
     if skipped:
-        print(f"Skipped {skipped} review(s) — dataset not in local DB.")
+        print(f"Skipped {skipped} review(s) — ok:false or dataset not in local DB.")
 
-    copy_sql = "COPY reviews (dataset_id, ok, findability, resources, created_at, json) FROM STDIN"
+    copy_sql = "COPY reviews (dataset_id, findability, resources, created_at, json) FROM STDIN"
     with db.conn.transaction(), db.conn.cursor() as cur:
         cur.execute("TRUNCATE reviews RESTART IDENTITY")
         with cur.copy(copy_sql) as copy:
@@ -70,7 +69,6 @@ def ingest(db, records: list[dict]) -> int:
                 copy.write_row(
                     (
                         r["dataset_id"],
-                        bool(r.get("ok")),
                         _subscore(r, "title-description"),
                         _subscore(r, "resources"),
                         r.get("reviewed_at"),

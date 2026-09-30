@@ -1,7 +1,8 @@
 """Suggestions helpers — DB-backed.
 
 Suggestions (theme/tags/title/desc) come from the ``suggestions`` table
-(populated by scripts/llm/ingest_suggestions.py)."""
+(populated by scripts/llm/ingest_suggestions.py). Ingest is TRUNCATE + COPY —
+exactly one row per dataset_id — so no dedup is needed at query time."""
 
 import json
 
@@ -11,9 +12,7 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
 # --- Single-record lookup ---
 
-_SUGGESTION_FOR = Query(
-    "SELECT json FROM suggestions WHERE ok = true AND dataset_id = %s ORDER BY id DESC LIMIT 1",
-)
+_SUGGESTION_FOR = Query("SELECT json FROM suggestions WHERE dataset_id = %s")
 
 
 def get_classification(dataset_id: str) -> dict | None:
@@ -32,19 +31,10 @@ def get_classification(dataset_id: str) -> dict | None:
 
 # --- /suggestions query builder ---
 #
-# One facet: suggested theme (?theme=). The dedup subquery carries the
-# suggestion columns; the join to `datasets` supplies the *current*
-# title/org/theme/tags.
+# One facet: suggested theme (?theme=). The join to `datasets` supplies
+# the *current* title/org/theme/tags.
 
-# The dedup subquery for /suggestions — the latest ok suggestion per
-# dataset. "desc" is quoted: a reserved word.
-_SUGGESTIONS_DEDUP = """
-    SELECT DISTINCT ON (dataset_id) id, dataset_id, theme,
-           theme_confidence, tags, title, "desc"
-    FROM suggestions WHERE ok = true ORDER BY dataset_id, id DESC
-"""
-
-_SUGGESTIONS_FROM = f"({_SUGGESTIONS_DEDUP}) r JOIN datasets d ON d.id = r.dataset_id"
+_SUGGESTIONS_FROM = "suggestions r JOIN datasets d ON d.id = r.dataset_id"
 
 # Text columns sort case-insensitively; confidence maps high/medium/low to
 # 3/2/1 (so default asc lists the least confident first). `theme` sorts on
@@ -94,7 +84,7 @@ def _suggestions_facet_where(filters: dict, exclude: str | None = None) -> tuple
 def suggestions_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = _suggestions_facet_where(filters)
-    order_sql = order_by(SUGGESTIONS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.id")
+    order_sql = order_by(SUGGESTIONS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.dataset_id")
 
     return {
         "params": params,

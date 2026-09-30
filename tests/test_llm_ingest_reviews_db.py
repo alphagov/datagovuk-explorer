@@ -36,11 +36,10 @@ def test_ingest_round_trip(migrated_db_url):
         assert ingest(d, records) == 1
 
         assert d.prepare(
-            "SELECT dataset_id, ok, findability, resources, created_at FROM reviews",
+            "SELECT dataset_id, findability, resources, created_at FROM reviews",
         ).all() == [
             {
                 "dataset_id": "ir-1",
-                "ok": True,
                 "findability": 2,
                 "resources": None,
                 "created_at": "2026-08-01T00:00:00Z",
