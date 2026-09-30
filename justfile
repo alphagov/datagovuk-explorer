@@ -136,6 +136,11 @@ dump-db dump_file="db/backups/explorer-`date +%F`.dump":
 # can't cascade through FK dependencies (datasets ← links/dataset_json/
 # embedding_map), which is why the drop is done up front.
 #
+# The restore runs in three sections (pre-data → data → post-data) so the
+# OS page cache from each phase can be reclaimed before the next begins.
+# This reduces peak memory — Railway's cgroup metric includes page cache,
+# so a single-pass restore spikes memory (and cost) unnecessarily.
+#
 # For Railway as the destination, the internal postgres.railway.internal host
 # doesn't resolve off-Railway — open a tunnel first (`just tunnel`) and use
 #   postgresql://postgres:PASS@127.0.0.1:5433/railway
@@ -148,9 +153,33 @@ restore-db dump_file destination_database_url='':
         exit 1; \
     fi
     @echo "Dropping existing schema in the target DB, then restoring {{dump_file}}"
-    psql "{{destination_database_url}}" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-    pg_restore --no-owner --no-privileges \
+    psql "{{destination_database_url}}" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+    @echo "Restoring schema…"
+    pg_restore --no-owner --no-privileges --section=pre-data \
       --dbname="{{destination_database_url}}" "{{dump_file}}"
+    @echo "Disabling autovacuum on large tables during restore…"
+    psql "{{destination_database_url}}" -c " \
+      ALTER TABLE IF EXISTS dataset_embeddings SET (autovacuum_enabled = false); \
+      ALTER TABLE IF EXISTS datasets SET (autovacuum_enabled = false); \
+      ALTER TABLE IF EXISTS link_check_results SET (autovacuum_enabled = false);"
+    @echo "Restoring data…"
+    pg_restore --no-owner --no-privileges --section=data \
+      --dbname="{{destination_database_url}}" "{{dump_file}}"
+    @echo "Restoring indexes and constraints (parallel workers disabled to reduce memory)…"
+    PGOPTIONS="-c max_parallel_workers_per_gather=0 -c max_parallel_workers=0" \
+      pg_restore --no-owner --no-privileges --section=post-data \
+      --dbname="{{destination_database_url}}" "{{dump_file}}"
+    @echo "Running VACUUM ANALYZE on large tables…"
+    psql "{{destination_database_url}}" -c "VACUUM ANALYZE dataset_embeddings;"
+    psql "{{destination_database_url}}" -c "VACUUM ANALYZE datasets;"
+    psql "{{destination_database_url}}" -c "VACUUM ANALYZE link_check_results;"
+    @echo "Re-enabling autovacuum…"
+    psql "{{destination_database_url}}" -c " \
+      ALTER TABLE IF EXISTS dataset_embeddings SET (autovacuum_enabled = true); \
+      ALTER TABLE IF EXISTS datasets SET (autovacuum_enabled = true); \
+      ALTER TABLE IF EXISTS link_check_results SET (autovacuum_enabled = true);"
+    @echo ""
+    @echo "Done. If you restored to Railway, run 'just restart-railway-db' to reset memory."
 
 # Pull the Railway Postgres down and replace the local database.
 # Needs the tunnel running in another terminal (`just tunnel`).
@@ -175,6 +204,11 @@ pull-db source_database_url='':
 tunnel:
     @echo "Opening tunnel to Railway Postgres on 127.0.0.1:5433 — Ctrl+C to close"
     railway connect Postgres --tunnel-only -P 5433
+
+# Restart the Railway Postgres container to reset cgroup memory after a
+# restore. The data is on a persistent volume — nothing is lost.
+restart-railway-db:
+    railway restart --service Postgres -y
 
 # Deploy the current directory to the Railway service, replacing the running
 # app on the same URL. Run the dump → tunnel → restore-db dance first (the
