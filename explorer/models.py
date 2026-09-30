@@ -96,6 +96,7 @@ class Dataset(models.Model):
             models.Index(fields=["theme_primary"], name="idx_datasets_theme"),
             models.Index(fields=["metadata_created"], name="idx_datasets_created"),
             models.Index(fields=["metadata_modified"], name="idx_datasets_modified"),
+            models.Index(fields=["-views"], name="idx_datasets_views_desc"),
             GinIndex(fields=["fts"], name="idx_datasets_fts"),
         ]
 
@@ -233,6 +234,11 @@ class Link(models.Model):
             models.Index(fields=["year_created"], name="idx_links_year"),
             models.Index(fields=["dataset"], name="idx_links_dataset"),
             models.Index(fields=["org_slug"], name="idx_links_org"),
+            models.Index(
+                fields=["url", "dataset", "org_slug"],
+                name="idx_links_url_dataset_org",
+                condition=models.Q(url__isnull=False) & ~models.Q(url=""),
+            ),
         ]
 
     def __str__(self):

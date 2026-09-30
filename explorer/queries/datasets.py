@@ -32,7 +32,7 @@ DATASETS_SORT = {
     "metadata_created": "COALESCE(d.metadata_created, '')",
     "metadata_modified": "COALESCE(d.metadata_modified, '')",
     "resources": "COALESCE(d.resource_count, 0)",
-    "views": "COALESCE(d.views, 0)",
+    "views": "d.views",
     "harvested": "COALESCE(d.harvested, 0)",
 }
 
