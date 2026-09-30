@@ -15,7 +15,6 @@ dependencies = [
   "jinja2>=3.1",
   "markdown>=3.7",
   "pgvector>=0.4",
-  "playwright>=1.49",
   "psycopg[binary]>=3.3.4",
   "python-dotenv>=1.2.2",
   "truststore>=0.10.4",
@@ -26,6 +25,7 @@ dependencies = [
 [dependency-groups]
 dev = [
   "django-stubs[compatible-mypy]>=6.0",
+  "playwright>=1.49",
   "djlint==1.36.4",
   "markupsafe>=3.0",                    # tests import it directly (esc helper) — no longer transitive-only via jinja2
   "mypy>=2.3",
