@@ -23,6 +23,7 @@ own the schema via migrations.
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
+from django.db.models.functions import Coalesce, Lower
 from pgvector.django import HnswIndex, VectorField
 
 
@@ -239,6 +240,10 @@ class Link(models.Model):
                 fields=["url", "dataset", "org_slug"],
                 name="idx_links_url_dataset_org",
                 condition=models.Q(url__isnull=False) & ~models.Q(url=""),
+            ),
+            models.Index(
+                Lower(Coalesce("host", models.Value(""))),
+                name="idx_links_host_lower",
             ),
         ]
 
@@ -461,6 +466,13 @@ class LinkCheckResult(models.Model):
     class Meta:
         app_label = "explorer"
         db_table = "link_check_results"
+        indexes = [
+            models.Index(
+                fields=["url"],
+                include=["ok", "http_status", "error", "checked_at"],
+                name="idx_lcr_url_cover",
+            ),
+        ]
 
     def __str__(self):
         return self.url or ""
