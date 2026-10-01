@@ -1,53 +1,38 @@
-# data.gov.uk Explorer
+# National Data Library Explorer
 
-A Django 6 web app that audits the quality of the data on
-[data.gov.uk](https://www.data.gov.uk): the catalogue's publisher and
-dataset inventory, data-quality issue reports (datasets with no links,
-duplicate content, unparseable URLs, …), a browseable `/datasets` index
-and a `/links` section with two reports — every resource link (`/links`)
-and the link-check errors report (`/links/errors`) — each with sidebar
-facets, LLM-generated reviews and suggestions, and a `/metadata`
-field-adoption report.
+A Django 6 web app that audits the quality of the data on the
+[National Data Library](https://www.data.gov.uk): the publishers and
+datasets, quality issues (datasets with no links, duplicates, etc),
+with facets, and experimental LLM-generated reviews and suggestions.
 
-Data is pulled from data.gov.uk's CKAN API by a standalone Python pipeline
-(`scripts/`) into PostgreSQL; the web app serves it through a raw-SQL query
-layer (`explorer/queries`) and Jinja2 templates. There is no ORM query layer —
-the Django models exist to own the schema via migrations.
+Data comes from a Python pipeline (`scripts/`) into PostgreSQL.
+Sources include the data.gov.uk CKAN API, Google Analytics and Search Console,
+link checks, and LLM generated reviews and suggestions.
+The web app serves it through a raw-SQL query layer (`explorer/queries`)
+and Jinja2 templates. There is no ORM query layer — the Django models
+exist to own the schema via migrations.
 
 ## Layout
 
 ```
-config/    Django project settings, URLconf, WSGI entry point
-explorer/  The app: models, migrations, raw-SQL query layer (queries/),
-           views, middleware, Jinja2 backend, templates/, shared helpers
-scripts/   Standalone pipeline: get datasets, build the DB,
-           build series, run LLM review/suggest, ingest reviews & link
-           errors
-explorer/static/  Static assets (collected into staticfiles/ for prod)
-tests/     pytest suite — app tests against the live DB + offline unit tests
-data/      Pipeline inputs (tracked): views CSV, collections
-db/        Local backups (gitignored)
-llm/       Embedding model (gitignored) — fetch with `just download-llm`
+config/         Django project settings, URLconf, WSGI entry point
+explorer/       The app: models, migrations, raw-SQL query layer (queries/),
+                views, middleware, Jinja2 backend, templates/, static/, tests/
+scripts/        Standalone pipeline: fetch datasets, build the DB, build series,
+                run LLM agents (review/suggest), check links, ingest collections
+tests/          Pipeline/scripts tests (pytest, no Django)
+docs/           Design docs, data analyses, planning notes
+data/           Pipeline inputs (tracked): views CSVs, collections pages
+downloads/      Pipeline output from scripts (gitignored)
+db/             Local backups (gitignored)
+llm/            Embedding model (gitignored) — fetch with `just download-llm`
 ```
 
 ## Quickstart
 
 Requires Python 3.13, `uv`, and PostgreSQL 16+ with the `vector` extension
-(pgvector). The extension is not optional: the initial migration creates it
-and `vector(768)` columns, so a Postgres without pgvector fails at `migrate`.
+(pgvector).
 
-### PostgreSQL
-
-On macOS the straightforward install is Postgres.app, which bundles
-pgvector: install it, initialise a server when first launched, and use its
-"Set up PATH for command line tools" menu item — the `justfile` calls
-`createdb`/`psql`/`pg_dump` directly. Local connections are passwordless,
-matching the default `DATABASE_URL`.
-
-With Homebrew instead: `brew install postgresql@18 pgvector`, put that keg
-on PATH (`/opt/homebrew/opt/postgresql@18/bin` on Apple Silicon), then
-`brew services start postgresql@18`. On Debian/Ubuntu install `postgresql`
-plus the matching `postgresql-XX-pgvector` package.
 
 ```bash
 just setup                    # uv sync --dev
@@ -58,7 +43,8 @@ just get-datasets             # downloads to downloads/ (default: --continuous -
 just fresh-db                 # create DB if missing + apply schema + populate (offline build)
 just ingest-reviews           # load LLM review scores into the reviews table
 just ingest-suggestions       # load LLM suggestions into the suggestions table
-just dev                      # runserver on :3000
+just ingest-collections       # load collections pages and their view counts
+just dev                      # runserver on :3000 (or PORT if set)
 ```
 
 `fresh-db` is the new-machine path: it creates the database if missing,
@@ -73,19 +59,26 @@ and dataset-review UI all show nothing until they're run. Both are
 idempotent (TRUNCATE + reload), so running them again is always safe.
 
 Embeddings (semantic search over datasets) are optional: run
-`just download-llm` once to fetch the bge-base-en-v1.5 GGUF model into
-`llm/` (from CompendiumLabs on Hugging Face, with a sha256 check), then
+`just download-llm` once to fetch the model into `llm/`, then
 run `just build-embeddings` with llama-server serving the model on :8080 —
 see `scripts/build_embeddings.py`.
 Semantic "more like this" is served by an HNSW index on the embedding
-column; `migrate` builds it, which takes a few minutes on
-an already-populated DB (raise `maintenance_work_mem` for the session to
-speed it up). The index is approximate — `HNSW_EF_SEARCH` (default 400)
+column. The index is approximate — `HNSW_EF_SEARCH` (default 400)
 trades recall for latency.
 
-Other commands — `just` lists them all: `download-llm`, `build-series`,
-`build-embeddings` (needs llama-server on :8080), `review` + `suggest` +
-`ingest-reviews` + `ingest-suggestions` (LLM data), `start` (prod: collectstatic + gunicorn).
+Other commands — `just --list` lists them all. Notable ones:
+
+| Command | What it does |
+|---|---|
+| `just check-links` | Check every resource URL — HEAD → GET → Playwright fallback; safe to interrupt and resume |
+| `just ingest-views` | Reload dataset view counts from the GA/Search Console CSVs in `data/` |
+| `just pull-db` | Pull Railway Postgres down to replace the local DB (needs tunnel open) |
+| `just build-series` | Build dataset series groupings from titles |
+| `just download-llm` | Fetch the bge-base-en-v1.5 embedding model into `llm/` |
+| `just build-embeddings` | Build embedding vectors (needs `just llama-server` running on :8080) |
+| `just start` | Production mode: collectstatic + gunicorn |
+
+The `review` and `suggest` scripts support remote (API key via `LLM`) and local (llama.cpp via `LOCAL_BASE_URL`) modes; see the env vars table below.
 
 ## Environment variables
 
@@ -98,7 +91,9 @@ See `.env.example` for the full list. The essentials:
 | `SECRET_KEY` | Django secret (required in production) |
 | `DEBUG` | Django debug flag; must be `false` in production |
 | `ALLOWED_HOSTS` | Comma-separated; defaults to `*` |
-| `LLM_*` / `LOCAL_*` | LLM provider config for `review` / `suggest` |
+| `LLM` | API key for remote LLM (`review` / `suggest`); also accepts `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` |
+| `LLM_MODEL` / `LLM_BASE_URL` | Remote model ID and API base URL |
+| `LOCAL_MODEL` / `LOCAL_BASE_URL` | Local llama.cpp model ID and server URL (fallback when `LLM` is unset) |
 
 ## Tests
 
@@ -133,12 +128,3 @@ Then ship the code and verify:
 just deploy         # railway up -d -y
 just deploy-check   # GET /health on the production URL
 ```
-
-Requires the directory to be linked first: `railway link --project
-datagovuk-explorer --service datagovuk-explorer`.
-
-## Naming
-
-The project is **data.gov.uk Explorer** (the branding used on the
-basic-auth gate and in the `justfile`). Machine names: the Python
-distribution is `datagovuk-explorer`, the importable package is `explorer`.
