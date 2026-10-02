@@ -1,19 +1,17 @@
-"""Shared sliding-window rate limiter for the data.gov.uk CKAN API.
+"""Shared utilities for the data.gov.uk CKAN API scripts."""
 
-Used by get_organisations.py, query_datasets.py and get_datasets.py
-— all three hit https://www.data.gov.uk/api/3/action, which allows 4
-requests per second. Each script creates exactly one limiter and blocks on
-a slot before every API call, so the limiter sees the full stream of
-requests.
-
-Sliding-window semantics: a window of call timestamps pruned to the last
-second; when the window is full the caller sleeps until the oldest slot
-falls out. A lock guards the window so threads can share one limiter
-safely.
-"""
-
+import json
 import threading
 import time
+from pathlib import Path
+
+BASE_URL = "https://www.data.gov.uk/api/3/action"
+MAX_RPS = 4
+
+
+def write_json(data: list[dict], path: Path | str) -> None:
+    content = json.dumps(data, indent=2, ensure_ascii=False)
+    Path(path).write_text(content, encoding="utf-8")
 
 
 def create_rate_limiter(max_per_second: int):

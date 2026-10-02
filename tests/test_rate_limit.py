@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from scripts.rate_limit import create_rate_limiter, sleep
+from scripts.ckan import create_rate_limiter, sleep
 
 
 def burst(rate: int, n: int) -> list[float]:

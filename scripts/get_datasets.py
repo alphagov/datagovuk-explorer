@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Get batches of datasets from data.gov.uk and save each to
-downloads/<org-name>/<slug>-<id8>.json.
+downloads/datasets/<org-name>/<slug>-<id8>.json.
 
 By default this walks organisations.json and picks the first N orgs that
 haven't been fetched yet, so you can just run it again to continue where
@@ -33,7 +33,7 @@ Examples:
   python scripts/get_datasets.py --org environment-agency
   python scripts/get_datasets.py --force
 
-Rate limit: 4 requests per second (scripts/rate_limit.py).
+Rate limit: 4 requests per second (scripts/ckan.py).
 """
 
 import json
@@ -47,17 +47,14 @@ import click
 import httpx
 import typer
 
-from scripts.rate_limit import create_rate_limiter
+from scripts.ckan import BASE_URL, MAX_RPS, create_rate_limiter
 
 app = typer.Typer(add_completion=False)
-
-BASE_URL = "https://www.data.gov.uk/api/3/action"
-MAX_RPS = 4
 DEFAULT_ORG_COUNT = 50
 DEFAULT_DATASETS_PER_ORG = 1000
 MAX_ROWS_PER_CALL = 1000  # hard cap per package_search call
-OUTPUT_DIR = "downloads"
-NO_DATASETS_FILE = "downloads/no-datasets.json"
+OUTPUT_DIR = "downloads/datasets"
+NO_DATASETS_FILE = "downloads/datasets/no-datasets.json"
 SORT = "metadata_created:desc"  # fixed sort for the API call
 
 
@@ -107,7 +104,7 @@ def save_no_datasets(no_datasets: dict, path: str = NO_DATASETS_FILE) -> None:
 
 
 def has_saved_datasets(org_name: str) -> bool:
-    """Does this org already have saved dataset files in downloads/ ?"""
+    """Does this org already have saved dataset files in downloads/datasets/ ?"""
 
     d = Path(OUTPUT_DIR) / org_name
     if not d.is_dir():
@@ -353,8 +350,8 @@ def per_org_label(per_org: float) -> str:
     return "all" if per_org == float("inf") else str(int(per_org))
 
 
-def load_orgs(path: Path = Path("downloads") / "organisations.json") -> list[dict] | None:
-    """Read downloads/organisations.json; None when missing/unreadable/not
+def load_orgs(path: Path = Path("downloads/organisations") / "organisations.json") -> list[dict] | None:
+    """Read downloads/organisations/organisations.json; None when missing/unreadable/not
     a list.
 
     A parse failure exits 1 with the "No organisations.json found" message
@@ -512,7 +509,7 @@ def main(
         help="Keep processing batches until every org has been fetched",
     ),
 ) -> None:
-    """Fetch datasets from data.gov.uk and save each to downloads/<org-name>/<slug>-<id8>.json."""
+    """Fetch datasets from data.gov.uk and save each to downloads/datasets/<org-name>/<slug>-<id8>.json."""
 
     if continuous and org_slug:
         print(

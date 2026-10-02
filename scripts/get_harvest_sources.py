@@ -4,13 +4,13 @@
 The unfiltered harvest_source_list endpoint caps at 100 sources, but it
 accepts an organization_id filter, so this script walks every organisation
 and fetches its harvest sources per-org, then writes the deduped union to
-downloads/harvest_sources.json (the gitignored API cache, alongside the
-dataset files).
+downloads/organisations/harvest_sources.json (the gitignored API cache, alongside the
+organisations file).
 
 Each record is tagged with the organization_id it was fetched under,
 because the API's own publisher_id/publisher_title fields are often empty.
 
-Rate limit: 4 requests per second (scripts/rate_limit.py).
+Rate limit: 4 requests per second (scripts/ckan.py).
 """
 
 import json
@@ -19,12 +19,9 @@ from pathlib import Path
 
 import httpx
 
-from scripts.rate_limit import create_rate_limiter
+from scripts.ckan import BASE_URL, MAX_RPS, create_rate_limiter, write_json
 
-BASE_URL = "https://www.data.gov.uk/api/3/action"
-MAX_RPS = 4
-
-DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "downloads"
+DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "downloads/organisations"
 
 
 def load_organisation_ids() -> list[str]:
@@ -43,12 +40,7 @@ def get_harvest_sources(
     rate_limit,
     org_ids: list[str],
 ) -> list[dict]:
-    """Fetch harvest sources per organisation and return the deduped union.
-
-    harvest_source_list?organization_id=<id> is filtered server-side, so
-    we make one call per org. Sources are tagged with the org id they came
-    from, then deduped by source id.
-    """
+    """Fetch harvest sources per organisation and return the combined list."""
 
     sources: dict[str, dict] = {}
     for i, org_id in enumerate(org_ids, 1):
@@ -80,12 +72,6 @@ def get_harvest_sources(
     return list(sources.values())
 
 
-def write_json(sources: list[dict], path: str) -> None:
-    """Write sources to path as indent-2 JSON."""
-    with Path(path).open("w", encoding="utf-8") as f:
-        json.dump(sources, f, indent=2, ensure_ascii=False)
-
-
 def main() -> None:
     print("Fetching harvest sources from data.gov.uk...\n")
     try:
@@ -96,8 +82,8 @@ def main() -> None:
             rate_limit = create_rate_limiter(MAX_RPS)
             sources = get_harvest_sources(client, rate_limit, org_ids)
 
-        out_path = DOWNLOADS_DIR / "harvest_sources.json"
         DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        out_path = DOWNLOADS_DIR / "harvest_sources.json"
         write_json(sources, out_path)
         print(f"Wrote {len(sources)} harvest sources to {out_path}")
     except (httpx.HTTPError, RuntimeError, ValueError, OSError) as e:

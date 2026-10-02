@@ -21,8 +21,8 @@ from pathlib import Path
 import httpx
 import typer
 
+from scripts.ckan import sleep
 from scripts.db import connect, database_url
-from scripts.rate_limit import sleep
 
 DATABASE_URL = database_url()
 REQUEST_TIMEOUT = 120  # seconds
