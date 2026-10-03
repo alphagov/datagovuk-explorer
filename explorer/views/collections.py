@@ -8,9 +8,8 @@ from django.shortcuts import render
 
 from explorer import facets
 from explorer.queries.collections import (
+    BAKED_COLLECTION_RELATED,
     COLLECTION_DETAIL,
-    COLLECTION_EMBEDDING,
-    COLLECTION_RELATED_DATASETS,
     COLLECTION_TOTAL,
     COLLECTIONS_SORT,
     COLLECTIONS_SORT_DEFAULT,
@@ -62,12 +61,7 @@ def collection_detail(request, slug: str):
     collection["api"] = _parse_jsonb(collection["api"])
     collection["dataset"] = _parse_jsonb(collection["dataset"])
 
-    related_datasets: list = []
-    emb_row = COLLECTION_EMBEDDING.get(slug)
-    if emb_row:
-        related_datasets = COLLECTION_RELATED_DATASETS.all(
-            emb_row["embedding"],
-        )
+    related_datasets = BAKED_COLLECTION_RELATED.all(slug)
 
     return render(
         request,

@@ -4,10 +4,19 @@ list."""
 
 from .core import Query
 
+# Pre-baked semantic related datasets — trivial indexed lookup replacing the
+# live SEMANTIC_RELATED query at request time.
+BAKED_SEMANTIC_RELATED = Query(
+    """SELECT d.id, d.title, d.org_slug, d.org_display_name,
+              d.theme_primary, d.metadata_modified, r.score AS distance
+       FROM related_datasets r
+       JOIN datasets d ON d.id = r.related_id
+       WHERE r.dataset_id = %s AND r.source = 'semantic'
+       ORDER BY r.rank""",
+)
+
 # The dataset's own embedding as a pgvector literal, used as the probe for
-# SEMANTIC_RELATED. It is derived from dataset_embeddings (the binary copy
-# the HNSW index sits on); embedding_map only maps dataset id -> rowid, so
-# the vector is never stored twice.
+# SEMANTIC_RELATED. Kept for use at build time (scripts/build_related.py).
 EMBEDDING_LITERAL = Query(
     "SELECT e.embedding::text AS embedding "
     "FROM embedding_map m "

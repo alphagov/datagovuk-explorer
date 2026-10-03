@@ -98,7 +98,11 @@ class Dataset(models.Model):
             models.Index(fields=["metadata_created"], name="idx_datasets_created"),
             models.Index(fields=["metadata_modified"], name="idx_datasets_modified"),
             models.Index(fields=["-views"], name="idx_datasets_views_desc"),
-            models.Index(fields=["id"], include=["org_slug", "org_display_name", "title", "theme_primary"], name="idx_datasets_reviews_cover"),
+            models.Index(
+                fields=["id"],
+                include=["org_slug", "org_display_name", "title", "theme_primary"],
+                name="idx_datasets_reviews_cover",
+            ),
             GinIndex(fields=["fts"], name="idx_datasets_fts"),
         ]
 
@@ -503,6 +507,7 @@ class Collection(models.Model):
     visualisation_data = models.TextField(blank=True, null=True)
     status = models.TextField(blank=True, null=True)
     views = models.IntegerField(db_default=0)
+    related_count = models.IntegerField(blank=True, null=True)
 
     class Meta:
         app_label = "explorer"
@@ -531,3 +536,64 @@ class CollectionEmbedding(models.Model):
 
     def __str__(self):
         return str(self.slug)
+
+
+class RelatedDataset(models.Model):
+    """Pre-computed related datasets for the dataset detail page.
+
+    Populated by scripts/build_related.py after build-embeddings. source is
+    'fts' (full-text search) or 'semantic' (pgvector KNN). rank is 1-based
+    position within the source; score is ts_rank (fts) or L2 distance
+    (semantic). The baked query joins through datasets for display columns."""
+
+    dataset_id = models.TextField(db_index=False)
+    related = models.ForeignKey(
+        Dataset,
+        on_delete=models.CASCADE,
+        db_column="related_id",
+        related_name="+",
+        db_index=False,
+    )
+    source = models.TextField()
+    rank = models.IntegerField()
+    score = models.FloatField()
+    pk = models.CompositePrimaryKey("dataset_id", "source", "rank")
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "related_datasets"
+
+    def __str__(self):
+        return f"{self.dataset_id} → {self.related_id} ({self.source} #{self.rank})"
+
+
+class CollectionRelatedDataset(models.Model):
+    """Pre-computed related datasets for the collection detail page.
+
+    Populated by scripts/build_related.py after build-embeddings. rank is
+    1-based position (1-12); distance is L2 distance from the collection
+    embedding."""
+
+    slug = models.ForeignKey(
+        Collection,
+        on_delete=models.CASCADE,
+        db_column="slug",
+        db_index=False,
+    )
+    dataset = models.ForeignKey(
+        Dataset,
+        on_delete=models.CASCADE,
+        db_column="dataset_id",
+        related_name="+",
+        db_index=False,
+    )
+    rank = models.IntegerField()
+    distance = models.FloatField()
+    pk = models.CompositePrimaryKey("slug", "rank")
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "collection_related_datasets"
+
+    def __str__(self):
+        return f"{self.slug_id} → {self.dataset_id} (#{self.rank})"

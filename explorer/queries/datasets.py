@@ -535,6 +535,7 @@ DATASET_TEMPORAL_PERIODS = Query(
 
 # Full-text "more like this" via tsvector, with series exclusion: datasets
 # in the same detected series as the current one are not "related".
+# Kept for use at build time (scripts/build_related.py).
 RELATED_BY_FTS = Query(
     """WITH q AS (
          SELECT websearch_to_tsquery('english', %s) AS q

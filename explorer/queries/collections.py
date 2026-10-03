@@ -12,7 +12,7 @@ COLLECTIONS_SORT = {
     "collection": "LOWER(c.collection)",
     "views": "COALESCE(c.views, 0)",
     "page_last_updated": "COALESCE(c.page_last_updated, '')",
-    "related": "COALESCE(related.count, 0)",
+    "related": "COALESCE(c.related_count, 0)",
 }
 
 COLLECTIONS_SORT_DEFAULT = ("views", "desc")
@@ -41,22 +41,6 @@ def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
     return facet_where(_FACET_CLAUSES, filters, exclude)
 
 
-_OVER_THRESHOLD_JOIN = (
-    " LEFT JOIN LATERAL ("
-    f"  SELECT COUNT(*) FILTER (WHERE sub.distance <= {RELATED_DISTANCE_THRESHOLD}) AS count"
-    "  FROM ("
-    "    SELECT emb.embedding <-> ce.embedding AS distance"
-    "    FROM dataset_embeddings emb"
-    "    JOIN embedding_map m ON m.rowid = emb.rowid"
-    "    JOIN datasets d ON d.id = m.dataset_id"
-    "    WHERE d.resource_count > 0"
-    "    ORDER BY emb.embedding <-> ce.embedding, d.id"
-    "    LIMIT 500"
-    "  ) sub"
-    " ) related ON true"
-)
-
-
 def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = _facet_where(filters)
@@ -67,10 +51,8 @@ def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
         "count": Query(f"SELECT COUNT(*) AS n FROM collection_pages c{where}"),
         "list": Query(
             "SELECT c.slug, c.collection, c.title,"
-            "  c.page_last_updated, c.views, related.count AS related"
+            "  c.page_last_updated, c.views, c.related_count AS related"
             " FROM collection_pages c"
-            " LEFT JOIN collection_embeddings ce ON ce.slug = c.slug"
-            f"{_OVER_THRESHOLD_JOIN}"
             f"{where}"
             f" ORDER BY {order_sql}"
             " LIMIT %s OFFSET %s",
@@ -78,6 +60,18 @@ def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
     }
 
 
+# Pre-baked collection related datasets — trivial indexed lookup replacing
+# the live COLLECTION_RELATED_DATASETS query at request time.
+BAKED_COLLECTION_RELATED = Query(
+    """SELECT d.id, d.title, d.org_slug, d.org_display_name,
+              d.theme_primary, d.metadata_modified, r.distance
+       FROM collection_related_datasets r
+       JOIN datasets d ON d.id = r.dataset_id
+       WHERE r.slug = %s
+       ORDER BY r.rank""",
+)
+
+# Kept for use at build time (scripts/build_related.py).
 COLLECTION_EMBEDDING = Query(
     "SELECT embedding::text AS embedding FROM collection_embeddings WHERE slug = %s",
 )

@@ -121,10 +121,30 @@ llama-server:
 build-embeddings:
     uv run --env-file .env python -m scripts.build_embeddings
 
-# Dump the local dev database (schema + all pipeline data) to db/backups/ —
-# the one-shot path to replace the Railway Postgres contents (see restore-db).
+# Pre-compute related-dataset results into baked lookup tables. Run after
+# build-embeddings. Required before dump-db so the deploy dump contains the
+# baked tables (the embedding tables themselves are excluded from the deploy
+# dump to save ~380 MB per dump/restore cycle).
+build-related:
+    uv run --env-file .env python -m scripts.build_related
+
+# Dump the local dev database for deploy — excludes embedding table data so
+# the dump is ~380 MB smaller and the Railway restore skips the HNSW index
+# rebuild. Table definitions (schema) are still included so migrations work.
 # db/backups/ is gitignored.
 dump-db dump_file="db/backups/explorer-`date +%F`.dump":
+    @mkdir -p db/backups
+    pg_dump "{{env_var_or_default('DATABASE_URL', 'postgresql://localhost:5432/datagovuk_explorer')}}" \
+      --no-owner --no-privileges --format=custom \
+      --exclude-table-data=dataset_embeddings \
+      --exclude-table-data=embedding_map \
+      --exclude-table-data=collection_embeddings \
+      --file="{{dump_file}}"
+    @echo "Wrote {{dump_file}}"
+
+# Dump the full local dev database including embedding tables — for local
+# backups and testing build_related locally.
+dump-db-full dump_file="db/backups/explorer-full-`date +%F`.dump":
     @mkdir -p db/backups
     pg_dump "{{env_var_or_default('DATABASE_URL', 'postgresql://localhost:5432/datagovuk_explorer')}}" \
       --no-owner --no-privileges --format=custom --file="{{dump_file}}"
@@ -159,7 +179,6 @@ restore-db dump_file destination_database_url='':
       --dbname="{{destination_database_url}}" "{{dump_file}}"
     @echo "Disabling autovacuum on large tables during restore…"
     psql "{{destination_database_url}}" -c " \
-      ALTER TABLE IF EXISTS dataset_embeddings SET (autovacuum_enabled = false); \
       ALTER TABLE IF EXISTS datasets SET (autovacuum_enabled = false); \
       ALTER TABLE IF EXISTS link_check_results SET (autovacuum_enabled = false);"
     @echo "Restoring data…"
@@ -170,12 +189,10 @@ restore-db dump_file destination_database_url='':
       pg_restore --no-owner --no-privileges --section=post-data \
       --dbname="{{destination_database_url}}" "{{dump_file}}"
     @echo "Running VACUUM ANALYZE on large tables…"
-    psql "{{destination_database_url}}" -c "VACUUM ANALYZE dataset_embeddings;"
     psql "{{destination_database_url}}" -c "VACUUM ANALYZE datasets;"
     psql "{{destination_database_url}}" -c "VACUUM ANALYZE link_check_results;"
     @echo "Re-enabling autovacuum…"
     psql "{{destination_database_url}}" -c " \
-      ALTER TABLE IF EXISTS dataset_embeddings SET (autovacuum_enabled = true); \
       ALTER TABLE IF EXISTS datasets SET (autovacuum_enabled = true); \
       ALTER TABLE IF EXISTS link_check_results SET (autovacuum_enabled = true);"
     @echo ""
