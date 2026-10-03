@@ -31,8 +31,8 @@ _RESET_RELATED_COUNT = "UPDATE collection_pages SET related_count = NULL"
 # ROW_NUMBER outside the lateral so the HNSW ordered scan + LIMIT
 # path is unambiguous inside.
 _SEMANTIC_LATERAL = """
-INSERT INTO related_datasets (dataset_id, related_id, source, rank, score)
-SELECT dataset_id, id, 'semantic',
+INSERT INTO related_datasets (dataset_id, related_id, rank, score)
+SELECT dataset_id, id,
        ROW_NUMBER() OVER (
            PARTITION BY dataset_id ORDER BY distance, id
        )::int,
@@ -62,7 +62,7 @@ FROM (
               )
           )
         ORDER BY emb2.embedding <-> src.embedding, m2.dataset_id
-        LIMIT 50
+        LIMIT 30
     ) sub
 ) t
 """
@@ -86,7 +86,7 @@ FROM (
         JOIN datasets d ON d.id = m.dataset_id
         WHERE d.resource_count > 0
         ORDER BY emb.embedding <-> ce.embedding, m.dataset_id
-        LIMIT 50
+        LIMIT 30
     ) sub
 ) t
 """

@@ -539,12 +539,11 @@ class CollectionEmbedding(models.Model):
 
 
 class RelatedDataset(models.Model):
-    """Pre-computed related datasets for the dataset detail page.
+    """Pre-computed semantic related datasets for the dataset detail page.
 
-    Populated by scripts/build_related.py after build-embeddings. source is
-    'fts' (full-text search) or 'semantic' (pgvector KNN). rank is 1-based
-    position within the source; score is ts_rank (fts) or L2 distance
-    (semantic). The baked query joins through datasets for display columns."""
+    Populated by scripts/build_related.py after build-embeddings. rank is
+    1-based position; score is L2 distance. The baked query joins through
+    datasets for display columns."""
 
     dataset_id = models.TextField(db_index=False)
     related = models.ForeignKey(
@@ -554,17 +553,16 @@ class RelatedDataset(models.Model):
         related_name="+",
         db_index=False,
     )
-    source = models.TextField()
     rank = models.IntegerField()
     score = models.FloatField()
-    pk = models.CompositePrimaryKey("dataset_id", "source", "rank")
+    pk = models.CompositePrimaryKey("dataset_id", "rank")
 
     class Meta:
         app_label = "explorer"
         db_table = "related_datasets"
 
     def __str__(self):
-        return f"{self.dataset_id} → {self.related_id} ({self.source} #{self.rank})"
+        return f"{self.dataset_id} → {self.related_id} (#{self.rank})"
 
 
 class CollectionRelatedDataset(models.Model):

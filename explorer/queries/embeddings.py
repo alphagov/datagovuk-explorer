@@ -11,7 +11,7 @@ BAKED_SEMANTIC_RELATED = Query(
               d.theme_primary, d.metadata_modified, r.score AS distance
        FROM related_datasets r
        JOIN datasets d ON d.id = r.related_id
-       WHERE r.dataset_id = %s AND r.source = 'semantic'
+       WHERE r.dataset_id = %s
        ORDER BY r.rank""",
 )
 
