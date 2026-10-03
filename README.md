@@ -39,7 +39,7 @@ just setup                    # uv sync --dev
 cp .env.example .env          # then set DATABASE_URL (and secrets)
 just get-organisations        # downloads/organisations.json from the CKAN API
 just get-harvest-sources     # downloads/harvest_sources.json (walks publishers, per-publisher filter)
-just get-datasets             # downloads to downloads/ (default: --continuous --per-org all)
+just get-datasets             # downloads to downloads/
 just fresh-db                 # create DB if missing + apply schema + populate (offline build)
 just ingest-reviews           # load LLM review scores into the reviews table
 just ingest-suggestions       # load LLM suggestions into the suggestions table
