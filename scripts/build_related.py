@@ -4,10 +4,6 @@ Replaces live pgvector queries at request time with O(1) indexed lookups
 for dataset and collection detail pages, and a simple column lookup for
 the collections list sort. Run after build-embeddings.
 
-FTS related datasets are still served live (the GIN scan is fast enough
-per request; baking them would take hours because each query scores
-~15k candidates). Only the vector-based results are baked here.
-
 Usage:  uv run --env-file .env python -m scripts.build_related
 """
 

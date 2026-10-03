@@ -374,37 +374,6 @@
       </section>
     {% endif %}
 
-    {# ── Related datasets — lexical (FTS BM25) ── #}
-    {% if related and related | length %}
-      <section class="section">
-        <details class="section-toggle">
-          <summary>Related datasets — lexical ({{ related | length | num }})</summary>
-          <div class="table-wrap">
-            <table class="data-table data-table--wide-first">
-              <thead>
-                <tr>
-                  <th class="col-text">Dataset</th>
-                  <th>Publisher</th>
-                  <th class="col-date">Updated</th>
-                  <th class="col-num">Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for r in related %}
-                  <tr>
-                    <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a></td>
-                    <td>{{ r.org_display_name }}</td>
-                    <td class="col-date">{{ r.metadata_modified | date_short if r.metadata_modified else '—' }}</td>
-                    <td class="col-num">{{ '%.3f' | format(r.rank) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      </section>
-    {% endif %}
-
     {# ── Extras ── #}
     {% if dataset.extras and dataset.extras | length %}
       <section class="section">

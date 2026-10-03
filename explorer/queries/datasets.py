@@ -533,30 +533,6 @@ DATASET_TEMPORAL_PERIODS = Query(
     "SELECT from_year, to_year, source FROM temporal_periods WHERE dataset_id = %s ORDER BY position",
 )
 
-# Full-text "more like this" via tsvector, with series exclusion: datasets
-# in the same detected series as the current one are not "related".
-# Kept for use at build time (scripts/build_related.py).
-RELATED_BY_FTS = Query(
-    """WITH q AS (
-         SELECT websearch_to_tsquery('english', %s) AS q
-       )
-       SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
-              d.metadata_modified,
-              ts_rank(d.fts, q.q) AS rank
-       FROM datasets d, q
-       WHERE d.fts @@ q.q
-         AND d.id != %s
-         AND d.id NOT IN (
-           SELECT sd.dataset_id FROM series_datasets sd
-           WHERE sd.series_id IN (
-             SELECT sd2.series_id FROM series_datasets sd2 WHERE sd2.dataset_id = %s
-           )
-         )
-       ORDER BY rank DESC, d.id
-       LIMIT 20""",
-)
-
-
 # ── Memoised fixed fetches ───────────────────────────────────────────────
 # Fixed parameterless queries below are memoised per process (build-time
 # snapshot — restart to refresh after a rebuild).
