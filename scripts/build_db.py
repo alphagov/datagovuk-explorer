@@ -43,9 +43,10 @@ READ_BATCH_SIZE = 2000
 # Value-distribution table: strings/JSON truncated at this length.
 MAX_FIELD_VALUE_LENGTH = 500
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "downloads"
-ORGS_FILE = DATA_DIR / "organisations.json"
-HARVEST_SOURCES_FILE = DATA_DIR / "harvest_sources.json"
+_DOWNLOADS = Path(__file__).resolve().parent.parent / "downloads"
+DATASETS_DIR = _DOWNLOADS / "datasets"
+ORGS_FILE = _DOWNLOADS / "organisations" / "organisations.json"
+HARVEST_SOURCES_FILE = _DOWNLOADS / "organisations" / "harvest_sources.json"
 _DATA = Path(__file__).resolve().parent.parent / "data"
 VIEWS_FILE = _DATA / "console-clicks-apr-aug.csv"
 GA_PAGE_VIEWS_FILE = _DATA / "ga-views-apr-aug.csv"
@@ -888,21 +889,21 @@ def _collect_files() -> list[dict[str, str | Path]]:
     """All .json dataset files with their org slug. Sorted on both levels so
     the build is deterministic regardless of filesystem directory order (and
     matches the insertion order a table diff expects)."""
-    if not DATA_DIR.is_dir():
+    if not DATASETS_DIR.is_dir():
         print(
-            f"No {DATA_DIR}/ directory found — run get_datasets.py first.",
+            f"No {DATASETS_DIR}/ directory found — run get_datasets.py first.",
             file=sys.stderr,
         )
         raise typer.Exit(1)
 
     all_files: list[dict[str, str | Path]] = []
-    for org_dir in sorted(DATA_DIR.iterdir(), key=lambda p: p.name):
+    for org_dir in sorted(DATASETS_DIR.iterdir(), key=lambda p: p.name):
         if not org_dir.is_dir():
             continue
         all_files.extend(
             {"filepath": f, "orgSlug": org_dir.name}
             for f in sorted(org_dir.iterdir(), key=lambda p: p.name)
-            if f.name.endswith(".json")
+            if f.name.endswith(".json") and f.name != "no-datasets.json"
         )
     return all_files
 

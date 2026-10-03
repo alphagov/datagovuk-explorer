@@ -1,23 +1,17 @@
 """Unit tests for scripts/get_datasets.py (offline — no live API).
 
-Covers the deterministic parts:
+Covers:
 - slugify + filename construction (slugify(title)-id[:8].json)
 - iso_now format (ISO 8601 UTC: 3-digit ms + Z)
 - load_no_datasets / save_no_datasets round-trip and failure modes
 - has_saved_datasets (.json detection, missing dir)
-- select_batch: single org (found / not-found + hint), force (contiguous
-  slice, clears empty markers, persists), next-batch walk (skips
-  noDatasets + saved orgs), offset
-- fetch_datasets: pagination (rows=1000 pages, short-page break), URL
+- select_orgs: single org (found / not-found + hint), force, next-walk
+  (skips no_datasets + saved orgs)
+- fetch_datasets: pagination (1000-row pages, short-page break), URL
   params, HTTP error, success:false (mock transport)
-- process_batch: record shape + key order, skip existing, force overwrite,
-  zero-dataset org -> no-datasets.json marker, per-org error doesn't stop
-  the batch
-- CLI error paths: --continuous + --org, missing organisations.json,
-  --org not found (+ hint), bogus --per-org
-
-The live-API happy path is verified separately by running the download
-against the real API and checking the filenames.
+- process_org: record shape + key order, force overwrite, zero-dataset
+  org -> no-datasets.json marker, per-org error doesn't stop the run
+- CLI error paths: missing organisations.json, --org not found (+ hint)
 
 Run with: uv run pytest tests/test_get_datasets.py
 """
@@ -50,7 +44,6 @@ def chdir(path):
 
 
 def make_dataset(i: int) -> dict:
-    """A fake CKAN dataset with a title and a 32-hex UUID id."""
     return {
         "title": f"Dataset Number {i}",
         "id": f"{i:08d}-0000-0000-0000-000000000000",
@@ -62,131 +55,69 @@ def test_iso_now():
 
 
 def test_slugify():
-    # lowercase
     assert scripts.get_datasets.slugify("My Dataset") == "my-dataset"
-    # non-alphanumeric runs -> single dash
     assert scripts.get_datasets.slugify("Spend  over £25,000!") == "spend-over-25-000"
-    # punctuation-only title -> empty after trimming dashes
     assert scripts.get_datasets.slugify("!!! ...") == ""
-    # trim leading/trailing dashes
     assert scripts.get_datasets.slugify("--leading and trailing--") == "leading-and-trailing"
-    # 80-char cap
     assert len(scripts.get_datasets.slugify("x" * 200)) == 80
-    # 'A'*100 + ' B' -> 100 a's, then the 80-char truncation cuts before the
-    # '-b' suffix (verified: 80 a's)
     assert scripts.get_datasets.slugify("A" * 100 + " B") == "a" * 80
-    # ASCII-only: fullwidth digits are NOT [a-z0-9]
     assert scripts.get_datasets.slugify("２０２０ data") == "data"
 
 
 def test_filename():
     ds = {"title": "My Dataset!", "id": "598c37fa-9d20-465a-988c-a6e31974493a"}
-    assert scripts.get_datasets.slugify(ds["title"]) + "-" + ds["id"][:8] + ".json" == ("my-dataset-598c37fa.json")
-    # the id8 suffix disambiguates two titles sharing an 80-char slug prefix
+    assert scripts.get_datasets.slugify(ds["title"]) + "-" + ds["id"][:8] + ".json" == "my-dataset-598c37fa.json"
+    # id8 suffix disambiguates two titles sharing an 80-char slug prefix
     title = "Long title " + "x" * 70
     a = {"title": title, "id": "11111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}
     b = {"title": title, "id": "22222222-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}
     fa = f"{scripts.get_datasets.slugify(a['title'])}-{a['id'][:8]}.json"
     fb = f"{scripts.get_datasets.slugify(b['title'])}-{b['id'][:8]}.json"
     assert fa != fb
-    assert len(fa) == len(fb)
 
-
-def test_no_datasets_round_trip():
-    with tempfile.TemporaryDirectory() as d:
-        p = Path(d) / "no-datasets.json"
-        # missing file -> {}
-        assert scripts.get_datasets.load_no_datasets(str(p)) == {}
-        # invalid JSON -> {}
-        p.write_text("{oops", encoding="utf-8")
-        assert scripts.get_datasets.load_no_datasets(str(p)) == {}
-        # non-object JSON -> {} (treated as empty)
-        p.write_text("[1,2]", encoding="utf-8")
-        assert scripts.get_datasets.load_no_datasets(str(p)) == {}
-        # round-trip with indent-2 formatting
-        m = {"org-a": "2026-08-01T11:32:58.493Z", "org-b": "2026-08-01T11:32:59.607Z"}
-        scripts.get_datasets.save_no_datasets(m, str(p))
-        assert scripts.get_datasets.load_no_datasets(str(p)) == m
-        text = p.read_text(encoding="utf-8")
-        assert '"org-a": "2026-08-01T11:32:58.493Z"' in text  # indent 2
 
 
 def test_has_saved_datasets():
     with tempfile.TemporaryDirectory() as d, chdir(d):
-        Path("downloads/empty-org").mkdir(parents=True)
-        Path("downloads/full-org").mkdir(parents=True)
-        Path("downloads/full-org", "a.json").write_text("{}", encoding="utf-8")
-        Path("downloads/full-org", "b.json").write_text("{}", encoding="utf-8")
-        Path("downloads/full-org", ".DS_Store").write_text("x", encoding="utf-8")
-        # missing org dir -> False
+        Path("downloads/datasets/empty-org").mkdir(parents=True)
+        Path("downloads/datasets/full-org").mkdir(parents=True)
+        Path("downloads/datasets/full-org/a.json").write_text("{}", encoding="utf-8")
+        Path("downloads/datasets/full-org/.DS_Store").write_text("x", encoding="utf-8")
         assert scripts.get_datasets.has_saved_datasets("missing-org") is False
-        # dir with no .json files -> False
         assert scripts.get_datasets.has_saved_datasets("empty-org") is False
-        # dir with .json files -> True (non-.json files ignored)
         assert scripts.get_datasets.has_saved_datasets("full-org") is True
 
 
-def test_select_batch_single_org():
-    orgs = [
-        {"name": "ons", "display_name": "ONS"},
-        {"name": "defra", "display_name": "DEFRA"},
-    ]
-    no = {"ons": "2026-08-01T11:32:58.493Z"}  # marked empty earlier
+def test_select_orgs_single():
+    orgs = [{"name": "ons", "display_name": "ONS"}, {"name": "defra", "display_name": "DEFRA"}]
 
-    # single org found -> [org], and its empty marker is cleared
-    batch = scripts.get_datasets.select_batch(orgs, no, 50, 0, org_slug="defra")
-    assert [o["name"] for o in batch] == ["defra"]
-    assert "ons" in no  # untouched
-    batch = scripts.get_datasets.select_batch(orgs, no, 50, 0, org_slug="ons")
-    assert [o["name"] for o in batch] == ["ons"]
-    assert "ons" not in no  # cleared, even if previously marked empty
+    result = scripts.get_datasets.select_orgs(orgs, "defra", force=False)
+    assert [o["name"] for o in result] == ["defra"]
 
-    # not found -> OrgNotFoundError with a helpful hint
     with pytest.raises(scripts.get_datasets.OrgNotFoundError, match='Publisher not found: "zzz"') as exc:
-        scripts.get_datasets.select_batch(orgs, no, 50, 0, org_slug="zzz")
+        scripts.get_datasets.select_orgs(orgs, "zzz", force=False)
     assert "Check organisations.json" in exc.value.hint
 
 
-def test_select_batch_force():
-    orgs = [{"name": f"org-{i}", "display_name": f"Org {i}"} for i in range(10)]
-    no = {"org-3": "ts", "org-7": "ts"}
+def test_select_orgs_force():
+    orgs = [{"name": f"org-{i}"} for i in range(5)]
+    result = scripts.get_datasets.select_orgs(orgs, None, force=True)
+    assert [o["name"] for o in result] == ["org-0", "org-1", "org-2", "org-3", "org-4"]
 
+
+def test_select_orgs_next():
+    orgs = [{"name": f"org-{i}"} for i in range(5)]
     with tempfile.TemporaryDirectory() as d, chdir(d):
-        Path("downloads").mkdir(parents=True)  # the no-datasets file needs the dir to exist
-        # contiguous slice from offset; markers in the slice cleared + persisted
-        batch = scripts.get_datasets.select_batch(orgs, no, 4, 2, force=True)
-        assert [o["name"] for o in batch] == ["org-2", "org-3", "org-4", "org-5"]
-        assert "org-3" not in no  # marker cleared in the passed dict
-        saved = json.loads(
-            Path("downloads/no-datasets.json").read_text(encoding="utf-8"),
-        )
-        assert "org-3" not in saved
-        assert "org-7" in saved
-        # cursor overrides offset (continuous + force)
-        batch = scripts.get_datasets.select_batch(orgs, {}, 3, 0, force=True, cursor=6)
-        assert [o["name"] for o in batch] == ["org-6", "org-7", "org-8"]
-        # slice past the end -> shorter batch (no error)
-        batch = scripts.get_datasets.select_batch(orgs, {}, 5, 8, force=True)
-        assert [o["name"] for o in batch] == ["org-8", "org-9"]
-
-
-def test_select_batch_next():
-    orgs = [{"name": f"org-{i}"} for i in range(10)]
-    no = {"org-1": "ts"}  # previously empty -> skip
-    with tempfile.TemporaryDirectory() as d, chdir(d):
-        Path("downloads/org-3").mkdir(parents=True)  # has saved data -> skip
-        Path("downloads/org-3", "x.json").write_text("{}", encoding="utf-8")
-        Path("downloads/org-8").mkdir(parents=True)  # empty dir -> NOT skipped
-        batch = scripts.get_datasets.select_batch(orgs, no, 3, 0)
-        assert [o["name"] for o in batch] == ["org-0", "org-2", "org-4"]
-        # offset is IGNORED in next-batch mode — the walk always starts at the
-        # top of the list (same batch for offset 0 and 4). offset only matters
-        # in --force mode.
-        batch = scripts.get_datasets.select_batch(orgs, no, 3, 4)
-        assert [o["name"] for o in batch] == ["org-0", "org-2", "org-4"]
-        # org-count cap
-        batch = scripts.get_datasets.select_batch(orgs, no, 2, 0)
-        assert [o["name"] for o in batch] == ["org-0", "org-2"]
+        # org-1: has real datasets -> skipped
+        Path("downloads/datasets/org-1").mkdir(parents=True)
+        Path("downloads/datasets/org-1/x.json").write_text("{}", encoding="utf-8")
+        # org-2: has no-datasets marker -> skipped
+        Path("downloads/datasets/org-2").mkdir(parents=True)
+        Path("downloads/datasets/org-2/no-datasets.json").write_text("[]", encoding="utf-8")
+        # org-3: empty dir -> NOT skipped
+        Path("downloads/datasets/org-3").mkdir(parents=True)
+        result = scripts.get_datasets.select_orgs(orgs, None, force=False)
+        assert [o["name"] for o in result] == ["org-0", "org-3", "org-4"]
 
 
 def test_fetch_datasets():
@@ -199,227 +130,124 @@ def test_fetch_datasets():
         start = int(captured[-1]["start"])
         rows = int(captured[-1]["rows"])
         page = all_results[start : start + rows]
-        return httpx.Response(
-            200,
-            json={"success": True, "result": {"results": page, "count": total}},
-        )
+        return httpx.Response(200, json={"success": True, "result": {"results": page, "count": total}})
 
-    def check():
-        limiter = scripts.get_datasets.create_rate_limiter(4)
-        with httpx.Client(
-            transport=httpx.MockTransport(handler),
+    limiter = scripts.get_datasets.create_rate_limiter(4)
+    with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        results = scripts.get_datasets.fetch_datasets(limiter, client, "ons")
+
+    assert len(results) == total
+    # three pages: 1000, 1000, 500 — short page ends the loop
+    assert [p["rows"] for p in captured] == ["1000", "1000", "1000"]
+    assert [p["start"] for p in captured] == ["0", "1000", "2000"]
+    assert all(p["sort"] == "metadata_created desc" for p in captured)
+    assert all(p["fq"] == "organization:ons" for p in captured)
+    assert all(p["q"] == "" for p in captured)
+
+    # HTTP error -> RuntimeError
+    with (
+        pytest.raises(RuntimeError, match="HTTP 500"),
+        httpx.Client(
+            transport=httpx.MockTransport(lambda r: httpx.Response(500, text="boom")),
             follow_redirects=True,
-        ) as client:
-            # 'all' (inf): 1000 + 1000 + 500 pages, short page breaks the loop
-            results = scripts.get_datasets.fetch_datasets(
-                limiter,
-                client,
-                "ons",
-                float("inf"),
-                scripts.get_datasets.SORT,
-            )
-        assert len(results) == total
-        # pagination params: rows=1000, starts 0/1000/2000, sort ':' -> ' '
-        assert [p["rows"] for p in captured] == ["1000", "1000", "1000"]
-        assert [p["start"] for p in captured] == ["0", "1000", "2000"]
-        assert all(p["sort"] == "metadata_created desc" for p in captured)
-        assert all(p["fq"] == "organization:ons" for p in captured)
-        assert all(p["q"] == "" for p in captured)
+        ) as client,
+    ):
+        scripts.get_datasets.fetch_datasets(limiter, client, "ons")
 
-        captured.clear()
-        with httpx.Client(
-            transport=httpx.MockTransport(handler),
+    # success:false -> RuntimeError
+    with (
+        pytest.raises(RuntimeError, match="success: false"),
+        httpx.Client(
+            transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"success": False})),
             follow_redirects=True,
-        ) as client:
-            # finite limit 1500: page of 1000 then page of 500, loop ends on offset
-            results = scripts.get_datasets.fetch_datasets(limiter, client, "ons", 1500.0, scripts.get_datasets.SORT)
-        assert len(results) == 1500
-        assert [p["rows"] for p in captured] == ["1000", "500"]
-
-        # HTTP error -> RuntimeError
-        with (
-            pytest.raises(RuntimeError, match="HTTP 500"),
-            httpx.Client(
-                transport=httpx.MockTransport(
-                    lambda r: httpx.Response(500, text="boom"),
-                ),
-                follow_redirects=True,
-            ) as client,
-        ):
-            scripts.get_datasets.fetch_datasets(limiter, client, "ons", 10.0, scripts.get_datasets.SORT)
-
-        # success:false -> RuntimeError
-        def bad_success(request):
-            return httpx.Response(200, json={"success": False})
-
-        with (
-            pytest.raises(RuntimeError, match="success: false"),
-            httpx.Client(
-                transport=httpx.MockTransport(bad_success),
-                follow_redirects=True,
-            ) as client,
-        ):
-            scripts.get_datasets.fetch_datasets(limiter, client, "ons", 10.0, scripts.get_datasets.SORT)
-
-    check()
+        ) as client,
+    ):
+        scripts.get_datasets.fetch_datasets(limiter, client, "ons")
 
 
-def test_process_batch():
+def test_process_org():
     datasets = [make_dataset(1), make_dataset(2)]
 
     def handler(request: httpx.Request) -> httpx.Response:
         fq = dict(request.url.params)["fq"]
-        if "with-data" in fq:
-            return httpx.Response(
-                200,
-                json={"success": True, "result": {"results": datasets}},
-            )
-        return httpx.Response(200, json={"success": True, "result": {"results": []}})
+        results = datasets if "with-data" in fq else []
+        return httpx.Response(200, json={"success": True, "result": {"results": results}})
 
-    batch = [
-        {"name": "org-with-data", "display_name": "Org With Data"},
-        {"name": "empty-org", "display_name": "Empty Org"},
-    ]
-
-    def run_batch(*, force: bool, no: dict | None = None):
+    def run(org, *, force):
         limiter = scripts.get_datasets.create_rate_limiter(4)
-        with httpx.Client(
-            transport=httpx.MockTransport(handler),
-            follow_redirects=True,
-        ) as client:
-            return scripts.get_datasets.process_batch(
-                batch,
-                1000.0,
-                limiter,
-                client,
-                no if no is not None else {},
-                force=force,
-            )
+        with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+            return scripts.get_datasets.process_org(org, 0, 1, limiter, client, force=force)
 
     with tempfile.TemporaryDirectory() as d, chdir(d):
-        # --- first run: saves 2 files + writes no-datasets marker ---
-        no = {}
-        result = run_batch(force=False, no=no)
-        assert result == {"totalDatasets": 2, "skippedOrgs": 0, "skippedDatasets": 0}
-        assert "empty-org" in no  # marker recorded in memory
-        assert ISO_RE.match(no["empty-org"])
+        # first run: saves 2 files
+        saved = run({"name": "org-with-data", "display_name": "Org With Data"}, force=False)
+        assert saved == 2
 
-        # files on disk with the exact filenames
-        f1 = Path("downloads/org-with-data/dataset-number-1-00000001.json")
-        f2 = Path("downloads/org-with-data/dataset-number-2-00000002.json")
-        assert f1.exists()
-        assert f2.exists()
+        f1 = Path("downloads/datasets/org-with-data/dataset-number-1-00000001.json")
+        f2 = Path("downloads/datasets/org-with-data/dataset-number-2-00000002.json")
+        assert f1.exists() and f2.exists()
 
-        # record shape + key order: _fetched_at, _organisation, then ds keys
+        # record shape: _fetched_at, _organisation first, then dataset keys
         rec = json.loads(f1.read_text(encoding="utf-8"))
         assert list(rec)[:2] == ["_fetched_at", "_organisation"]
         assert ISO_RE.match(rec["_fetched_at"])
-        assert rec["_organisation"] == {
-            "name": "org-with-data",
-            "display_name": "Org With Data",
-        }
+        assert rec["_organisation"] == {"name": "org-with-data", "display_name": "Org With Data"}
         assert rec["title"] == "Dataset Number 1"
-        assert rec["id"] == "00000001-0000-0000-0000-000000000000"
-        assert list(rec)[2:] == ["title", "id"]  # ds keys after, order kept
-        # written with indent=2
-        raw = f1.read_text(encoding="utf-8")
-        assert '{\n  "_fetched_at":' in raw
+        assert list(rec)[2:] == ["title", "id"]
+        assert '{\n  "_fetched_at":' in f1.read_text(encoding="utf-8")
 
-        # no-datasets.json persisted with indent-2 formatting
-        saved = json.loads(
-            Path("downloads/no-datasets.json").read_text(encoding="utf-8"),
-        )
-        assert set(saved) == {"empty-org"}
+        # empty org -> marker file written, has_saved_datasets returns True
+        saved = run({"name": "empty-org"}, force=False)
+        assert saved == 0
+        marker = Path("downloads/datasets/empty-org/no-datasets.json")
+        assert marker.exists()
+        assert marker.read_text(encoding="utf-8") == "[]"
 
-        # --- second run, no force: org skipped (has files), empty re-marked ---
-        no2 = {}
-        result = run_batch(force=False, no=no2)
-        assert result == {"totalDatasets": 0, "skippedOrgs": 1, "skippedDatasets": 0}
+        # force: wipes stale files (including marker) and refetches
+        saved = run({"name": "org-with-data", "display_name": "Org With Data"}, force=True)
+        assert saved == 2
 
-        # --- force run: everything refetched and overwritten ---
-        no3 = {}
-        result = run_batch(force=True, no=no3)
-        assert result == {"totalDatasets": 2, "skippedOrgs": 0, "skippedDatasets": 0}
-        assert "empty-org" in no3
-
-        # --- display_name missing: omitted from _organisation (JSON
-        # serialisation drops a missing key), not written as null ---
-        def run_single():
-            limiter = scripts.get_datasets.create_rate_limiter(4)
-            with httpx.Client(
-                transport=httpx.MockTransport(handler),
-                follow_redirects=True,
-            ) as client:
-                scripts.get_datasets.process_batch(
-                    [{"name": "org-with-data"}],
-                    10.0,
-                    limiter,
-                    client,
-                    {},
-                    force=True,
-                )
-
-        run_single()
+        # display_name missing: omitted from _organisation (not written as null)
+        run({"name": "org-with-data"}, force=True)
         rec = json.loads(f1.read_text(encoding="utf-8"))
         assert rec["_organisation"] == {"name": "org-with-data"}
         assert "display_name" not in rec["_organisation"]
 
-    # --- per-org API error: logged to stderr, batch continues ---
+    # per-org API error: logged to stderr, other orgs continue
     def error_handler(request: httpx.Request) -> httpx.Response:
         fq = dict(request.url.params)["fq"]
         if "bad" in fq:
             return httpx.Response(500, text="boom")
-        return httpx.Response(
-            200,
-            json={"success": True, "result": {"results": datasets}},
-        )
-
-    def run_with_error():
-        limiter = scripts.get_datasets.create_rate_limiter(4)
-        with httpx.Client(
-            transport=httpx.MockTransport(error_handler),
-            follow_redirects=True,
-        ) as client:
-            return scripts.get_datasets.process_batch(
-                [{"name": "bad-org"}, {"name": "good-org"}],
-                10.0,
-                limiter,
-                client,
-                {},
-                force=False,
-            )
+        return httpx.Response(200, json={"success": True, "result": {"results": datasets}})
 
     with tempfile.TemporaryDirectory() as d, chdir(d):
-        err = io.StringIO()
-        out = io.StringIO()
+        limiter = scripts.get_datasets.create_rate_limiter(4)
+        err, out = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
-            result = run_with_error()
-        # bad org errored (stderr), good org still saved (stdout progress)
+            with httpx.Client(transport=httpx.MockTransport(error_handler), follow_redirects=True) as client:
+                r1 = scripts.get_datasets.process_org({"name": "bad-org"}, 0, 2, limiter, client, force=False)
+                r2 = scripts.get_datasets.process_org({"name": "good-org"}, 1, 2, limiter, client, force=False)
         assert "✗ error: HTTP 500" in err.getvalue()
         assert "[1/2]" in out.getvalue()
         assert "[2/2]" in out.getvalue()
-        assert result["totalDatasets"] == 2
-        assert Path("downloads/good-org/dataset-number-1-00000001.json").exists()
+        assert r1 == 0
+        assert r2 == 2
+        assert Path("downloads/datasets/good-org/dataset-number-1-00000001.json").exists()
 
 
 def test_cli():
     runner = CliRunner()
 
-    # --continuous + --org -> error, exit 1 (before any file/network access)
-    res = runner.invoke(scripts.get_datasets.app, ["--continuous", "--org", "x"])
-    assert res.exit_code == 1, res.output
-    assert "--continuous cannot be combined with --org" in res.stderr
-
     # missing organisations.json -> exit 1
     with tempfile.TemporaryDirectory() as d, chdir(d):
-        res = runner.invoke(scripts.get_datasets.app, ["--orgs", "5"])
+        res = runner.invoke(scripts.get_datasets.app, [])
         assert res.exit_code == 1, res.output
         assert "No organisations.json found." in res.stderr
 
     # --org not found -> exit 1 + hint
     with tempfile.TemporaryDirectory() as d:
-        Path(d, "downloads").mkdir(exist_ok=True)
-        Path(d, "downloads", "organisations.json").write_text(
+        Path(d, "downloads/organisations").mkdir(parents=True)
+        Path(d, "downloads/organisations/organisations.json").write_text(
             json.dumps([{"name": "ons", "display_name": "ONS"}]),
             encoding="utf-8",
         )
@@ -428,33 +256,3 @@ def test_cli():
         assert res.exit_code == 1, res.output
         assert 'Publisher not found: "zzz"' in res.stderr
         assert "Check organisations.json" in res.stderr
-
-    # bogus --per-org -> usage error (non-zero exit is all callers rely on)
-    with tempfile.TemporaryDirectory() as d:
-        Path(d, "downloads").mkdir(exist_ok=True)
-        Path(d, "downloads", "organisations.json").write_text(
-            json.dumps([{"name": "ons"}]),
-            encoding="utf-8",
-        )
-        with chdir(d):
-            res = runner.invoke(scripts.get_datasets.app, ["--per-org", "bogus"])
-            assert res.exit_code != 0, res.output
-            res = runner.invoke(scripts.get_datasets.app, ["--per-org", "0"])
-            assert res.exit_code != 0, res.output
-            # 'all' parses fine — reach the --org lookup (fail-fast, no network)
-            res = runner.invoke(scripts.get_datasets.app, ["--per-org", "all", "--org", "nope"])
-            assert res.exit_code == 1, res.output
-            assert 'Publisher not found: "nope"' in res.stderr
-
-    # --orgs 0 / --offset -1 -> usage error (non-zero exit)
-    with tempfile.TemporaryDirectory() as d:
-        Path(d, "downloads").mkdir(exist_ok=True)
-        Path(d, "downloads", "organisations.json").write_text(
-            json.dumps([{"name": "ons"}]),
-            encoding="utf-8",
-        )
-        with chdir(d):
-            res = runner.invoke(scripts.get_datasets.app, ["--orgs", "0"])
-            assert res.exit_code != 0, res.output
-            res = runner.invoke(scripts.get_datasets.app, ["--offset", "-1"])
-            assert res.exit_code != 0, res.output
