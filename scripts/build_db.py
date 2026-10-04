@@ -607,11 +607,11 @@ TRUNCATE_SQL = (
 # idempotent); the links statement is bulk-loaded per batch.
 INSERT_DATASET_SQL = """
 INSERT INTO datasets
-    (id, org_slug, org_display_name, title, name, notes, metadata_created,
+    (ckan_id, org_slug, org_display_name, title, name, notes, metadata_created,
      metadata_modified, resource_count, theme_primary,
      harvested, harvest_source_title, harvest_source_id)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (ckan_id) DO UPDATE SET
     org_slug = EXCLUDED.org_slug, org_display_name = EXCLUDED.org_display_name,
     title = EXCLUDED.title, name = EXCLUDED.name, notes = EXCLUDED.notes,
     metadata_created = EXCLUDED.metadata_created,
@@ -621,6 +621,7 @@ ON CONFLICT (id) DO UPDATE SET
     harvested = EXCLUDED.harvested,
     harvest_source_title = EXCLUDED.harvest_source_title,
     harvest_source_id = EXCLUDED.harvest_source_id
+RETURNING id
 """
 
 # One row per coverage period — bulk-loaded per batch like links.
@@ -636,8 +637,8 @@ ON CONFLICT (dataset_id, position) DO UPDATE SET
 """
 
 INSERT_JSON_SQL = """
-INSERT INTO dataset_json (id, json) VALUES (?, ?)
-ON CONFLICT (id) DO UPDATE SET json = EXCLUDED.json
+INSERT INTO dataset_json (dataset_id, json) VALUES (?, ?)
+ON CONFLICT (dataset_id) DO UPDATE SET json = EXCLUDED.json
 """
 
 INSERT_LINK_SQL = """
@@ -699,7 +700,7 @@ def _dataset_row(ds: dict, extras: dict, org_name, org_display) -> tuple:
     )
 
 
-def _dataset_period_rows(ds: dict) -> list[tuple]:
+def _dataset_period_rows(ds: dict, int_id: int) -> list[tuple]:
     """The insert_period rows for one dataset: (dataset_id, position,
     from_year, to_year, source). Declared periods from the publisher's
     temporal_coverage-from/to (source='declared') when they yield any;
@@ -720,10 +721,10 @@ def _dataset_period_rows(ds: dict) -> list[tuple]:
         # _suggested_periods returns a source only together with periods
         assert suggested_source is not None
         source = suggested_source
-    return [(ds.get("id"), i, p[0], p[1], source) for i, p in enumerate(periods)]
+    return [(int_id, i, p[0], p[1], source) for i, p in enumerate(periods)]
 
 
-def _link_rows(ds: dict, org_name, org_display, year_created) -> list[tuple]:
+def _link_rows(ds: dict, int_id: int, org_name, org_display, year_created) -> list[tuple]:
     """The insert_link rows, one per resource."""
     rows = []
     for r in ds.get("resources") or []:
@@ -732,7 +733,7 @@ def _link_rows(ds: dict, org_name, org_display, year_created) -> list[tuple]:
         rows.append(
             (
                 r.get("id") or None,
-                ds.get("id"),
+                int_id,
                 org_name,
                 org_display,
                 ds.get("title"),
@@ -750,10 +751,10 @@ def _link_rows(ds: dict, org_name, org_display, year_created) -> list[tuple]:
     return rows
 
 
-def _fts_row(ds: dict) -> dict:
+def _fts_row(ds: dict, int_id: int) -> dict:
     """The fts-row dict for the tsvector column (tags space-joined)."""
     return {
-        "id": ds.get("id"),
+        "id": int_id,
         "title": _WS_RE.sub(" ", (ds.get("title") or "")).strip(),
         "notes": _WS_RE.sub(" ", (ds.get("notes") or "")).strip(),
         "tags": " ".join(
@@ -838,17 +839,16 @@ def _process_batch(db, batch: list[dict], st: _BuildState) -> None:
             org_display = org.get("display_name") or org_slug
             year_created = (ds.get("metadata_created") or "")[:4] or None
 
-            insert_ds.run(*_dataset_row(ds, extras, org_name, org_display))
-            insert_json.run(ds.get("id"), raw)
-            for row in _link_rows(ds, org_name, org_display, year_created):
-                insert_link.run(*row)
-            # Period rows after the dataset row — the FK needs the parent
-            # to exist. Resources are already in the parsed ds, so no
-            # reordering was needed to have them here.
-            for row in _dataset_period_rows(ds):
-                insert_period.run(*row)
+            # INSERT … RETURNING id gives back the auto-assigned integer PK.
+            row = insert_ds.get(*_dataset_row(ds, extras, org_name, org_display))
+            int_id = row["id"]
+            insert_json.run(int_id, raw)
+            for link_row in _link_rows(ds, int_id, org_name, org_display, year_created):
+                insert_link.run(*link_row)
+            for period_row in _dataset_period_rows(ds, int_id):
+                insert_period.run(*period_row)
 
-            st.fts_rows.append(_fts_row(ds))
+            st.fts_rows.append(_fts_row(ds, int_id))
             _meta_counts(ds, st)
             st.count += 1
 
@@ -993,9 +993,9 @@ def _populate_fts_tx(tx, fts_rows) -> None:
 
 def _write_views_tx(tx, views_by_id) -> None:
     """Write the per-dataset view counts."""
-    update_views = tx.prepare("UPDATE datasets SET views = ? WHERE id = ?")
-    for id_, v in views_by_id.items():
-        update_views.run(v, id_)
+    update_views = tx.prepare("UPDATE datasets SET views = ? WHERE ckan_id = ?")
+    for ckan_id, v in views_by_id.items():
+        update_views.run(v, ckan_id)
 
 
 def _write_meta_tx(tx, field_counts, value_counts) -> int:

@@ -76,7 +76,7 @@
             {% for ds in source.datasets %}
               <tr>
                 <th scope="row" class="col-text">
-                  <a href="/dataset/{{ ds.org_slug }}/{{ ds.id }}">{{ ds.title or ds.name }}</a>
+                  <a href="/dataset/{{ ds.org_slug }}/{{ ds.ckan_id }}">{{ ds.title or ds.name }}</a>
                 </th>
                 <td class="col-date">{{ ds.metadata_created | date_short if ds.metadata_created else "—" }}</td>
                 <td class="col-date">{{ ds.metadata_modified | date_short if ds.metadata_modified else "—" }}</td>

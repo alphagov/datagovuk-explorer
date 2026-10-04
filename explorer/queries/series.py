@@ -41,7 +41,7 @@ DATASET_SERIES = Query(
 
 # Other datasets in the same series as the current one
 SERIES_DATASETS_EXCEPT = Query(
-    """SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
+    """SELECT d.ckan_id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
               d.resource_count, d.metadata_created, sd.date_suffix
        FROM series_datasets sd
        JOIN datasets d ON d.id = sd.dataset_id
@@ -57,7 +57,7 @@ SERIES_BY_ID = Query(
 )
 
 SERIES_DATASETS = Query(
-    """SELECT sd.dataset_id, sd.dataset_title, sd.date_suffix, sd.org_slug, sd.org_display_name,
+    """SELECT d.ckan_id, sd.dataset_title, sd.date_suffix, sd.org_slug, sd.org_display_name,
               d.theme_primary, d.resource_count, d.metadata_created
        FROM series_datasets sd
        JOIN datasets d ON d.id = sd.dataset_id

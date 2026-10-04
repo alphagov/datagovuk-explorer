@@ -326,7 +326,7 @@
                 {% for ds in series_datasets %}
                   <tr>
                     <td class="col-text">
-                      <a href="/dataset/{{ ds.org_slug }}/{{ ds.id }}">{{ ds.title }}</a>
+                      <a href="/dataset/{{ ds.org_slug }}/{{ ds.ckan_id }}">{{ ds.title }}</a>
                     </td>
                     {% if series.type == 'timeseries' %}<td>{{ ds.date_suffix or '—' }}</td>{% endif %}
                     <td class="col-text">
@@ -361,7 +361,7 @@
               <tbody>
                 {% for r in semantic_related %}
                   <tr>
-                    <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a></td>
+                    <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.ckan_id }}">{{ r.title }}</a></td>
                     <td>{{ r.org_display_name }}</td>
                     <td class="col-date">{{ r.metadata_modified | date_short if r.metadata_modified else '—' }}</td>
                     <td class="col-num">{{ '%.3f' | format(1.2 - r.distance) }}</td>

@@ -280,7 +280,7 @@ def _summary_guard(summary_lock: threading.Lock | None):
 def record_base(row, model: str) -> dict:
     """The fixed record fields shared by ok and error records."""
     return {
-        "dataset_id": row["id"],
+        "dataset_id": row["ckan_id"],
         "title": row["title"],
         "org_slug": row["org_slug"],
         "org_display_name": row["org_display_name"],
@@ -421,16 +421,16 @@ def run(
 
         db = connect(DATABASE_URL)
         try:
-            select_sql = """SELECT d.id, d.title, d.org_slug, d.org_display_name, j.json
+            select_sql = """SELECT d.ckan_id, d.title, d.org_slug, d.org_display_name, j.json
              FROM datasets d
-             JOIN dataset_json j ON j.id = d.id
+             JOIN dataset_json j ON j.dataset_id = d.id
              WHERE (?::text IS NULL OR d.org_slug = ?)
                AND d.resource_count > 0"""
 
             if id_filter:
                 placeholders = ",".join("?" for _ in id_filter)
                 rows = db.prepare(
-                    select_sql + f"\n AND d.id IN ({placeholders})",
+                    select_sql + f"\n AND d.ckan_id IN ({placeholders})",
                 ).all(org_filter, org_filter, *id_filter)
             elif include_reviewed:
                 ids = list(attempted)
@@ -439,19 +439,19 @@ def run(
                 if ids:
                     placeholders = ",".join("?" for _ in ids)
                     rows = db.prepare(
-                        select_sql + f"\n AND d.id IN ({placeholders})\n LIMIT ?",
+                        select_sql + f"\n AND d.ckan_id IN ({placeholders})\n LIMIT ?",
                     ).all(org_filter, org_filter, *ids, pick)
             elif limit is not None:
                 pick = limit
                 candidates = db.prepare(
                     select_sql + "\n ORDER BY RANDOM()\n LIMIT ?",
                 ).all(org_filter, org_filter, pick * 4)
-                rows = [r for r in candidates if r["id"] not in processed][:pick]
+                rows = [r for r in candidates if r["ckan_id"] not in processed][:pick]
             else:
                 candidates = db.prepare(
                     select_sql + "\n ORDER BY d.org_slug, d.title",
                 ).all(org_filter, org_filter)
-                rows = [r for r in candidates if r["id"] not in processed]
+                rows = [r for r in candidates if r["ckan_id"] not in processed]
         finally:
             db.close()
 

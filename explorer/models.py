@@ -8,6 +8,7 @@ Schema notes:
 - embedding_map.rowid / dataset_embeddings.rowid are plain INTEGER PRIMARY KEY
   (embed_batch assigns dense rowids from 1) -> IntegerField(primary_key=True),
   not AutoField.
+- datasets.id is SERIAL (AutoField) — the CKAN UUID lives in ckan_id.
 - datasets.fts is a SearchVectorField (tsvector), populated by build_db.py.
 - dataset_embeddings.embedding and collection_embeddings.embedding are
   VectorField(dimensions=768) from pgvector.django.
@@ -68,7 +69,8 @@ class HarvestSource(models.Model):
 
 
 class Dataset(models.Model):
-    id = models.TextField(primary_key=True)
+    id = models.AutoField(primary_key=True)
+    ckan_id = models.TextField(unique=True)
     org_slug = models.TextField()
     org_display_name = models.TextField(blank=True, null=True)
     title = models.TextField(blank=True, null=True)
@@ -99,15 +101,15 @@ class Dataset(models.Model):
             models.Index(fields=["metadata_modified"], name="idx_datasets_modified"),
             models.Index(fields=["-views"], name="idx_datasets_views_desc"),
             models.Index(
-                fields=["id"],
+                fields=["ckan_id"],
                 include=["org_slug", "org_display_name", "title", "theme_primary"],
-                name="idx_datasets_reviews_cover",
+                name="idx_datasets_ckan_id_cover",
             ),
             GinIndex(fields=["fts"], name="idx_datasets_fts"),
         ]
 
     def __str__(self):
-        return self.title or self.name or self.id
+        return self.title or self.name or self.ckan_id
 
 
 class TemporalPeriod(models.Model):
@@ -196,7 +198,7 @@ class DatasetJson(models.Model):
         Dataset,
         on_delete=models.CASCADE,
         primary_key=True,
-        db_column="id",
+        db_column="dataset_id",
         db_index=False,
     )
     json = models.JSONField()
@@ -360,7 +362,7 @@ class SeriesDataset(models.Model):
         db_column="series_id",
         db_index=False,
     )
-    dataset_id = models.TextField()
+    dataset_id = models.IntegerField()
     dataset_title = models.TextField()
     date_suffix = models.TextField(blank=True, null=True)
     org_slug = models.TextField()
@@ -545,7 +547,7 @@ class RelatedDataset(models.Model):
     1-based position; score is L2 distance. The baked query joins through
     datasets for display columns."""
 
-    dataset_id = models.TextField(db_index=False)
+    dataset_id = models.IntegerField(db_index=False)
     related = models.ForeignKey(
         Dataset,
         on_delete=models.CASCADE,

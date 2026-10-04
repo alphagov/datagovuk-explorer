@@ -7,6 +7,7 @@
 - `explorer/` and `scripts/` never import from each other — they share only the database.
 - The schema is migration-owned. Never manually alter tables.
 - Never use background agents, the codebase is small enough that it is quicker not to
+- The local database always exists. Do not assume it is missing based on connection errors — check the connection string and `.env` instead.
 
 ## Query layer (`explorer/queries/`)
 

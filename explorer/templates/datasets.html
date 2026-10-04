@@ -32,7 +32,7 @@
         {% for ds in datasets %}
           <tr>
             <th scope="row" class="col-text">
-              <a href="/dataset/{{ ds.org_slug }}/{{ ds.id }}">{{ ds.title }}</a>
+              <a href="/dataset/{{ ds.org_slug }}/{{ ds.ckan_id }}">{{ ds.title }}</a>
             </th>
             <td class="col-text">{{ ds.organisation }}</td>
             <td class="col-date">{{ ds.metadata_created | date_short }}</td>

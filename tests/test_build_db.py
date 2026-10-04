@@ -127,9 +127,9 @@ def test_dataset_period_rows():
         "temporal_coverage-to": "1992, 2016",
         "resources": [],
     }
-    assert bd._dataset_period_rows(ds) == [
-        ("d1", 0, 1960, 1992, "declared"),
-        ("d1", 1, 2000, 2016, "declared"),
+    assert bd._dataset_period_rows(ds, 42) == [
+        (42, 0, 1960, 1992, "declared"),
+        (42, 1, 2000, 2016, "declared"),
     ]
     # declared junk -> suggested fallback
     ds2 = {
@@ -139,9 +139,9 @@ def test_dataset_period_rows():
         "temporal_coverage-to": "ongoing",
         "resources": [],
     }
-    assert bd._dataset_period_rows(ds2) == [("d2", 0, 2021, 2021, "title")]
+    assert bd._dataset_period_rows(ds2, 99) == [(99, 0, 2021, 2021, "title")]
     # nothing -> no rows
-    assert bd._dataset_period_rows({"id": "d3", "title": "No years", "resources": [{"name": "file.pdf"}]}) == []
+    assert bd._dataset_period_rows({"id": "d3", "title": "No years", "resources": [{"name": "file.pdf"}]}, 7) == []
 
 
 def test_extract_host():

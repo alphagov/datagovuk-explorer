@@ -249,7 +249,7 @@ def datasets_stmts(filters: dict, sort: str, dir_: str) -> dict:
     where, params = _facet_where(filters)
     meta_join = ""
     if filters.get("metadata_key") and filters.get("metadata_value") is not None:
-        meta_join = " JOIN dataset_json dj ON dj.id = d.id"
+        meta_join = " JOIN dataset_json dj ON dj.dataset_id = d.id"
         clause, meta_params = _metadata_clause(filters)
         where = f"{where} AND {clause}" if where else f" WHERE {clause}"
         params = [*params, *meta_params]
@@ -259,7 +259,7 @@ def datasets_stmts(filters: dict, sort: str, dir_: str) -> dict:
         "params": params,
         "count": Query(f"SELECT COUNT(*) AS n FROM datasets d{meta_join}{where}"),
         "list": Query(
-            "SELECT d.id, d.title, d.name, d.org_slug,"
+            "SELECT d.ckan_id, d.title, d.name, d.org_slug,"
             "  d.org_display_name AS organisation,"
             "  d.metadata_created, d.metadata_modified, d.resource_count,"
             "  d.theme_primary, d.harvested, d.harvest_source_title, d.views"
@@ -284,7 +284,7 @@ def org_datasets_stmts(org_slug: str, sort: str, dir_: str) -> dict:
         "params": [org_slug],
         "count": Query("SELECT COUNT(*) AS n FROM datasets d WHERE d.org_slug = %s"),
         "list": Query(
-            "SELECT d.id, d.title, d.name, d.metadata_created,"
+            "SELECT d.ckan_id, d.title, d.name, d.metadata_created,"
             "  d.metadata_modified, d.resource_count,"
             "  d.harvested, d.harvest_source_title, d.views"
             " FROM datasets d WHERE d.org_slug = %s"
@@ -307,7 +307,7 @@ def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
         "params": [source_id],
         "count": Query("SELECT COUNT(*) AS n FROM datasets d WHERE d.harvest_source_id = %s"),
         "list": Query(
-            "SELECT d.id, d.org_slug, d.title, d.name, d.metadata_created,"
+            "SELECT d.ckan_id, d.org_slug, d.title, d.name, d.metadata_created,"
             "  d.metadata_modified, d.resource_count, d.views"
             " FROM datasets d WHERE d.harvest_source_id = %s"
             f" ORDER BY {order_sql}"
@@ -524,7 +524,11 @@ ORG_STATS = Query(
 )
 
 # Full dataset JSON for the detail page
-DATASET_JSON = Query("SELECT json FROM dataset_json WHERE id = %s")
+DATASET_JSON = Query(
+    "SELECT dj.json, d.id AS dataset_pk"
+    " FROM dataset_json dj JOIN datasets d ON d.id = dj.dataset_id"
+    " WHERE d.ckan_id = %s",
+)
 
 # Normalised coverage periods for the detail page (position order). The
 # view shows declared-source rows under the raw-JSON From/To display and

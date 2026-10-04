@@ -20,7 +20,7 @@ from pathlib import Path
 
 from scripts.db import connect, database_url
 
-DEFAULT_REVIEWS_DIR = Path(__file__).resolve().parent.parent / "downloads" / "reviews"
+DEFAULT_REVIEWS_DIR = Path(__file__).resolve().parent.parent.parent / "downloads" / "reviews"
 
 
 def _read_file(f: Path) -> dict | None:
@@ -55,7 +55,9 @@ def _subscore(r: dict, key: str):
 def ingest(db, records: list[dict]) -> int:
     """Truncate + COPY ok records whose dataset exists locally; returns inserted count."""
     ids = [r["dataset_id"] for r in records]
-    existing = {str(row["id"]) for row in db.prepare("SELECT id FROM datasets WHERE id = ANY(?)").all(ids)}
+    rows = db.prepare("SELECT id, ckan_id FROM datasets WHERE ckan_id = ANY(?)").all(ids)
+    existing = {row["ckan_id"] for row in rows}
+    id_map = {row["ckan_id"]: row["id"] for row in rows}
     present = [r for r in records if r.get("ok") and r["dataset_id"] in existing]
     skipped = len(records) - len(present)
     if skipped:
@@ -68,7 +70,7 @@ def ingest(db, records: list[dict]) -> int:
             for r in present:
                 copy.write_row(
                     (
-                        r["dataset_id"],
+                        id_map[r["dataset_id"]],
                         _subscore(r, "title-description"),
                         _subscore(r, "resources"),
                         r.get("reviewed_at"),

@@ -7,7 +7,7 @@ from .core import Query
 # Pre-baked semantic related datasets — trivial indexed lookup replacing the
 # live SEMANTIC_RELATED query at request time.
 BAKED_SEMANTIC_RELATED = Query(
-    """SELECT d.id, d.title, d.org_slug, d.org_display_name,
+    """SELECT d.ckan_id, d.title, d.org_slug, d.org_display_name,
               d.theme_primary, d.metadata_modified, r.score AS distance
        FROM related_datasets r
        JOIN datasets d ON d.id = r.related_id
@@ -33,7 +33,7 @@ EMBEDDING_LITERAL = Query(
 # for latency. Before the index this was an exact scan over every vector
 # (~400ms); the index drops it to single-digit milliseconds.
 SEMANTIC_RELATED = Query(
-    """SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
+    """SELECT d.ckan_id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
               d.metadata_modified,
               emb.embedding <-> %s::vector AS distance
        FROM dataset_embeddings emb

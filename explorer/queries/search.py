@@ -37,7 +37,7 @@ _PUBLISHERS_PAGE = Query(
 
 _DATASETS_PREVIEW = Query(
     """WITH q AS (SELECT websearch_to_tsquery('english', %s) AS q)
-       SELECT d.id, d.org_slug, d.title, d.org_display_name,
+       SELECT d.ckan_id, d.org_slug, d.title, d.org_display_name,
               ts_rank(d.fts, q.q) AS rank
          FROM datasets d, q
         WHERE d.fts @@ q.q
@@ -52,7 +52,7 @@ _DATASETS_COUNT = Query(
 
 _DATASETS_PAGE = Query(
     """WITH q AS (SELECT websearch_to_tsquery('english', %s) AS q)
-       SELECT d.id, d.org_slug, d.title, d.org_display_name,
+       SELECT d.ckan_id, d.org_slug, d.title, d.org_display_name,
               ts_rank(d.fts, q.q) AS rank
          FROM datasets d, q
         WHERE d.fts @@ q.q

@@ -30,7 +30,7 @@
             <td class="domain-cell" title="{{ l.host or '' }}">{{ l.host or "—" }}</td>
             <td class="col-text">{{ format_badge(l.format, l.format_raw) }}</td>
             <td class="col-text">
-              <a href="/dataset/{{ l.org_slug }}/{{ l.dataset_id }}">{{ l.dataset_title }}</a>
+              <a href="/dataset/{{ l.org_slug }}/{{ l.ckan_id }}">{{ l.dataset_title }}</a>
             </td>
             <td class="col-text">
               {{ l.org_display_name }}

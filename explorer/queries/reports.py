@@ -26,7 +26,9 @@ from .core import Query, facet_where
 # facet's filter_sql when a value is selected, or '' when not.
 
 # --- Shared column lists / orderings for the regular reports ---
-DATASET_REPORT_COLS = "id, title, name, org_slug, org_display_name, metadata_created, metadata_modified, views, notes"
+DATASET_REPORT_COLS = (
+    "ckan_id, title, name, org_slug, org_display_name, metadata_created, metadata_modified, views, notes"
+)
 DATASET_REPORT_ORDER = "LOWER(org_display_name), LOWER(title), id"
 LINK_REPORT_COLS = (
     "id, dataset_id, org_slug, org_display_name, dataset_title, name, description, url, host, format_norm AS format"
@@ -95,7 +97,11 @@ def _link_report_sql(where: str) -> dict:
     return {
         "where": where,
         "count_sql": f"SELECT COUNT(*) AS n FROM links WHERE {where}",
-        "list_sql": (f"SELECT {LINK_REPORT_COLS} FROM links WHERE {where} ORDER BY {{order_by}} LIMIT %s OFFSET %s"),
+        "list_sql": (
+            f"SELECT {LINK_REPORT_COLS},"
+            " (SELECT ckan_id FROM datasets WHERE id = dataset_id) AS ckan_id"
+            f" FROM links WHERE {where} ORDER BY {{order_by}} LIMIT %s OFFSET %s"
+        ),
     }
 
 
@@ -347,8 +353,9 @@ REPORTS = [
               ORDER BY {{order_by}}
               LIMIT %s OFFSET %s""",
         # Detail: all links for one URL (used when ?url= is set)
-        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}
+        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}, d.ckan_id
                 FROM links l
+                JOIN datasets d ON d.id = l.dataset_id
                 WHERE l.url = %s
                 ORDER BY {{order_by}}
                 LIMIT %s OFFSET %s""",
@@ -413,8 +420,9 @@ REPORTS = [
                 HAVING COUNT(DISTINCT lcr.url) >= 5{org}
                 ORDER BY {order_by}
                 LIMIT %s OFFSET %s""",
-        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}
+        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}, d.ckan_id
                 FROM links l
+                JOIN datasets d ON d.id = l.dataset_id
                 JOIN link_check_results lcr ON l.url = lcr.url
                 WHERE lcr.final_url = %s
                 ORDER BY {{order_by}}

@@ -28,8 +28,8 @@ def latest_reviews() -> list[dict]:
     return [json.loads(row["json"]) for row in _LATEST_REVIEWS.all()]
 
 
-def get_review(dataset_id: str) -> dict | None:
-    """Review for one dataset id, or None."""
+def get_review(dataset_id: int) -> dict | None:
+    """Review for one dataset id (integer PK), or None."""
     rows = _REVIEW_FOR.all(dataset_id)
     if not rows:
         return None
@@ -123,7 +123,7 @@ def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
         "params": params,
         "count": Query(f"SELECT COUNT(*) AS n FROM {from_sql}{where}"),
         "list": Query(
-            "SELECT r.dataset_id, d.title, d.org_slug, d.org_display_name,"
+            "SELECT d.ckan_id, d.title, d.org_slug, d.org_display_name,"
             "  r.findability, r.resources"
             f" FROM {from_sql}{where}"
             f" ORDER BY {order_sql}"

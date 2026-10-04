@@ -92,19 +92,17 @@ _LINKS_CLAUSES = {
 def links_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = facet_where(_LINKS_CLAUSES, filters)
-    # All filter and sort columns live on links itself, so no join is needed.
-    from_ = "FROM links l"
-
     order_sql = order_by(LINK_SORT, sort, dir_, "l.id")
 
     entry = {
         "params": params,
-        "count": Query(f"SELECT COUNT(*) AS n {from_} {where}"),
+        "count": Query(f"SELECT COUNT(*) AS n FROM links l {where}"),
         "list": Query(
-            "SELECT l.id, l.resource_id, l.dataset_id, l.org_slug, l.org_display_name,"
+            "SELECT l.id, l.resource_id, d.ckan_id, l.org_slug, l.org_display_name,"
             "  l.dataset_title, l.name, l.description, l.url, l.host,"
             "  l.format_norm AS format, l.format AS format_raw, l.position"
-            f" {from_} {where}"
+            " FROM links l JOIN datasets d ON d.id = l.dataset_id"
+            f" {where}"
             f" ORDER BY {order_sql}"
             " LIMIT %s OFFSET %s",
         ),

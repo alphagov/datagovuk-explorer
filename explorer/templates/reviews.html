@@ -25,7 +25,7 @@
         {% for r in reviews %}
           <tr>
             <th scope="row" class="col-text">
-              <a href="/dataset/{{ r.org_slug }}/{{ r.dataset_id }}">{{ r.title }}</a>
+              <a href="/dataset/{{ r.org_slug }}/{{ r.ckan_id }}">{{ r.title }}</a>
             </th>
             <td class="col-text">
               {{ r.org_display_name }}

@@ -63,7 +63,7 @@ def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
 # Pre-baked collection related datasets — trivial indexed lookup replacing
 # the live COLLECTION_RELATED_DATASETS query at request time.
 BAKED_COLLECTION_RELATED = Query(
-    """SELECT d.id, d.title, d.org_slug, d.org_display_name,
+    """SELECT d.ckan_id, d.title, d.org_slug, d.org_display_name,
               d.theme_primary, d.metadata_modified, r.distance
        FROM collection_related_datasets r
        JOIN datasets d ON d.id = r.dataset_id
@@ -77,7 +77,7 @@ COLLECTION_EMBEDDING = Query(
 )
 
 COLLECTION_RELATED_DATASETS = Query(
-    """SELECT d.id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
+    """SELECT d.ckan_id, d.title, d.org_slug, d.org_display_name, d.theme_primary,
               d.metadata_modified,
               emb.embedding <-> %s::vector AS distance
        FROM dataset_embeddings emb

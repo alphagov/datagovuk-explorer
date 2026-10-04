@@ -18,7 +18,7 @@
       <ul class="search-list">
         {% for d in datasets %}
           <li class="search-item">
-            <a class="search-item__title" href="/dataset/{{ d.org_slug }}/{{ d.id }}">{{ d.title }}</a>
+            <a class="search-item__title" href="/dataset/{{ d.org_slug }}/{{ d.ckan_id }}">{{ d.title }}</a>
             <span class="search-item__meta">{{ d.org_display_name }}</span>
           </li>
         {% endfor %}

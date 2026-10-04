@@ -50,7 +50,7 @@ def test_link_errors_list_shape_and_sort_whitelist():
     rows = out["list"].all(*out["params"], 1_000_000, 0)
     assert len(rows) == total
     for col in (
-        "package_id",
+        "ckan_id",
         "package_name",
         "resource_id",
         "resource_url",

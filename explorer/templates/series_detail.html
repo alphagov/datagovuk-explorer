@@ -35,7 +35,7 @@
         {% for ds in datasets %}
           <tr>
             <td class="col-text">
-              <a href="/dataset/{{ ds.org_slug }}/{{ ds.dataset_id }}">{{ ds.dataset_title }}</a>
+              <a href="/dataset/{{ ds.org_slug }}/{{ ds.ckan_id }}">{{ ds.dataset_title }}</a>
             </td>
             {% if series.type == 'timeseries' %}<td>{{ ds.date_suffix or '—' }}</td>{% endif %}
             <td class="col-text">

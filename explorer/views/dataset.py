@@ -43,6 +43,7 @@ def dataset(request, org_slug, dataset_id):
     if json_row is None:
         raise Http404
 
+    dataset_pk = json_row["dataset_pk"]
     dataset = json.loads(json_row["json"])
 
     org = {
@@ -64,7 +65,7 @@ def dataset(request, org_slug, dataset_id):
     }
     suggested = [
         {"from": r["from_year"], "to": r["to_year"], "source": r["source"]}
-        for r in DATASET_TEMPORAL_PERIODS.all(dataset_id)
+        for r in DATASET_TEMPORAL_PERIODS.all(dataset_pk)
         if r["source"] != "declared"
     ]
 
@@ -92,15 +93,15 @@ def dataset(request, org_slug, dataset_id):
         sort_resources(dataset["resources"], sort, dir_)
 
     # Semantic related — pre-baked at build time
-    semantic_related = BAKED_SEMANTIC_RELATED.all(dataset["id"])
+    semantic_related = BAKED_SEMANTIC_RELATED.all(dataset_pk)
 
     # Series membership
     series = None
     series_datasets: list = []
-    series_rows = DATASET_SERIES.all(dataset["id"])
+    series_rows = DATASET_SERIES.all(dataset_pk)
     if series_rows:
         series = series_rows[0]
-        series_datasets = SERIES_DATASETS_EXCEPT.all(series["id"], dataset["id"])
+        series_datasets = SERIES_DATASETS_EXCEPT.all(series["id"], dataset_pk)
 
     return render(
         request,
@@ -117,8 +118,8 @@ def dataset(request, org_slug, dataset_id):
             "harvest_source": harvest_source,
             "sort": sort,
             "dir": dir_,
-            "review": get_review(dataset_id),
-            "classification": get_classification(dataset_id),
+            "review": get_review(dataset_pk),
+            "classification": get_classification(dataset_pk),
             "semantic_related": semantic_related,
             "series": series,
             "series_datasets": series_datasets,

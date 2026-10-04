@@ -36,7 +36,7 @@ def fake_row(
     title="Test Dataset",
 ):
     return {
-        "id": id_,
+        "ckan_id": id_,
         "title": title,
         "org_slug": org,
         "org_display_name": "Test Org",
@@ -290,7 +290,7 @@ def test_run_workers_concurrency():
         )
         with summary_lock if summary_lock else lc.nullcontext():
             summary["ok"] += 1
-            processed.append(row["id"])
+            processed.append(row["ckan_id"])
 
     with tempfile.TemporaryDirectory() as d:
         out = Path(d)
@@ -306,7 +306,7 @@ def test_run_workers_concurrency():
 
     assert summary == {"ok": 6, "failed": 0}
     assert len(processed) == 6
-    assert set(processed) == {r["id"] for r in rows}
+    assert set(processed) == {r["ckan_id"] for r in rows}
     assert state["max"] == 3
 
 

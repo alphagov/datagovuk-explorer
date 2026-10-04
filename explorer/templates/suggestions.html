@@ -37,7 +37,7 @@
         {% for s in suggestions %}
           <tr>
             <th scope="row" class="col-text">
-              <a href="/dataset/{{ s.org_slug }}/{{ s.dataset_id }}">{{ s.title }}</a>
+              <a href="/dataset/{{ s.org_slug }}/{{ s.ckan_id }}">{{ s.title }}</a>
               {% if s.suggested_title and s.suggested_title != s.title %}
                 <br />
                 <span class="suggestion">→ {{ s.suggested_title }}</span>

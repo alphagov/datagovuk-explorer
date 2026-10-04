@@ -15,7 +15,7 @@ def fake_row(
     title="Test Dataset",
 ):
     return {
-        "id": id_,
+        "ckan_id": id_,
         "title": title,
         "org_slug": org,
         "org_display_name": "Test Org",

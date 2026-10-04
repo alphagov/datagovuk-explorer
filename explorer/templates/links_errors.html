@@ -40,7 +40,7 @@
             </td>
             <td class="col-text">
               {%- if e.org_slug -%}
-                <a href="/dataset/{{ e.org_slug }}/{{ e.package_id }}">{{ e.package_name }}</a>
+                <a href="/dataset/{{ e.org_slug }}/{{ e.ckan_id }}">{{ e.package_name }}</a>
               {%- elif e.datagovuk_url -%}
                 <a href="{{ e.datagovuk_url }}" target="_blank" rel="noopener noreferrer">{{ e.package_name }}</a>
               {%- else -%}

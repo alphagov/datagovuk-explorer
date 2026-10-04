@@ -33,17 +33,17 @@ def test_write_series_round_trip(migrated_db_url):
                 "root_title": "Conservation Areas",
                 "type": "template",
                 "datasets": [
-                    ds("bs-1", "Conservation Areas", "alpha", "Alpha"),
-                    ds("bs-2", "conservation areas", "beta", "Beta"),
-                    ds("bs-3", "CONSERVATION AREAS", "alpha", "Alpha"),
+                    ds(101, "Conservation Areas", "alpha", "Alpha"),
+                    ds(102, "conservation areas", "beta", "Beta"),
+                    ds(103, "CONSERVATION AREAS", "alpha", "Alpha"),
                 ],
             },
             {
                 "root_title": "Expenditure",
                 "type": "timeseries",
                 "datasets": [
-                    ds("bs-4", "Expenditure 2020", "alpha", "Alpha", date="2020"),
-                    ds("bs-5", "Expenditure 2021", "alpha", "Alpha", date="2021"),
+                    ds(104, "Expenditure 2020", "alpha", "Alpha", date="2020"),
+                    ds(105, "Expenditure 2021", "alpha", "Alpha", date="2021"),
                 ],
             },
         ]
@@ -77,7 +77,7 @@ def test_write_series_round_trip(migrated_db_url):
         ).all() == [
             {
                 "series_id": 1,
-                "dataset_id": "bs-1",
+                "dataset_id": 101,
                 "dataset_title": "Conservation Areas",
                 "date_suffix": None,  # exact-title rows carry no date
                 "org_slug": "alpha",
@@ -85,7 +85,7 @@ def test_write_series_round_trip(migrated_db_url):
             },
             {
                 "series_id": 1,
-                "dataset_id": "bs-2",
+                "dataset_id": 102,
                 "dataset_title": "conservation areas",
                 "date_suffix": None,
                 "org_slug": "beta",
@@ -93,7 +93,7 @@ def test_write_series_round_trip(migrated_db_url):
             },
             {
                 "series_id": 1,
-                "dataset_id": "bs-3",
+                "dataset_id": 103,
                 "dataset_title": "CONSERVATION AREAS",
                 "date_suffix": None,
                 "org_slug": "alpha",
@@ -101,7 +101,7 @@ def test_write_series_round_trip(migrated_db_url):
             },
             {
                 "series_id": 2,
-                "dataset_id": "bs-4",
+                "dataset_id": 104,
                 "dataset_title": "Expenditure 2020",
                 "date_suffix": "2020",
                 "org_slug": "alpha",
@@ -109,7 +109,7 @@ def test_write_series_round_trip(migrated_db_url):
             },
             {
                 "series_id": 2,
-                "dataset_id": "bs-5",
+                "dataset_id": 105,
                 "dataset_title": "Expenditure 2021",
                 "date_suffix": "2021",
                 "org_slug": "alpha",

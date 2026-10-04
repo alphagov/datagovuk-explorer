@@ -51,7 +51,7 @@ _LONG = "A detailed description of this dataset covering its contents, coverage,
 def _dataset(ds_id, org, title, created, **overrides):
     """One datasets row (JSON-only keys are split out by make_fixtures)."""
     row = {
-        "id": ds_id,
+        "ckan_id": ds_id,
         "org_slug": org,
         "title": title,
         "notes": _LONG,
@@ -105,12 +105,12 @@ def _dataset_json(row, org_display_name):
         extras += [
             {"key": "harvest_source_id", "value": row["harvest_source_id"]},
             {"key": "harvest_source_title", "value": row["harvest_source_title"]},
-            {"key": "harvest_object_id", "value": f"ho-{row['id']}"},
+            {"key": "harvest_object_id", "value": f"ho-{row['ckan_id']}"},
         ]
 
     return {
-        "id": row["id"],
-        "name": row["id"],
+        "id": row["ckan_id"],
+        "name": row["ckan_id"],
         "title": row["title"],
         "notes": row["notes"],
         "type": "dataset",
@@ -415,14 +415,19 @@ def make_fixtures():
         [Organisation(slug=slug, **fields) for slug, fields in _ORGS.items()],
     )
     display = {slug: fields["display_name"] for slug, fields in _ORGS.items()}
-    by_id = {row["id"]: row for row in _DATASETS}
+    by_ckan = {row["ckan_id"]: row for row in _DATASETS}
 
-    Dataset.objects.bulk_create(
+    created = Dataset.objects.bulk_create(
         [Dataset(org_display_name=display[row["org_slug"]], **_model_fields(row)) for row in _DATASETS],
     )
+    ckan_to_pk = {ds.ckan_id: ds.id for ds in created}
+
     # Pass a dict, not a JSON string: raw-SQL readers expect an object.
     DatasetJson.objects.bulk_create(
-        [DatasetJson(dataset_id=row["id"], json=_dataset_json(row, display[row["org_slug"]])) for row in _DATASETS],
+        [
+            DatasetJson(dataset_id=ckan_to_pk[row["ckan_id"]], json=_dataset_json(row, display[row["org_slug"]]))
+            for row in _DATASETS
+        ],
     )
     HarvestSource.objects.bulk_create(
         [
@@ -443,14 +448,14 @@ def make_fixtures():
     )
     TemporalPeriod.objects.bulk_create(
         [
-            TemporalPeriod(dataset_id=ds_id, position=pos, from_year=frm, to_year=to, source=source)
-            for ds_id, pos, frm, to, source in _TEMPORAL
+            TemporalPeriod(dataset_id=ckan_to_pk[ckan_id], position=pos, from_year=frm, to_year=to, source=source)
+            for ckan_id, pos, frm, to, source in _TEMPORAL
         ],
     )
     DatasetApi.objects.bulk_create(
         [
-            DatasetApi(dataset_id="d09", api_category="map-layers"),
-            DatasetApi(dataset_id="d13", api_category="data-apis"),
+            DatasetApi(dataset_id=ckan_to_pk["d09"], api_category="map-layers"),
+            DatasetApi(dataset_id=ckan_to_pk["d13"], api_category="data-apis"),
         ],
     )
 
@@ -465,8 +470,8 @@ def make_fixtures():
     DatasetContentHash.objects.bulk_create(
         [
             DatasetContentHash(
-                dataset_id=row["id"],
-                content_hash=_shared_hash if row["id"] in ("d01", "d05", "d09") else f"hash-{row['id']}",
+                dataset_id=ckan_to_pk[row["ckan_id"]],
+                content_hash=_shared_hash if row["ckan_id"] in ("d01", "d05", "d09") else f"hash-{row['ckan_id']}",
             )
             for row in _DATASETS
         ],
@@ -476,17 +481,19 @@ def make_fixtures():
     positions = {}
     links = []
     for i, row in enumerate(_LINKS):
-        ds_id = row["dataset_id"]
-        positions[ds_id] = pos = positions.get(ds_id, 0)
-        positions[ds_id] += 1
+        ckan_id = row["dataset_id"]
+        positions[ckan_id] = pos = positions.get(ckan_id, 0)
+        positions[ckan_id] += 1
+        link_fields = {k: v for k, v in row.items() if k != "dataset_id"}
         links.append(
             Link(
                 resource_id=f"res-{i:03d}",
-                org_slug=by_id[ds_id]["org_slug"],
-                org_display_name=display[by_id[ds_id]["org_slug"]],
-                dataset_title=by_id[ds_id]["title"],
+                dataset_id=ckan_to_pk[ckan_id],
+                org_slug=by_ckan[ckan_id]["org_slug"],
+                org_display_name=display[by_ckan[ckan_id]["org_slug"]],
+                dataset_title=by_ckan[ckan_id]["title"],
                 position=pos,
-                **row,
+                **link_fields,
             ),
         )
     Link.objects.bulk_create(links)
@@ -511,20 +518,20 @@ def make_fixtures():
         [
             SeriesDataset(
                 series_id=1,
-                dataset_id=ds_id,
-                dataset_title=by_id[ds_id]["title"],
+                dataset_id=ckan_to_pk[ckan_id],
+                dataset_title=by_ckan[ckan_id]["title"],
                 date_suffix=suffix,
                 org_slug="alpha",
                 org_display_name="Alpha Department",
             )
-            for ds_id, suffix in (("d01", "2024"), ("d05", "2011"))
+            for ckan_id, suffix in (("d01", "2024"), ("d05", "2011"))
         ],
     )
 
     Review.objects.bulk_create(
         [
             Review(
-                dataset_id=record["dataset_id"],
+                dataset_id=ckan_to_pk[record["dataset_id"]],
                 findability=record["title-description"]["score"],
                 resources=record["resources"]["score"],
                 created_at=record["reviewed_at"],
@@ -537,7 +544,7 @@ def make_fixtures():
     Suggestion.objects.bulk_create(
         [
             Suggestion(
-                dataset_id=record["dataset_id"],
+                dataset_id=ckan_to_pk[record["dataset_id"]],
                 theme=record["suggested_theme"],
                 theme_confidence=record["suggested_theme_confidence"],
                 tags=json.dumps(record["suggested_tags"]),
@@ -564,6 +571,7 @@ def make_fixtures():
             "UPDATE datasets SET fts = to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(notes, ''))",
         )
 
+    FIXTURE["ckan_to_pk"] = ckan_to_pk
     return FIXTURE
 
 

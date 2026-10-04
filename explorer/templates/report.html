@@ -74,7 +74,7 @@
           {% for row in rows %}
             <tr>
               <th scope="row" class="col-text">
-                <a href="/dataset/{{ row.org_slug }}/{{ row.id }}">{{ row.title or row.name }}</a>
+                <a href="/dataset/{{ row.org_slug }}/{{ row.ckan_id }}">{{ row.title or row.name }}</a>
               </th>
               <td class="col-text">
                 {{ row.org_display_name }}
@@ -211,7 +211,7 @@
               {% endif %}
               {% if "format" not in current.hidden_cols %}<td class="col-text">{{ format_badge(row.format) }}</td>{% endif %}
               <td class="col-text">
-                <a href="/dataset/{{ row.org_slug }}/{{ row.dataset_id }}">{{ row.dataset_title }}</a>
+                <a href="/dataset/{{ row.org_slug }}/{{ row.ckan_id }}">{{ row.dataset_title }}</a>
               </td>
               <td class="col-text">
                 {{ row.org_display_name }}

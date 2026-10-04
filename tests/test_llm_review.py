@@ -95,7 +95,7 @@ def test_process_one_ok_record():
             "resources",
             "input",
         ]
-        assert rec["dataset_id"] == row["id"]
+        assert rec["dataset_id"] == row["ckan_id"]
         assert rec["org_slug"] == "test-org"
         assert rec["org_display_name"] == "Test Org"
         assert rec["model"] == "m1"

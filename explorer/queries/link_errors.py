@@ -179,7 +179,7 @@ def link_errors_stmts(filters: dict, sort: str, dir_: str) -> dict:
         "count": Query(f"SELECT COUNT(*) AS n FROM {_LINK_ERRORS_FROM}{where}"),
         "list": Query(
             "SELECT l.url AS resource_url,"
-            "  l.dataset_id AS package_id, l.dataset_title AS package_name,"
+            "  d.ckan_id, l.dataset_title AS package_name,"
             "  l.resource_id, l.org_slug AS org_name, l.org_slug,"
             "  lcr.http_status AS status,"
             f"  ({_CATEGORY_EXPR}) AS category,"

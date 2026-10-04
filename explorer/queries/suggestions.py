@@ -15,8 +15,8 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 _SUGGESTION_FOR = Query("SELECT json FROM suggestions WHERE dataset_id = %s")
 
 
-def get_classification(dataset_id: str) -> dict | None:
-    """Latest ok suggestion for one dataset id, or None."""
+def get_classification(dataset_id: int) -> dict | None:
+    """Latest ok suggestion for one dataset id (integer PK), or None."""
     rows = _SUGGESTION_FOR.all(dataset_id)
     if not rows:
         return None
@@ -90,7 +90,7 @@ def suggestions_stmts(filters: dict, sort: str, dir_: str) -> dict:
         "params": params,
         "count": Query(f"SELECT COUNT(*) AS n FROM {_SUGGESTIONS_FROM}{where}"),
         "list": Query(
-            "SELECT r.dataset_id, d.org_slug, d.org_display_name,"
+            "SELECT d.ckan_id, d.org_slug, d.org_display_name,"
             "  d.title, d.theme_primary AS current_theme, d.tags AS current_tags,"
             "  r.theme, r.theme_confidence, r.tags, r.title AS suggested_title,"
             '  r."desc" AS suggested_description'

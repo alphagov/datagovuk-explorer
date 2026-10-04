@@ -22,7 +22,9 @@ def rec(dataset_id, **over):
 def test_ingest_round_trip(migrated_db_url):
     d = db.connect(migrated_db_url)
     try:
-        d.prepare("INSERT INTO datasets (id, org_slug) VALUES (?, ?)").run("is-1", "alpha")
+        pk = d.prepare(
+            "INSERT INTO datasets (ckan_id, org_slug) VALUES (?, ?) RETURNING id",
+        ).get("is-1", "alpha")["id"]
         records = [
             rec(
                 "is-1",
@@ -42,7 +44,7 @@ def test_ingest_round_trip(migrated_db_url):
             'SELECT dataset_id, theme, theme_confidence, tags, title, "desc", created_at FROM suggestions',
         ).all() == [
             {
-                "dataset_id": "is-1",
+                "dataset_id": pk,
                 "theme": "environment",
                 "theme_confidence": "high",
                 "tags": json.dumps(["env", "climate"], ensure_ascii=False),
@@ -60,7 +62,9 @@ def test_ingest_round_trip(migrated_db_url):
 def test_ingest_is_idempotent(migrated_db_url):
     d = db.connect(migrated_db_url)
     try:
-        d.prepare("INSERT INTO datasets (id, org_slug) VALUES (?, ?)").run("is-2", "alpha")
+        d.prepare(
+            "INSERT INTO datasets (ckan_id, org_slug) VALUES (?, ?)",
+        ).run("is-2", "alpha")
         records = [rec("is-2")]
         assert ingest(d, records) == 1
         assert ingest(d, records) == 1  # TRUNCATE, not append

@@ -85,7 +85,7 @@
           <tbody>
             {% for r in related_datasets %}
               <tr>
-                <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.id }}">{{ r.title }}</a></td>
+                <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.ckan_id }}">{{ r.title }}</a></td>
                 <td>{{ r.org_display_name }}</td>
                 <td class="col-date">{{ r.metadata_modified | date_short if r.metadata_modified else '—' }}</td>
                 <td class="col-num"{% if r.distance > distance_threshold %} style="color: var(--color-error, #c00);"{% endif %}>{{ '%.3f' | format(1.2 - r.distance) }}</td>

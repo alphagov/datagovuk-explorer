@@ -13,10 +13,11 @@ from scripts.build_db import TRUNCATE_SQL, _populate_dataset_content_hash
 from scripts.db import connect
 
 
-def insert_dataset(db, id_, title, notes, org_slug="council-a"):
-    db.prepare(
-        "INSERT INTO datasets (id, org_slug, title, notes) VALUES (?, ?, ?, ?)",
-    ).run(id_, org_slug, title, notes)
+def insert_dataset(db, ckan_id, title, notes, org_slug="council-a"):
+    row = db.prepare(
+        "INSERT INTO datasets (ckan_id, org_slug, title, notes) VALUES (?, ?, ?, ?) RETURNING id",
+    ).get(ckan_id, org_slug, title, notes)
+    return row["id"]
 
 
 def insert_link(db, dataset_id, url):
@@ -26,18 +27,20 @@ def insert_link(db, dataset_id, url):
 
 
 def hashes(db) -> dict:
-    rows = db.prepare("SELECT dataset_id, content_hash FROM dataset_content_hash").all()
-    return {r["dataset_id"]: r["content_hash"] for r in rows}
+    rows = db.prepare(
+        "SELECT d.ckan_id, dch.content_hash FROM dataset_content_hash dch JOIN datasets d ON d.id = dch.dataset_id",
+    ).all()
+    return {r["ckan_id"]: r["content_hash"] for r in rows}
 
 
 def test_identical_content_hashes_match(migrated_db_url):
     db = connect(migrated_db_url)
     try:
         db.exec(TRUNCATE_SQL)
-        insert_dataset(db, "d1", "Tree Preservation Orders", "All TPOs in the borough")
-        insert_dataset(db, "d2", "Tree Preservation Orders", "All TPOs in the borough")
-        insert_link(db, "d1", "https://example.com/tpo.csv")
-        insert_link(db, "d2", "https://example.com/tpo.csv")
+        pk1 = insert_dataset(db, "d1", "Tree Preservation Orders", "All TPOs in the borough")
+        pk2 = insert_dataset(db, "d2", "Tree Preservation Orders", "All TPOs in the borough")
+        insert_link(db, pk1, "https://example.com/tpo.csv")
+        insert_link(db, pk2, "https://example.com/tpo.csv")
 
         _populate_dataset_content_hash(db)
         h = hashes(db)
@@ -51,10 +54,10 @@ def test_whitespace_and_case_are_normalised(migrated_db_url):
     db = connect(migrated_db_url)
     try:
         db.exec(TRUNCATE_SQL)
-        insert_dataset(db, "d1", "Tree Preservation Orders", "All TPOs  in the borough")
-        insert_dataset(db, "d2", "  tree   preservation orders", "all tpos in the borough")
-        insert_link(db, "d1", "https://example.com/tpo.csv")
-        insert_link(db, "d2", "HTTPS://EXAMPLE.COM/tpo.csv")
+        pk1 = insert_dataset(db, "d1", "Tree Preservation Orders", "All TPOs  in the borough")
+        pk2 = insert_dataset(db, "d2", "  tree   preservation orders", "all tpos in the borough")
+        insert_link(db, pk1, "https://example.com/tpo.csv")
+        insert_link(db, pk2, "HTTPS://EXAMPLE.COM/tpo.csv")
 
         _populate_dataset_content_hash(db)
         h = hashes(db)
@@ -68,10 +71,10 @@ def test_url_query_string_fragment_and_trailing_slash_ignored(migrated_db_url):
     db = connect(migrated_db_url)
     try:
         db.exec(TRUNCATE_SQL)
-        insert_dataset(db, "d1", "Bins", "Collection schedule")
-        insert_dataset(db, "d2", "Bins", "Collection schedule")
-        insert_link(db, "d1", "https://example.com/bins.csv")
-        insert_link(db, "d2", "https://example.com/bins.csv/?utm_source=x#section")
+        pk1 = insert_dataset(db, "d1", "Bins", "Collection schedule")
+        pk2 = insert_dataset(db, "d2", "Bins", "Collection schedule")
+        insert_link(db, pk1, "https://example.com/bins.csv")
+        insert_link(db, pk2, "https://example.com/bins.csv/?utm_source=x#section")
 
         _populate_dataset_content_hash(db)
         h = hashes(db)
@@ -85,15 +88,15 @@ def test_url_set_is_order_independent_and_deduped(migrated_db_url):
     db = connect(migrated_db_url)
     try:
         db.exec(TRUNCATE_SQL)
-        insert_dataset(db, "d1", "Bins", "Collection schedule")
-        insert_dataset(db, "d2", "Bins", "Collection schedule")
-        insert_link(db, "d1", "https://example.com/a.csv")
-        insert_link(db, "d1", "https://example.com/b.csv")
+        pk1 = insert_dataset(db, "d1", "Bins", "Collection schedule")
+        pk2 = insert_dataset(db, "d2", "Bins", "Collection schedule")
+        insert_link(db, pk1, "https://example.com/a.csv")
+        insert_link(db, pk1, "https://example.com/b.csv")
         # d2: same two URLs, reverse insertion order, plus a duplicate of
         # one of them (repeated resources shouldn't change the hash).
-        insert_link(db, "d2", "https://example.com/b.csv")
-        insert_link(db, "d2", "https://example.com/a.csv")
-        insert_link(db, "d2", "https://example.com/a.csv")
+        insert_link(db, pk2, "https://example.com/b.csv")
+        insert_link(db, pk2, "https://example.com/a.csv")
+        insert_link(db, pk2, "https://example.com/a.csv")
 
         _populate_dataset_content_hash(db)
         h = hashes(db)
@@ -107,10 +110,10 @@ def test_different_content_hashes_differ(migrated_db_url):
     db = connect(migrated_db_url)
     try:
         db.exec(TRUNCATE_SQL)
-        insert_dataset(db, "d1", "Tree Preservation Orders", "All TPOs in the borough")
-        insert_dataset(db, "d2", "Allotment Waiting Lists", "Current waiting list positions")
-        insert_link(db, "d1", "https://example.com/tpo.csv")
-        insert_link(db, "d2", "https://example.com/allotments.csv")
+        pk1 = insert_dataset(db, "d1", "Tree Preservation Orders", "All TPOs in the borough")
+        pk2 = insert_dataset(db, "d2", "Allotment Waiting Lists", "Current waiting list positions")
+        insert_link(db, pk1, "https://example.com/tpo.csv")
+        insert_link(db, pk2, "https://example.com/allotments.csv")
 
         _populate_dataset_content_hash(db)
         h = hashes(db)

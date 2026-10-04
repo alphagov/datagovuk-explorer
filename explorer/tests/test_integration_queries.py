@@ -135,7 +135,16 @@ def test_org_statements_consistency():
         offset += PAGE_SIZE
         assert len(page) <= PAGE_SIZE
     assert len(rows) == count
-    for col in ("id", "title", "name", "metadata_created", "metadata_modified", "resource_count", "harvested", "views"):
+    for col in (
+        "ckan_id",
+        "title",
+        "name",
+        "metadata_created",
+        "metadata_modified",
+        "resource_count",
+        "harvested",
+        "views",
+    ):
         assert col in rows[0], f"org builder row missing {col}"
 
 
@@ -150,7 +159,16 @@ def test_source_statements_consistency():
     assert count > 0
     rows = stmts["list"].all(*stmts["params"], PAGE_SIZE, 0)
     assert len(rows) == count
-    for col in ("id", "org_slug", "title", "name", "metadata_created", "metadata_modified", "resource_count", "views"):
+    for col in (
+        "ckan_id",
+        "org_slug",
+        "title",
+        "name",
+        "metadata_created",
+        "metadata_modified",
+        "resource_count",
+        "views",
+    ):
         assert col in rows[0], f"source builder row missing {col}"
 
 
@@ -234,7 +252,7 @@ def test_datasets_stmts_count_matches_list(filters, sort, dir_):
     rows = out["list"].all(*out["params"], 1_000_000, 0)
     assert n == len(rows)
     if rows:
-        for col in ("id", "title", "organisation", "metadata_created", "resource_count", "views", "harvested"):
+        for col in ("ckan_id", "title", "organisation", "metadata_created", "resource_count", "views", "harvested"):
             assert col in rows[0], f"datasets list row missing {col}"
 
 
@@ -244,10 +262,10 @@ def test_datasets_pagination_and_tiebreak():
     page2 = out["list"].all(*out["params"], 100, 100)
     if len(page1) == 100:
         assert page2
-        assert [r["id"] for r in page1] != [r["id"] for r in page2]
+        assert [r["ckan_id"] for r in page1] != [r["ckan_id"] for r in page2]
     assert out["list"].all(*out["params"], 100, 10_000_000) == []
-    a = [r["id"] for r in out["list"].all(*out["params"], 500, 0)]
-    b = [r["id"] for r in out["list"].all(*out["params"], 500, 0)]
+    a = [r["ckan_id"] for r in out["list"].all(*out["params"], 500, 0)]
+    b = [r["ckan_id"] for r in out["list"].all(*out["params"], 500, 0)]
     assert a == b
 
 
@@ -410,7 +428,7 @@ def test_links_stmts_count_matches_list(filters, sort, dir_):
     rows = out["list"].all(*out["params"], 1_000_000, 0)
     assert n == len(rows)
     if rows:
-        for col in ("id", "dataset_id", "dataset_title", "name", "url", "host", "format", "org_display_name"):
+        for col in ("id", "ckan_id", "dataset_title", "name", "url", "host", "format", "org_display_name"):
             assert col in rows[0], f"links list row missing {col}"
 
 
@@ -462,9 +480,10 @@ def test_latest_reviews_one_per_dataset():
     assert len(ids) == len(set(ids)), "one review per dataset"
 
 
-def test_get_review_returns_review():
+def test_get_review_returns_review(fixtures):
     """get_review returns the single review for d01 (findability 5)."""
-    rev = get_review("d01")
+    pk = fixtures["ckan_to_pk"]["d01"]
+    rev = get_review(pk)
     assert rev is not None
     assert rev["dataset_id"] == "d01"
     assert rev["title-description"]["score"] == 5
@@ -472,16 +491,17 @@ def test_get_review_returns_review():
 
 
 def test_get_review_missing():
-    assert get_review("__no_such_dataset__") is None
+    assert get_review(-1) is None
 
 
-def test_get_classification():
+def test_get_classification(fixtures):
     """get_classification reads from the suggestions table."""
-    cls = get_classification("d01")
+    pk = fixtures["ckan_to_pk"]["d01"]
+    cls = get_classification(pk)
     assert cls is not None
     assert cls["dataset_id"] == "d01"
     assert cls.get("suggested_theme") is not None
 
 
 def test_get_classification_missing():
-    assert get_classification("__no_such_dataset__") is None
+    assert get_classification(-1) is None
