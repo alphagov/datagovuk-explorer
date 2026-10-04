@@ -16,6 +16,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ title }}</title>
+    <link rel="preload" href="{{ static('fonts/Inter-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ static('fonts/Inter-Medium.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ static('fonts/Inter-SemiBold.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ static('css/base.css') }}" />
     <link rel="stylesheet" href="{{ static('css/layout.css') }}" />
     <link rel="stylesheet" href="{{ static('vendor/accessible-autocomplete.min.css') }}" />
@@ -36,7 +39,7 @@
     <header class="site-header">
       <div class="header-inner" id="header-inner">
         <a href="/" class="site-title">
-          <img src="{{ static('images/logo-ndl.svg') }}" alt="Home" />
+          <img src="{{ static('images/logo-ndl.svg') }}" alt="Home" width="200" height="61" />
           <span class="wordmark-sub">Explorer</span>
         </a>
         <button class="menu-toggle" aria-expanded="false" aria-controls="header-menu" aria-label="Open navigation menu">
