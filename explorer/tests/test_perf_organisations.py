@@ -1,7 +1,7 @@
 """Performance timing for GET /organisations.
 
-Opt-in, runs against the live local database (same as `just test-live`):
-    just test-live -- explorer/tests/test_perf_organisations.py -s
+Opt-in, runs against the live local database:
+    just perf
 
 Writes a dated report to docs/perf/YYYY-MM-DD/organisations.md.
 No assertions — this is observation, not a gate.
@@ -16,7 +16,7 @@ import pytest
 from django.test import override_settings
 from unittest.mock import patch
 
-pytestmark = [pytest.mark.live, pytest.mark.perf]
+pytestmark = pytest.mark.perf
 
 REPO_ROOT = Path(__file__).parents[2]
 

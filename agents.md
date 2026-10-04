@@ -23,3 +23,5 @@ Every database read in the app goes through this package — never the ORM.
 Integration tests need a seeded fixture database — run `just fresh-db` first on a clean checkout. They skip automatically if the DB isn't available.
 
 Live smoke tests (`pytest -m live`) run against the full dev database separately: `just test-live`.
+
+Performance observation tests (`pytest -m perf`) are not correctness checks — they write a dated report to `docs/perf/YYYY-MM-DD/`. Run with `just perf`.

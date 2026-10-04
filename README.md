@@ -98,8 +98,11 @@ See `.env.example` for the full list. The essentials:
 ## Tests
 
 ```bash
-just lint     # ruff check + format check
-just test     # pytest (app tests need a built DB; otherwise they skip)
+just lint       # ruff check + format check
+just test       # pytest (app tests need a built DB; otherwise they skip)
+just test-live  # smoke tests against the full live dev database
+just perf       # performance observation — writes docs/perf/YYYY-MM-DD/ report
+just perf explorer/tests/test_perf_organisations.py  # one file only
 ```
 
 ## Deploying to Railway

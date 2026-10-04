@@ -17,7 +17,7 @@ import pytest
 from django.db import connection, reset_queries
 from django.test import override_settings
 
-pytestmark = [pytest.mark.live, pytest.mark.perf]
+pytestmark = pytest.mark.perf
 
 REPO_ROOT = Path(__file__).parents[2]
 

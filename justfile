@@ -54,8 +54,12 @@ test-all:
     uv run pytest -m live
 
 # Opt-in smoke tests against the full live dev database (must run alone).
-test-live:
-    uv run pytest -m live
+test-live *args:
+    uv run pytest -m live {{args}}
+
+# Performance observation — writes a dated report to docs/perf/YYYY-MM-DD/.
+perf *args:
+    uv run pytest -m perf -s {{args}}
 
 # Install dependencies (first run)
 setup:
