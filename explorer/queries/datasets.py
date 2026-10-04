@@ -389,17 +389,23 @@ def _facet_counts(filters: dict) -> dict:
             f"{temporal_where}"
             " GROUP BY dy.year",
         ),
-        # The three buckets in one pass. pre1900/post reuse the COVERS_*
-        # predicates; `none` is datasets with no period rows. pre1900 and
-        # post are independent filters, so a row can land in both.
+        # The three buckets in one pass. Scan temporal_periods once via a
+        # LEFT JOIN aggregate rather than three correlated subplan loops.
+        # none: no matching period row (NULL from LEFT JOIN).
+        # pre1900/post: BOOL_OR over the same EXISTS predicates.
         "temporal_buckets": Query(
             "SELECT"
-            "  COUNT(*) FILTER (WHERE NOT EXISTS ("
-            "    SELECT 1 FROM temporal_periods tp WHERE tp.dataset_id = d.id"
-            "  )) AS none,"
-            f"  COUNT(*) FILTER (WHERE {COVERS_BEFORE_CLAUSE}) AS pre1900,"
-            f"  COUNT(*) FILTER (WHERE {COVERS_AFTER_CLAUSE}) AS post"
-            f" FROM datasets d{temporal_where}",
+            "  COUNT(*) FILTER (WHERE tp.dataset_id IS NULL) AS none,"
+            "  COUNT(*) FILTER (WHERE tp.has_pre1900) AS pre1900,"
+            "  COUNT(*) FILTER (WHERE tp.has_post) AS post"
+            " FROM datasets d"
+            " LEFT JOIN ("
+            "   SELECT dataset_id,"
+            f"    BOOL_OR(COALESCE(from_year, to_year) < {TEMPORAL_MIN_YEAR}) AS has_pre1900,"
+            f"    BOOL_OR(COALESCE(to_year, from_year) > {TEMPORAL_MAX_YEAR}) AS has_post"
+            "   FROM temporal_periods"
+            "   GROUP BY dataset_id"
+            f" ) tp ON tp.dataset_id = d.id{temporal_where}",
         ),
         "api": Query(
             "SELECT da.api_category AS api, COUNT(*) AS count"
@@ -456,9 +462,6 @@ FETCHED_SLUGS = Query("SELECT DISTINCT org_slug FROM datasets")
 
 # Total number of datasets
 DATASET_TOTAL = Query("SELECT COUNT(*) AS n FROM datasets")
-
-# Datasets harvested by a harvester (not created manually)
-DATASETS_HARVESTED = Query("SELECT COUNT(*) AS n FROM datasets WHERE harvested = 1")
 
 # Datasets created per year
 YEARLY_DATASETS = Query(
@@ -530,12 +533,6 @@ DATASET_TEMPORAL_PERIODS = Query(
 def fetched_slugs() -> list[dict[str, Any]]:
     """Orgs that have at least one fetched dataset (FETCHED_SLUGS) — memoised."""
     return FETCHED_SLUGS.all()
-
-
-@functools.cache
-def harvested_count() -> int:
-    """Datasets harvested vs manual (DATASETS_HARVESTED) — memoised."""
-    return DATASETS_HARVESTED.get()["n"]
 
 
 @functools.cache
