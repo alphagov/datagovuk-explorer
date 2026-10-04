@@ -10,6 +10,7 @@ Usage: python scripts/get_datasets.py [--org <slug>]
 import json
 import re
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -23,13 +24,6 @@ app = typer.Typer(add_completion=False)
 MAX_ROWS_PER_CALL = 1000
 OUTPUT_DIR = "downloads/datasets"
 ORGS_FILE = Path("downloads/organisations/organisations.json")
-SORT = "metadata_created desc"
-
-
-class OrgNotFoundError(RuntimeError):
-    def __init__(self, slug: str):
-        super().__init__(f'Publisher not found: "{slug}"')
-        self.hint = "Check organisations.json or run get-organisations.py."
 
 
 def iso_now() -> str:
@@ -43,23 +37,23 @@ def slugify(title: str) -> str:
     return s[:80]
 
 
-def fetch_datasets(rate_limit, client: httpx.Client, org_name: str) -> list[dict]:
+def fetch_datasets(org_name: str, http_client: httpx.Client, rate_limit: Callable) -> list[dict]:
     """Fetch all datasets for one org, page by page until exhausted."""
-    results: list[dict] = []
+    results = []
     offset = 0
     while True:
         rate_limit()
         params = {
             "q": "",
             "fq": f"organization:{org_name}",
-            "rows": str(MAX_ROWS_PER_CALL),
-            "start": str(offset),
-            "sort": SORT,
+            "rows": MAX_ROWS_PER_CALL,
+            "start": offset,
+            "sort": "metadata_created desc",
         }
-        res = client.get(f"{BASE_URL}/package_search", params=params)
-        if not res.is_success:
-            raise RuntimeError(f"HTTP {res.status_code}: {res.reason_phrase}")
-        body = res.json()
+        response = http_client.get(f"{BASE_URL}/package_search", params=params)
+        if not response.is_success:
+            raise RuntimeError(f"HTTP {response.status_code}: {response.reason_phrase}")
+        body = response.json()
         if not body.get("success"):
             raise RuntimeError("CKAN API returned success: false")
         page = body["result"]["results"]
@@ -72,24 +66,19 @@ def fetch_datasets(rate_limit, client: httpx.Client, org_name: str) -> list[dict
 
 def process_org(
     org: dict,
-    index: int,
-    total: int,
-    rate_limit,
-    client: httpx.Client,
+    http_client: httpx.Client,
+    rate_limit: Callable,
 ) -> int:
     """Fetch and save one org's datasets. Returns count saved."""
     org_name = org["name"]
-    display = org.get("display_name") or org_name
     dir_path = Path(OUTPUT_DIR) / org_name
-
-    print(f"[{index + 1}/{total}] {display} ({org_name})")
 
     try:
         if dir_path.is_dir():
             for stale in dir_path.glob("*.json"):
                 stale.unlink()
 
-        datasets = fetch_datasets(rate_limit, client, org_name)
+        datasets = fetch_datasets(org_name, http_client, rate_limit)
 
         if not datasets:
             print("  → no datasets found")
@@ -101,7 +90,7 @@ def process_org(
         saved = 0
         for ds in datasets:
             filename = f"{slugify(ds['title'])}-{ds['id'][:8]}.json"
-            org_ctx: dict = {"name": org_name}
+            org_ctx = {"name": org_name}
             if "display_name" in org:
                 org_ctx["display_name"] = org["display_name"]
             record = {"_fetched_at": iso_now(), "_organisation": org_ctx, **ds}
@@ -148,13 +137,14 @@ def main(
     print(f"Fetching {len(orgs)} organisation(s)...\n")
 
     rate_limit = create_rate_limiter(MAX_RPS)
-    total_saved = 0
+    datasets_downloaded = 0
 
-    with httpx.Client(follow_redirects=True, timeout=30) as client:
+    with httpx.Client(follow_redirects=True, timeout=30) as http_client:
         for i, organisation in enumerate(orgs.values()):
-            total_saved += process_org(organisation, i, len(orgs), rate_limit, client)
+            print(f"[{i + 1}/{len(orgs)}] {organisation['name']}")
+            datasets_downloaded += process_org(organisation, http_client, rate_limit)
 
-    print(f"\nDone. {total_saved} datasets saved to {OUTPUT_DIR}/")
+    print(f"\nDone. {datasets_downloaded} datasets downloaded to {OUTPUT_DIR}/")
 
 
 if __name__ == "__main__":
