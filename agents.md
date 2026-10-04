@@ -6,6 +6,7 @@
 
 - `explorer/` and `scripts/` never import from each other — they share only the database.
 - The schema is migration-owned. Never manually alter tables.
+- Never use background agents, the codebase is small enough that it is quicker not to
 
 ## Query layer (`explorer/queries/`)
 
