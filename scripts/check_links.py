@@ -551,6 +551,21 @@ WHERE url IN (SELECT DISTINCT url FROM links WHERE host = %s)
   AND checked_at IS NULL
 """
 
+_REFRESH_LINK_HEALTH_SQL = """
+INSERT INTO org_link_health (org_slug, link_health)
+SELECT l.org_slug,
+       COUNT(*) FILTER (WHERE lcr.ok) * 100.0 / NULLIF(COUNT(*), 0) AS link_health
+FROM links l
+LEFT JOIN link_check_results lcr ON l.url = lcr.url
+GROUP BY l.org_slug
+ON CONFLICT (org_slug) DO UPDATE SET link_health = EXCLUDED.link_health
+"""
+
+
+def _refresh_org_link_health(db: Db) -> None:
+    with db.conn.cursor() as cur:
+        cur.execute(_REFRESH_LINK_HEALTH_SQL)
+
 
 def _bulk_mark_dead_host(db: Db, host: str) -> int:
     """Mark all remaining unchecked URLs for host as timed-out. Returns count marked."""
@@ -828,6 +843,8 @@ async def _main(
                 )
 
         print(f"Done: {counter[0]}/{total} URL(s) checked.", flush=True)
+        print("Refreshing org link health…", flush=True)
+        _refresh_org_link_health(db)
     finally:
         db.close()
 

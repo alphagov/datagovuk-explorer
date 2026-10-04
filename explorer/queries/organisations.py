@@ -47,15 +47,9 @@ ORG = Query(
          FROM organisations WHERE slug = %s""",
 )
 
-# Per-org aggregates over datasets — one pass over the table. An org
-# present here has at least one dataset.
-ORG_AGGREGATES = Query(
-    """SELECT org_slug,
-              SUM(resource_count) AS total_resources,
-              SUM(views) AS total_views,
-              MAX(metadata_created) AS last_published
-       FROM datasets GROUP BY org_slug""",
-)
+# Per-org aggregates — reads from the precomputed materialized view
+# (refreshed by `just build-db` / `just fresh-db`).
+ORG_AGGREGATES = Query("SELECT * FROM mv_org_aggregates")
 
 # Total resources per org
 RESOURCE_COUNTS = Query(
@@ -117,12 +111,7 @@ def org_last_published_years() -> list[str]:
 @functools.cache
 def org_link_health_rows() -> list[dict[str, Any]]:
     """Per-org link health % — memoised: build-time snapshot."""
-    return Query(
-        "SELECT l.org_slug,"
-        "  COUNT(*) FILTER (WHERE lcr.ok) * 100.0 / NULLIF(COUNT(*), 0) AS link_health"
-        " FROM links l LEFT JOIN link_check_results lcr ON l.url = lcr.url"
-        " GROUP BY l.org_slug",
-    ).all()
+    return Query("SELECT org_slug, link_health FROM org_link_health").all()
 
 
 # --- /organisations sidebar facet pools (self-excluding SQL aggregates) ---
@@ -299,19 +288,7 @@ ORG_SORT = {
 # The order /organisations starts in — shared by parse_sort and preserve_params.
 ORG_SORT_DEFAULT = ("views", "desc")
 
-# Per-org link health — % of checked resource links that are OK (integer 0-100,
-# NULL when no links have been checked for this org). Uses INNER JOIN so only
-# checked links contribute; multiple links to the same URL each count once.
-_LINK_HEALTH_AGG = (
-    " LEFT JOIN ("
-    "  SELECT l.org_slug,"
-    "    COUNT(*) FILTER (WHERE lcr.ok) * 100.0 / NULLIF(COUNT(*), 0)"
-    "    AS link_health"
-    "  FROM links l"
-    "  LEFT JOIN link_check_results lcr ON l.url = lcr.url"
-    "  GROUP BY l.org_slug"
-    " ) lh ON lh.org_slug = o.slug"
-)
+_LINK_HEALTH_AGG = " LEFT JOIN org_link_health lh ON lh.org_slug = o.slug"
 
 # The list select — ORGS' columns plus the aggregate columns.
 # link_health is NOT included here: it comes from the memoised org_link_health_rows()
