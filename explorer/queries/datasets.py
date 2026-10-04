@@ -380,24 +380,14 @@ def _facet_counts(filters: dict) -> dict:
             " GROUP BY substr(metadata_created, 1, 4)",
         ),
         # Per-year counts: a dataset covering 1981-2009 counts for every
-        # in-window year (periods are clamped to the window by the
-        # GREATEST/LEAST/COALESCE pairs). COUNT(DISTINCT d.id) so a dataset
-        # with several periods for the same year counts once; datasets with
-        # no periods feed the `none` bucket.
+        # dataset_years has one row per (dataset_id, year) pre-expanded at
+        # build time — no generate_series at request time, no disk sort.
         "temporal_years": Query(
-            "SELECT y AS year, COUNT(DISTINCT d.id) AS count"
-            " FROM temporal_periods tp"
-            " JOIN datasets d ON d.id = tp.dataset_id"
-            " CROSS JOIN LATERAL ("
-            "   SELECT generate_series("
-            "     GREATEST(COALESCE(tp.from_year, tp.to_year),"
-            f"              {TEMPORAL_MIN_YEAR}),"
-            "     LEAST(COALESCE(tp.to_year, tp.from_year),"
-            f"             {TEMPORAL_MAX_YEAR})"
-            "   ) AS y"
-            " ) yrs"
+            "SELECT dy.year, COUNT(*) AS count"
+            " FROM dataset_years dy"
+            f" JOIN datasets d ON d.id = dy.dataset_id AND dy.year <= {TEMPORAL_MAX_YEAR}"
             f"{temporal_where}"
-            " GROUP BY y",
+            " GROUP BY dy.year",
         ),
         # The three buckets in one pass. pre1900/post reuse the COVERS_*
         # predicates; `none` is datasets with no period rows. pre1900 and
@@ -491,18 +481,12 @@ THEME_COUNTS = Query(
 )
 
 # In-window covered temporal years (validation of ?temporal=) —
-# filter-independent, latest first. generate_series over the periods table
-# clamps coverage to [TEMPORAL_MIN_YEAR, TEMPORAL_MAX_YEAR] exactly as the
-# facet pools do.
+# filter-independent, latest first. Reads from the pre-expanded dataset_years
+# table rather than running generate_series at request time.
 TEMPORAL_YEARS = Query(
-    f"""SELECT DISTINCT y AS year FROM (
-      SELECT generate_series(
-        GREATEST(COALESCE(tp.from_year, tp.to_year), {TEMPORAL_MIN_YEAR}),
-        LEAST(COALESCE(tp.to_year, tp.from_year), {TEMPORAL_MAX_YEAR})
-      ) AS y
-      FROM temporal_periods tp
-    ) covers
-    ORDER BY year DESC""",
+    f"SELECT DISTINCT year FROM dataset_years"
+    f" WHERE year <= {TEMPORAL_MAX_YEAR}"
+    f" ORDER BY year DESC",
 )
 
 # Datasets with no links — for the dashboard card

@@ -591,7 +591,7 @@ def load_views_csv() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 TRUNCATE_SQL = (
-    "TRUNCATE TABLE dataset_api, dataset_content_hash, embedding_map, dataset_embeddings, "
+    "TRUNCATE TABLE dataset_years, dataset_api, dataset_content_hash, embedding_map, dataset_embeddings, "
     "metadata_values, metadata_keys, links, temporal_periods, dataset_json, datasets, "
     "organisations, harvest_sources CASCADE"
 )
@@ -1152,6 +1152,36 @@ def _populate_dataset_content_hash(db) -> int:
 
 
 # ---------------------------------------------------------------------------
+# dataset_years summary table
+# ---------------------------------------------------------------------------
+# Expands temporal_periods [from_year, to_year] ranges into one row per
+# (dataset_id, year), clamped to 1900–2100. Built after temporal_periods is
+# populated; can be rebuilt standalone with `build_db dataset-years`.
+
+INSERT_DATASET_YEARS_SQL = """
+INSERT INTO dataset_years (dataset_id, year)
+SELECT DISTINCT tp.dataset_id, yrs.y
+FROM temporal_periods tp
+CROSS JOIN LATERAL (
+    SELECT generate_series(
+        GREATEST(COALESCE(tp.from_year, tp.to_year), 1900),
+        LEAST(COALESCE(tp.to_year, tp.from_year), 2100)
+    ) AS y
+) yrs
+WHERE GREATEST(COALESCE(tp.from_year, tp.to_year), 1900)
+      <= LEAST(COALESCE(tp.to_year, tp.from_year), 2100)
+"""
+
+
+def _populate_dataset_years(db) -> int:
+    """Expand temporal_periods into dataset_years. Returns the row count."""
+    db.exec("TRUNCATE TABLE dataset_years")
+    db.exec(INSERT_DATASET_YEARS_SQL)
+    row = db.prepare("SELECT COUNT(*) AS n FROM dataset_years").get()
+    return row["n"]
+
+
+# ---------------------------------------------------------------------------
 # Main build
 # ---------------------------------------------------------------------------
 def build() -> None:
@@ -1202,19 +1232,25 @@ def build() -> None:
         # creates. On the baseline DB they pre-exist.
         print("  indexes: migration-owned (0001)", file=sys.stderr)
 
-        # Phase 5: full-text search — tags + fts (tsvector) columns.
+        # Phase 5: dataset_years — expand temporal_periods ranges into one row
+        # per (dataset, year); used by the temporal facet instead of
+        # generate_series at request time.
+        years_count = _populate_dataset_years(db)
+        print(f"  dataset_years: {years_count} rows", file=sys.stderr)
+
+        # Phase 7: full-text search — tags + fts (tsvector) columns.
         # idx_datasets_fts (GIN) is migration-owned (0001) — the populated
         # fts rows are indexed by the migration-created index.
         db.transaction(partial(_populate_fts_tx, fts_rows=st.fts_rows))
         print(f"  tsvector populated: {len(st.fts_rows)} datasets", file=sys.stderr)
 
-        # Phase 6: views (search clicks per dataset)
+        # Phase 8: views (search clicks per dataset)
         views_by_id = load_views_csv()
         if views_by_id:
             db.transaction(partial(_write_views_tx, views_by_id=views_by_id))
             print(f"  {len(views_by_id)} datasets have views data.", file=sys.stderr)
 
-        # Phase 7: metadata field usage — write the counters collected during
+        # Phase 9: metadata field usage — write the counters collected during
         # the dataset load into metadata_keys / metadata_values.
         val_rows = db.transaction(
             partial(_write_meta_tx, field_counts=st.field_counts, value_counts=st.value_counts),
@@ -1224,12 +1260,12 @@ def build() -> None:
             file=sys.stderr,
         )
 
-        # Phase 8: dataset_api — snapshot which datasets have an API and
+        # Phase 10: dataset_api — snapshot which datasets have an API and
         # their matched links; used by the report and datasets-page facet.
         api_count = _populate_dataset_api(db)
         print(f"  dataset_api: {api_count} datasets", file=sys.stderr)
 
-        # Phase 9: dataset_content_hash — exact-duplicate detection
+        # Phase 11: dataset_content_hash — exact-duplicate detection
         # (Tier 1, see docs/ideas.md); needs links loaded first.
         hash_count = _populate_dataset_content_hash(db)
         print(f"  dataset_content_hash: {hash_count} datasets", file=sys.stderr)
@@ -1315,6 +1351,22 @@ def dataset_content_hash() -> None:
             ") sub",
         ).get()["n"]
         print(f"dataset_content_hash: {n} datasets, {dupes} duplicate hash groups")
+    finally:
+        db.close()
+
+
+@app.command()
+def dataset_years() -> None:
+    """Rebuild just the dataset_years table (TRUNCATE + INSERT).
+
+    Expands temporal_periods ranges into one row per (dataset, year).
+    Runs in seconds against the existing temporal_periods data — use this
+    after a full build or whenever temporal_periods changes."""
+
+    db = connect(DATABASE_URL)
+    try:
+        n = _populate_dataset_years(db)
+        print(f"dataset_years: {n} rows")
     finally:
         db.close()
 

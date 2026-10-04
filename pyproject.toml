@@ -214,6 +214,7 @@ ini_options.markers = [
   "integration: needs the seeded test database",
   "live: needs the full live database (opt-in)",
   "slow: takes > 1s (excluded from the default fast run)",
+  "perf: performance timing tests (opt-in, use -m perf)",
 ]
 
 # ==== coverage ====

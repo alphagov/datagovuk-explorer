@@ -193,6 +193,37 @@ class DatasetContentHash(models.Model):
         return f"{self.dataset_id} ({self.content_hash})"
 
 
+class DatasetYear(models.Model):
+    """One row per (dataset, year) in its temporal coverage window, expanded
+    from temporal_periods at build time. Avoids generate_series at request
+    time; the year column is indexed so GROUP BY year is a fast index scan.
+
+    Only years in [1900, 2100] are stored; the query layer applies
+    TEMPORAL_MAX_YEAR at runtime so the facet window stays current without
+    a rebuild."""
+
+    dataset = models.ForeignKey(
+        Dataset,
+        on_delete=models.CASCADE,
+        db_column="dataset_id",
+        db_index=False,
+    )
+    year = models.IntegerField()
+
+    class Meta:
+        app_label = "explorer"
+        db_table = "dataset_years"
+        constraints = [
+            models.UniqueConstraint(fields=["dataset", "year"], name="dataset_years_dataset_year_uniq"),
+        ]
+        indexes = [
+            models.Index(fields=["year"], name="dataset_years_year_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.dataset_id} ({self.year})"
+
+
 class DatasetJson(models.Model):
     dataset = models.OneToOneField(
         Dataset,

@@ -36,7 +36,6 @@ from explorer.queries.datasets import (
     datasets_facet_counts,
     datasets_stmts,
     fetched_slugs,
-    harvested_count,
 )
 from explorer.sort import parse_sort
 
@@ -196,7 +195,6 @@ _API_NAMES = {"data-apis": "Data API", "map-layers": "Map layers"}
 def datasets(request):  # noqa: PLR0915
     """GET /datasets — the all-datasets report with sidebar facets."""
     fetched_slug_rows = fetched_slugs()
-    harvested_count_value = harvested_count()
 
     # Filter-independent master lists — the validation whitelists and the
     # facet builders consume these (computed once, not per consumer).
@@ -450,7 +448,6 @@ def datasets(request):  # noqa: PLR0915
             "total_datasets": DATASET_TOTAL.get()["n"],
             "shown_datasets": shown_count,
             "total_orgs": len(fetched_slug_rows),
-            "harvested_count": harvested_count_value,
             "pills": pills,
             "sort": sort,
             "dir": dir_,

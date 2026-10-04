@@ -121,6 +121,7 @@ def cached_unfiltered(compute: Callable[[dict], Any]) -> Callable[[dict], Any]:
             return unfiltered()
         return compute(filters)
 
+    wrapper.cache_clear = unfiltered.cache_clear
     return wrapper
 
 
