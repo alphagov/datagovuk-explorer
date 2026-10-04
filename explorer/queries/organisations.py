@@ -131,15 +131,7 @@ def org_link_health_rows() -> list[dict[str, Any]]:
 
 # Per-org aggregate LEFT JOIN shared by the facet pools and the list
 # builder (1:1 per org — GROUP BY org_slug, the primary key).
-_ORG_AGG = (
-    "LEFT JOIN ("
-    "  SELECT org_slug,"
-    "         SUM(resource_count) AS total_resources,"
-    "         SUM(views) AS total_views,"
-    "         MAX(metadata_created) AS last_published"
-    "  FROM datasets GROUP BY org_slug"
-    ") a ON a.org_slug = o.slug"
-)
+_ORG_AGG = "LEFT JOIN mv_org_aggregates a ON a.org_slug = o.slug"
 
 # Pool guards: the \d{4} created-year skip (created is always ISO) and
 # the last-published IS NOT NULL skip (orgs with no datasets land in no

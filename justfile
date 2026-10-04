@@ -78,6 +78,7 @@ migrate:
 # build populates. Run `just build-embeddings` afterwards for embeddings.
 build-db: migrate
     uv run --env-file .env python -m scripts.build_db main
+    psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
 
 # Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Use when tweaking the API detection algorithm.
@@ -108,6 +109,7 @@ fresh-db db_name="datagovuk_explorer":
     @createdb "{{db_name}}" 2>/dev/null && echo "created {{db_name}}" || echo "{{db_name}} already exists"
     uv run --env-file .env python manage.py migrate
     uv run --env-file .env python -m scripts.build_db main
+    psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
 
 # Build series data from dataset titles (DATABASE_URL from .env)
 build-series:
