@@ -15,7 +15,7 @@ dev:
 # output from staticfiles/)
 start:
     uv run --env-file .env python manage.py collectstatic --noinput
-    uv run --env-file .env gunicorn config.wsgi --bind 0.0.0.0:{{env_var_or_default("PORT", "3000")}}
+    uv run --env-file .env gunicorn config.wsgi --bind 0.0.0.0:{{env_var_or_default("PORT", "3000")}} --config gunicorn.conf.py
 
 # Lint: ruff check + format check + migration drift check (runs against working tree, no stashing)
 lint *args:
