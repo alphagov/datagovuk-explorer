@@ -70,14 +70,12 @@ def _write_report():
     out = REPO_ROOT / "docs" / "perf" / str(date.today()) / "datasets.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"# /datasets performance — {date.today()}\n\n"]
-    lines.append("| case | wall | sql | render |\n")
-    lines.append("|---|---|---|---|\n")
+    lines.append("| case | wall | render |\n")
+    lines.append("|---|---|---|\n")
     for r in _results:
-        sql_ms = r['wall_ms'] - r['render_ms']
         lines.append(
             f"| {r['label']} "
             f"| {r['wall_ms']:.0f}ms "
-            f"| {sql_ms:.0f}ms "
             f"| {r['render_ms']:.0f}ms |\n"
         )
     lines.append("\n")
@@ -87,13 +85,12 @@ def _write_report():
             f"wall={r['wall_ms']:.1f}ms  render={r['render_ms']:.1f}ms  "
             f"({r['query_count']} queries, parallel)\n"
         )
-        lines.append("\n| ms | thread | sql |\n|---|---|---|\n")
+        lines.append("\n| ms | sql |\n|---|---|\n")
         for q in r["queries"]:
             ms = float(q["time"]) * 1000
-            tag = "pool" if q.get("pool") else "main"
             raw = q["sql"].replace("\n", " ").replace("|", "\\|")
             sql_preview = raw[:300] + ("..." if len(raw) > 300 else "")
-            lines.append(f"| {ms:.1f} | {tag} | `{sql_preview}` |\n")
+            lines.append(f"| {ms:.1f} | `{sql_preview}` |\n")
     out.write_text("".join(lines))
     print(f"\nreport → {out.relative_to(REPO_ROOT)}")
 
@@ -132,13 +129,11 @@ def test_datasets_perf(client, label, params):
     assert response.status_code == 200
 
     all_queries = sorted(_extra_queries, key=lambda q: -float(q["time"]))
-    total_sql_ms = sum(float(q["time"]) * 1000 for q in all_queries)
 
     _results.append({
         "label": label,
         "wall_ms": wall_ms,
         "render_ms": render_ms,
-        "total_sql_ms": total_sql_ms,
         "query_count": len(all_queries),
         "queries": all_queries,
     })
