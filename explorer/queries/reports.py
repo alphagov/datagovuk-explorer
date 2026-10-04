@@ -53,6 +53,7 @@ LINK_REPORT_SORT = {
 }
 LINK_REPORT_SORT_DEFAULT = ("org", "asc")
 
+
 DUPLICATE_CONTENT_SORT = {
     "dataset_count": "dataset_count",
     "org_count": "org_count",
@@ -353,9 +354,9 @@ REPORTS = [
               ORDER BY {{order_by}}
               LIMIT %s OFFSET %s""",
         # Detail: all links for one URL (used when ?url= is set)
-        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}, d.ckan_id
+        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L},
+                    (SELECT ckan_id FROM datasets WHERE id = l.dataset_id) AS ckan_id
                 FROM links l
-                JOIN datasets d ON d.id = l.dataset_id
                 WHERE l.url = %s
                 ORDER BY {{order_by}}
                 LIMIT %s OFFSET %s""",
@@ -420,9 +421,9 @@ REPORTS = [
                 HAVING COUNT(DISTINCT lcr.url) >= 5{org}
                 ORDER BY {order_by}
                 LIMIT %s OFFSET %s""",
-        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L}, d.ckan_id
+        "detail_sql": f"""SELECT {_LINK_REPORT_COLS_L},
+                    (SELECT ckan_id FROM datasets WHERE id = l.dataset_id) AS ckan_id
                 FROM links l
-                JOIN datasets d ON d.id = l.dataset_id
                 JOIN link_check_results lcr ON l.url = lcr.url
                 WHERE lcr.final_url = %s
                 ORDER BY {{order_by}}
