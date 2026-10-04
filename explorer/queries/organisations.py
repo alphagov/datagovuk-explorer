@@ -121,7 +121,7 @@ def org_link_health_rows() -> list[dict[str, Any]]:
         "SELECT l.org_slug,"
         "  COUNT(*) FILTER (WHERE lcr.ok) * 100.0 / NULLIF(COUNT(*), 0) AS link_health"
         " FROM links l LEFT JOIN link_check_results lcr ON l.url = lcr.url"
-        " GROUP BY l.org_slug"
+        " GROUP BY l.org_slug",
     ).all()
 
 
@@ -323,7 +323,7 @@ _LINK_HEALTH_AGG = (
 
 # The list select — ORGS' columns plus the aggregate columns.
 # link_health is NOT included here: it comes from the memoised org_link_health_rows()
-# dict in the view, avoiding a links × link_check_results scan on every page load.
+# dict in the view, avoiding a links x link_check_results scan on every page load.
 # _LINK_HEALTH_AGG is still joined when sort == "link_health" so the ORDER BY works.
 _ORG_LIST_SELECT = (
     "SELECT o.slug, o.name, o.display_name, o.package_count, o.type, o.state,"

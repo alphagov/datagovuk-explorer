@@ -268,6 +268,7 @@ Each handler calls the query layer directly and returns a dict:
 ```python
 from explorer.queries.search import search_all
 
+
 def handle_search_datasets(q: str) -> dict:
     return search_all(q)
 ```

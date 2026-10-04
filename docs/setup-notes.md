@@ -81,6 +81,7 @@ Added to `scripts/__init__.py` (runs automatically for every `python -m scripts.
 
 ```python
 import truststore
+
 truststore.inject_into_ssl()
 ```
 
