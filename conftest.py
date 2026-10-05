@@ -461,9 +461,9 @@ def make_fixtures():
                 frequency=frequency,
                 organization_id=f"uuid-{org}",
                 org_slug=org,
-                created="2012-01-01T00:00:00",
+                created=_utc("2012-01-01T00:00:00"),
                 dataset_count=hs_dataset_counts.get(hs_id, 0),
-                last_run=last_run,
+                last_run=_utc(last_run),
                 json=json.dumps({"status": {"last_harvest_request": last_run}} if last_run else {}),
             )
             for hs_id, title, org, active, frequency, last_run in _HARVEST_SOURCES

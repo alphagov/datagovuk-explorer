@@ -2,10 +2,11 @@
 
 Schema notes:
 - Timestamps are real instants: dataset metadata_created/
-  metadata_modified and organisation created are timestamptz (migrations
-  0007, 0008). The remaining timestamp columns are still TEXT, converted
-  one slice at a time; format_date bridges both forms while that is in
-  progress. LinkCheckResult.checked_at is already a DateTimeField.
+  metadata_modified, organisation created and harvest_source created/
+  last_run are timestamptz (migrations 0007, 0008, 0009). The remaining
+  timestamp columns are still TEXT, converted one slice at a time;
+  format_date bridges both forms while that is in progress.
+  LinkCheckResult.checked_at is already a DateTimeField.
 - links.id / series.id are SERIAL -> AutoField.
 - embedding_map.rowid / dataset_embeddings.rowid are plain INTEGER PRIMARY KEY
   (embed_batch assigns dense rowids from 1) -> IntegerField(primary_key=True),
@@ -59,10 +60,10 @@ class HarvestSource(models.Model):
     frequency = models.TextField(blank=True, null=True)
     organization_id = models.TextField(blank=True, null=True)
     org_slug = models.TextField(blank=True, null=True)
-    created = models.TextField(blank=True, null=True)
+    created = models.DateTimeField(blank=True, null=True)
     json = models.TextField(blank=True, null=True)
     dataset_count = models.IntegerField(blank=True, null=True)
-    last_run = models.TextField(blank=True, null=True)
+    last_run = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         app_label = "explorer"

@@ -74,8 +74,11 @@ HARVESTER_SORT = {
     "active": "h.active",
     "frequency": "LOWER(COALESCE(h.frequency, ''))",
     "dataset_count": "COALESCE(h.dataset_count, 0)",
-    "last_run": "COALESCE(h.last_run, '')",
+    "last_run": "h.last_run",
 }
+
+# Nullable date columns that need explicit NULLS LAST (see sort.order_by).
+HARVESTER_NULLS_LAST = frozenset({"last_run"})
 
 # The order /harvesters starts in — shared by parse_sort and preserve_params.
 HARVESTER_SORT_DEFAULT = ("dataset_count", "desc")
@@ -148,7 +151,7 @@ def harvest_sources_stmts(filters: dict, sort: str, dir_: str) -> dict:
         else:
             where += f"{connector} h.dataset_count BETWEEN %s AND %s"
             params = [*params, lo, hi]
-    order_sql = order_by(HARVESTER_SORT, sort, dir_, "LOWER(h.title), h.id")
+    order_sql = order_by(HARVESTER_SORT, sort, dir_, "LOWER(h.title), h.id", nulls_last=HARVESTER_NULLS_LAST)
     stmt = f"{_HARVEST_SOURCE_SELECT}{where}"
     return {
         "params": params,

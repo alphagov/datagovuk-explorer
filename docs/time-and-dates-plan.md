@@ -1,23 +1,26 @@
 # Time and dates: replace text timestamps with real types
 
-> **Living document — updated after the Phase 3 decision.**
-> Phases 0–2 are done and committed. **Phase 3 (links) was implemented and
-> then deliberately reverted** — see [Corrections](#corrections-to-this-plan)
+> **Living document — updated after Phase 4 landed.**
+> Phases 0–2 and 4 are done and committed. **Phase 3 (links) was implemented
+> and then deliberately reverted** — see [Corrections](#corrections-to-this-plan)
 > #8. See [Status](#status) for what landed and [Next session](#next-session)
-> to resume at Phase 4.
+> to resume at Phase 5.
 
 ## Status
 
-**Committed:** Phase 0+1 (`831ef68 refactor dates part 1`) and Phase 2
-(`f10d973 refactor dates part 2`). Working tree clean apart from the one-off
-DB-revert script.
+**Committed:** Phase 0+1 (`831ef68 refactor dates part 1`), Phase 2
+(`f10d973 refactor dates part 2`), the Phase 3 revert
+(`2c1aa75 refactor dates part 3`) and Phase 4
+(`50c5e97 refactor dates part 4`). Working tree clean.
 
 **Phase 3 (links) — reverted by decision.** `links.year_created` is kept as a
 pipeline-owned denormalisation: the `/links` year facet is hot, and the
 project rebuilds from a snapshot (`fresh-db`), so there is no dual-write/drift
 problem to justify paying a `datasets` join on every facet pool. `links.created`
-is left as text because nothing in the app reads it. Migration `0009` was
-removed and the dev DB rolled back with `scripts/revert_0009_links.py`.
+is left as text because nothing in the app reads it. The links migration
+(`0009_links*`) was removed and the dev DB rolled back with
+`scripts/revert_0009_links.py`; the `0009` number is now reused by the
+harvest-sources phase.
 
 - **Phase 0 — bridge.** `explorer/helpers.py::format_date` accepts
   `str | datetime | date`, converting aware values to UTC. The timezone-trap
@@ -33,23 +36,39 @@ removed and the dev DB rolled back with `scripts/revert_0009_links.py`.
   `EXTRACT(YEAR FROM …)::text`; `_YEAR_CREATED_GUARD` deleted; the fixture
   seed converts `created` to aware UTC. `ORG_SORT`/`nulls_last` already
   correct from Phase 1.
+- **Phase 4 — harvest sources.** `harvest_sources.created` / `last_run` →
+  `DateTimeField`; migration `0009_harvest_source_timestamps` (forward-only,
+  same CASE conversion; both columns are space-separated naive UTC). The
+  25 empty-string `last_run` values become NULL. `HARVESTER_SORT["last_run"]`
+  is now the plain column with `HARVESTER_NULLS_LAST = {"last_run"}` — so
+  missing rows sort **last** where `COALESCE(h.last_run, '')` used to put
+  them first (only `/harvesters` has such rows). The fixture seed converts
+  both columns to aware UTC. **The pipeline writer needed a fix:**
+  `scripts/build_harvester_stats.py` now casts its json-derived text to
+  timestamptz and maps `''`/`"None"` to NULL (a bare `''` can no longer be
+  assigned).
 
-**Local dev DB is migrated** (`0008` applied): `datasets.metadata_created` /
-`metadata_modified`, `mv_org_aggregates.last_published` and
-`organisations.created` are all `timestamptz`.
+**Local dev DB is migrated** (`0009` applied): `datasets.metadata_created` /
+`metadata_modified`, `mv_org_aggregates.last_published`,
+`organisations.created` and `harvest_sources.created` / `last_run` are all
+`timestamptz`.
 
-**Verified this session:** `tests/test_migrations.py` **3 passed** (dataset
-round-trip plus a new organisation conversion test); full suite **415 passed**
-(one pre-existing failure, below); `just test-live` **3 passed**; live
-query-layer checks of `org_created_years()` (strings), unfiltered and filtered
-`organisations_facet_counts`, the created/last-published sorts, and HTTP 200
-for `/organisations`, `/organisations?created_year=2013`,
-`/organisations?sort=created&dir=desc`, `/organisation/:slug`.
+**Verified this session:** `tests/test_migrations.py` **4 passed** (the new
+harvest-sources conversion test inserts a naive `T`, a space-separated, a
+`Z`, a date-only, an offset, an empty and a NULL sample into both columns and
+asserts the UTC instants, with empty → NULL); full suite **417 passed** (one
+pre-existing failure, below); `just test-live` **3 passed**; live checks of
+`harvest_sources_stmts` sorting `last_run` asc/desc (`NULLS LAST` holds),
+`scripts/build_harvester_stats` re-run against the migrated dev DB
+(idempotent — 29 NULLs, instants unchanged), and rendered pages
+(`/harvesters` last_run cells and `/harvester/:id` Created/Last run both
+`dd/mm/yyyy`).
 
-**Phase 2 files:** `explorer/models.py`,
-`explorer/migrations/0008_organisation_created.py` (new),
-`explorer/queries/organisations.py`, `conftest.py`, `tests/conftest.py`,
-`tests/test_migrations.py`.
+**Phase 4 files:** `explorer/models.py`,
+`explorer/migrations/0009_harvest_source_timestamps.py` (new),
+`explorer/queries/harvesters.py`, `scripts/build_harvester_stats.py`,
+`conftest.py`, `tests/test_migrations.py`,
+`tests/test_build_harvester_stats_db.py` (new).
 
 **Known pre-existing problems (not caused by this work):**
 
@@ -62,8 +81,7 @@ for `/organisations`, `/organisations?created_year=2013`,
 - Local `pg_dump` is 17.4 against a 18.6 server, so `just dump-db` can't run
   until the client is upgraded.
 
-**Next:** Phase 4 (Harvest sources) — Phase 3 is skipped. See
-[Next session](#next-session).
+**Next:** Phase 5 (Collection pages). See [Next session](#next-session).
 
 ## Corrections to this plan
 
@@ -125,6 +143,23 @@ otherwise, **this section wins**.
    dev DB rolled back by the throwaway `scripts/revert_0009_links.py`, and the
    `0009` row removed from `django_migrations`. Any future denormalisation
    doubt can be settled by a build-time assertion instead.
+9. **`scripts/build_harvester_stats.py` needed a cast (Phase 4).** The plan's
+   script audit only checked the pass-through inserts in `ingest_ckan.py`; the
+   derived `last_run` comes from `build_harvester_stats.py` via a SQL
+   expression, not a parameter. Once the column is `timestamptz`, a bare
+   `NULLIF(json…->>'last_harvest_request', 'None')` (text) can't be assigned —
+   Postgres raises `DatatypeMismatch`. And `''` must map to NULL too (25 live
+   rows), or the cast fails. Fixed to
+   `NULLIF(NULLIF(…, 'None'), '')::timestamptz`; the pipeline's UTC pin makes
+   the cast land on the intended instant. New DB test:
+   `tests/test_build_harvester_stats_db.py`.
+10. **The harvest templates were already formatted (Phase 4).** The plan said
+    `harvester.html` / `harvesters.html` print `created` / `last_run` raw and
+    should pipe them through `date_short`. In fact `views/harvesters.py`
+    already runs both through `format_date` (list rows and the detail dict),
+    and `organisation.html` applies `date_short` itself — so no template
+    change was needed. The `format_date` bridge handles the now-`datetime`
+    values unchanged.
 
 ## Summary
 
@@ -466,9 +501,9 @@ Phasing #6).
   Delete the `isinstance` branch in the final cleanup phase once no column is
   left as text.
 - `harvesters`/`harvester` templates print `source.created` / `s.last_run`
-  raw (`harvester.html:54-55`, `harvesters.html:41`) — either pipe through
-  `date_short` or accept Django-ish datetime repr. Prefer `date_short` for
-  consistency.
+  (`harvester.html:54-55`, `harvesters.html:41`). **Done — no template change
+  was needed:** the views already pass both through `format_date`, so the
+  templates receive `dd/mm/yyyy` strings (see [Corrections](#corrections-to-this-plan) #10).
 - `collections.html:18` / `collection_detail.html:15` treat
   `page_last_updated` as a date; `datetime.date` renders as `2026-03-24`, so
   `date_short` still applies.
@@ -488,6 +523,10 @@ Verify each writer:
   done** — see [Corrections](#corrections-to-this-plan) #8.)
 - `scripts/llm/ingest_reviews.py`, `ingest_suggestions.py` — `created_at`
   values end in `Z`; `::timestamptz` accepts them (verified).
+- `scripts/build_harvester_stats.py` — ✅ **Phase 4 fix:** derives `last_run`
+  with a SQL expression, not a parameter, so the text value is cast
+  explicitly and `''`/`"None"` map to NULL (see
+  [Corrections](#corrections-to-this-plan) #9).
 - `scripts/ingest_collections.py` — date-only string → `date`.
 - `scripts/check_links.py` — already writes `checked_at` via a real type.
 - Any explicit `CREATE TABLE`/`INSERT ... SELECT` in scripts that names these
@@ -509,6 +548,16 @@ Done in Phase 0/1:
   `test_unit_helpers.py` covers the `datetime`/`date` path.
 - ✅ `tests/conftest.py::migrated_db_url` runs `manage.py migrate`, so script
   tests get the typed schema automatically.
+
+Done in Phase 2/4:
+
+- ✅ `tests/test_migrations.py` adds an organisation conversion test (0008,
+  forward from 0007) and a harvest-sources test (0009, forward from 0008) —
+  both reuse the naive/space/`Z`/date-only/offset/empty/NULL samples and
+  assert the UTC instants; the harvest test also covers empty → NULL.
+- ✅ `tests/test_build_harvester_stats_db.py` (new) drives the real build
+  against a migrated scratch DB: a valid naive string casts to the same UTC
+  instant and `''`/`"None"`/missing all become NULL.
 
 No changes needed for Phase 1: `explorer/tests/test_integration_queries.py`
 and `test_unit_facet_where.py` (the latter uses its own generic `substr`
@@ -605,42 +654,38 @@ that constrains the order:
 | 1 | ✅ done | Datasets | `datasets.metadata_created`, `metadata_modified` | `/datasets`, reports, series, org last-published, dashboard | Drop+recreate `mv_org_aggregates` *around* the ALTER (drop first — Postgres blocks the alter otherwise); `::text` year facets; `order_by()` NULLS rule; fix `org_last_published_years`, `dashboard.cards()`, and the org last-published facet SQL (`organisations.py:143-156,221-226`). |
 | 2 | ✅ done | Organisations | `organisations.created` | `/organisations`, `/organisation/:slug` | Org-created facet (`organisations.py:77,217-219`); drop `_YEAR_CREATED_GUARD` (`:128`); `YEARLY_ORGS`. `ORG_SORT` already plain + `nulls_last`. Forward-only migration. Fixture seed converts `created` to aware UTC. |
 | 3 | ↩︎ reverted | Links | `links.created`; **drop** `year_created` | `/links`, `/links/errors` | **Deliberately not done.** Keeping the pipeline-owned `year_created` denormalisation beats the dataset join on every hot `/links` facet pool; `links.created` is unread. See [Corrections](#corrections-to-this-plan) #8. |
-| 4 | ⬜ next | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Fully self-contained; space-separated values; null/empty sort order change visible here. |
-| 5 | ⬜ | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. |
+| 4 | ✅ done | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Migration `0009` (forward-only), 25 empty `last_run` → NULL. `HARVESTER_SORT["last_run"]` is plain + `HARVESTER_NULLS_LAST`, so missing rows now sort **last** ascending (they sorted first under `COALESCE`). `scripts/build_harvester_stats.py` cast + empty-NULL fix ([Corrections](#corrections-to-this-plan) #9); templates already formatted (#10). |
+| 5 | ⬜ next | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. |
 | 6 | ⬜ | LLM ingest | `reviews.created_at`, `suggestions.created_at` | none | Optional. `Z`-suffixed; never read by the app. |
 | 7 | ⬜ | Cleanup | — | all | Drop the `format_date` `isinstance` bridge; rewrite the `models.py` schema note; remove the text-timestamp sections from this doc; then squash migrations. |
 
-Sequencing is additive: phases 1–2 are done; the remaining phases have no
+Sequencing is additive: phases 1–4 are done; the remaining phases have no
 order dependency on each other (phase 3 is dropped — see
 [Corrections](#corrections-to-this-plan) #8).
 
 ## Next session
 
-Resume at **Phase 4 — Harvest sources** (`harvest_sources.created`,
-`last_run`). Self-contained and mechanical:
+Resume at **Phase 5 — Collection pages** (`collection_pages.page_last_updated`,
+`date` not `timestamptz`). Small and mechanical:
 
-- **Migration** `0009_harvest_source_timestamps` (reusing the freed `0009`
-  number), forward-only (no `reverse_sql`) — see
-  [Corrections](#corrections-to-this-plan) #4. Same CASE conversion for both
-  columns; both are space-separated, which `::timestamp` accepts.
-- **`explorer/models.py`:** `HarvestSource.created` / `.last_run` →
-  `DateTimeField`.
-- **`explorer/queries/harvesters.py`** (`/harvesters`, `/harvester`):
-  `HARVESTER_SORT["last_run"]` is `COALESCE(h.last_run, '')` — change it to
-  the plain `h.last_run` and add
-  `HARVESTER_NULLS_LAST = frozenset({"last_run"})` (mirroring
-  `ORG_NULLS_LAST`). **Watch the visible behaviour change:** moving from
-  `COALESCE(last_run, '')` to `NULLS LAST` puts the 4 NULL + 25 empty rows
-  **last** ascending (they sorted first).
-- **Templates:** `harvester.html` / `harvesters.html` print `created` /
-  `last_run` raw — pipe through `date_short`.
-- **Fixture:** `conftest.py` `_HARVEST_SOURCES` writes `created` / `last_run`
-  via the ORM; convert both to aware UTC, keeping the NULL/empty `last_run`
-  as NULL (per [Data preservation](#data-preservation)).
-- **Test:** add a harvest-sources conversion test to `tests/test_migrations.py`
-  (migrate up from 0008 on the function-scoped `migration_db_url`); cover the
-  25 empty strings → NULL.
+- **Migration** `0010_collection_page_last_updated`, forward-only (no
+  `reverse_sql`) — see [Corrections](#corrections-to-this-plan) #4. Date-only
+  values: use `NULLIF(col, '')::date`, not the timestamptz CASE (no timezone
+  applies).
+- **`explorer/models.py`:** `Collection.page_last_updated` → `DateField`.
+- **`explorer/queries/collections.py`** already keeps `c.page_last_updated`
+  plain and routes the sort through `order_by()` — check whether it needs a
+  `COLLECTIONS_NULLS_LAST` (mirror `ORG_NULLS_LAST`) and add it if the column
+  is nullable in practice.
+- **Templates:** `collections.html` / `collection_detail.html` already use
+  `date_short`, which handles a `date` unchanged — verify, don't assume.
+- **Fixture:** `conftest.py` writes `page_last_updated` via the ORM; a
+  date-only string is fine for a `DateField` (no timezone), so this may need
+  no `_utc` change.
+- **Test:** add a collection conversion test to `tests/test_migrations.py`
+  (migrate up from 0009 on the function-scoped `migration_db_url`); include an
+  empty string → NULL and a date-only value.
 - Re-run `just migrate`, `just test`, `just test-live`; browser-check
-  `/harvesters` and `/harvester/:id`.
-- Phases 5–6 are self-contained too — consider combining them if fewer PRs
-  are wanted.
+  `/collections` and a `/collection/:slug` page.
+- Phases 5–6 are self-contained — consider combining them if fewer PRs are
+  wanted.

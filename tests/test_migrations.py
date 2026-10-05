@@ -26,6 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 DATASET_TIMESTAMPS = "0007_dataset_timestamps"
 ORG_CREATED = "0008_organisation_created"
+HARVEST_TIMESTAMPS = "0009_harvest_source_timestamps"
 PREVIOUS = "0006_harvest_sources_stats_columns"
 
 # The dev server's timezone — deliberately not UTC, so a naive cast that
@@ -86,6 +87,19 @@ def _read_org_instants(url: str) -> dict[str, datetime | None]:
     return out
 
 
+def _read_harvest_instants(url: str, column: str) -> dict[str, datetime | None]:
+    """Read each sample harvest source's `column` as a UTC-normalised
+    instant. `column` is a literal from this module, never user input."""
+    out: dict[str, datetime | None] = {}
+    with psycopg.connect(url) as conn, conn.cursor() as cur:
+        cur.execute(f"SET TIME ZONE '{SESSION_TZ}'")
+        for hs_id in SAMPLES:
+            cur.execute(f"SELECT {column} FROM harvest_sources WHERE id = %s", (hs_id,))
+            got = cur.fetchone()[0]
+            out[hs_id] = got.astimezone(UTC) if got is not None else None
+    return out
+
+
 def test_dataset_timestamps_are_pinned_to_utc(migration_db_url):
     """Every input shape converts to the exact same instant in UTC — not one
     shifted by the session timezone (Europe/London in summer). The reverse
@@ -123,6 +137,26 @@ def test_organisation_created_is_pinned_to_utc(migration_db_url):
 
     _migrate(migration_db_url, "explorer", ORG_CREATED)
     assert _read_org_instants(migration_db_url) == {slug: expected for slug, (_c, expected) in SAMPLES.items()}
+
+
+def test_harvest_source_timestamps_are_pinned_to_utc(migration_db_url):
+    """harvest_sources.created and last_run (0009) share the datasets/orgs
+    timezone trap: both are space-separated naive UTC. Empty strings must
+    become NULL (25 live last_run rows are empty) rather than fail the cast."""
+    _migrate(migration_db_url, "explorer", ORG_CREATED)  # 0008: text timestamps
+
+    with psycopg.connect(migration_db_url) as conn, conn.cursor() as cur:
+        cur.execute(f"SET TIME ZONE '{SESSION_TZ}'")
+        for hs_id, (value, _expected) in SAMPLES.items():
+            cur.execute(
+                "INSERT INTO harvest_sources (id, created, last_run) VALUES (%s, %s, %s)",
+                (hs_id, value, value),
+            )
+
+    _migrate(migration_db_url, "explorer", HARVEST_TIMESTAMPS)
+    expected = {hs_id: expected for hs_id, (_v, expected) in SAMPLES.items()}
+    assert _read_harvest_instants(migration_db_url, "created") == expected
+    assert _read_harvest_instants(migration_db_url, "last_run") == expected
 
 
 def test_pipeline_connection_stores_naive_strings_as_utc(migration_db_url):

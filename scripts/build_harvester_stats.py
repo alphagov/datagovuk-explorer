@@ -6,6 +6,11 @@ them directly rather than joining and extracting JSON on every request:
   dataset_count — number of datasets whose harvest_source_id = h.id
   last_run      — last_harvest_request from the json status block
 
+last_run is timestamptz; the raw value is text, so it's cast explicitly.
+The empty string (and the literal "None" the CKAN API writes) becomes
+NULL — casting either would raise. scripts/db.py pins the session to UTC,
+so the naive source strings cast to the intended instant.
+
 Run after build_db (datasets must be loaded before dataset_count is accurate).
 Safe to re-run: both columns are overwritten unconditionally.
 
@@ -30,9 +35,9 @@ def build(db) -> int:
                     WHERE harvest_source_id = harvest_sources.id
                ),
                last_run = NULLIF(
-                   json::jsonb -> 'status' ->> 'last_harvest_request',
-                   'None'
-               )
+                   NULLIF(json::jsonb -> 'status' ->> 'last_harvest_request', 'None'),
+                   ''
+               )::timestamptz
         """,
     )
     row = db.prepare("SELECT COUNT(*) AS n FROM harvest_sources").get()
