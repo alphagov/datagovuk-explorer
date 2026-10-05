@@ -81,7 +81,13 @@ migrate:
 # older dump can't hit missing tables — the schema is applied before the
 # build populates. Run `just build-embeddings` afterwards for embeddings.
 build-db: migrate
-    uv run --env-file .env python -m scripts.ingest_ckan main
+    uv run --env-file .env python -m scripts.ingest_ckan
+    uv run --env-file .env python -m scripts.build_dataset_years
+    uv run --env-file .env python -m scripts.build_fts
+    uv run --env-file .env python -m scripts.ingest_views
+    uv run --env-file .env python -m scripts.build_metadata
+    uv run --env-file .env python -m scripts.build_dataset_api
+    uv run --env-file .env python -m scripts.build_dataset_content_hash
     psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
     uv run --env-file .env python -m scripts.build_harvester_stats
 
@@ -123,7 +129,13 @@ build-metadata:
 fresh-db db_name="datagovuk_explorer":
     @createdb "{{db_name}}" 2>/dev/null && echo "created {{db_name}}" || echo "{{db_name}} already exists"
     uv run --env-file .env python manage.py migrate
-    uv run --env-file .env python -m scripts.ingest_ckan main
+    uv run --env-file .env python -m scripts.ingest_ckan
+    uv run --env-file .env python -m scripts.build_dataset_years
+    uv run --env-file .env python -m scripts.build_fts
+    uv run --env-file .env python -m scripts.ingest_views
+    uv run --env-file .env python -m scripts.build_metadata
+    uv run --env-file .env python -m scripts.build_dataset_api
+    uv run --env-file .env python -m scripts.build_dataset_content_hash
     psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
     uv run --env-file .env python -m scripts.build_harvester_stats
 

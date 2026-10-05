@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build (or rebuild) the PostgreSQL database from the cached JSON on disk.
+"""Build (or rebuild) the core database tables from the cached JSON on disk.
 
 Reads organisations.json, downloads/harvest_sources.json and every
 dataset file under downloads/, then writes everything into the database.
@@ -9,11 +9,12 @@ of reading and parsing 50k+ JSON files on every request.
 The full dataset JSON is stored in the dataset_json table, so nothing is
 lost — the files under downloads/ remain the on-disk cache.
 
-Usage: python scripts/build_db.py
-       DATABASE_URL=postgresql://localhost:5432/other python scripts/build_db.py
+Usage: python -m scripts.ingest_ckan
+       DATABASE_URL=postgresql://localhost:5432/other python -m scripts.ingest_ckan
 
-Phases: wipe, organisations, datasets (batched, parallel file reads),
-full-text search, views, metadata, dataset_api, dataset_content_hash.
+Phases: wipe core tables, organisations, datasets (batched, parallel file reads).
+Derived tables (FTS, views, metadata, dataset_api, etc.) are populated by
+separate scripts — see `just build-db` for the full sequence.
 Indexes are migration-owned (0001) — the build populates, never creates.
 
 Embeddings are a separate step: run scripts/build_embeddings.py after building.
@@ -27,14 +28,7 @@ from functools import partial
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import typer
-
-from scripts.build_fts import _populate_fts
-from scripts.build_metadata import _populate_metadata
 from scripts.db import connect, database_url
-from scripts.ingest_views import _write_views_tx, load_views_csv as _load_views_csv
-
-app = typer.Typer(add_completion=False)
 
 # Number of JSON files to read in parallel per batch. Reading many small
 # files one-at-a-time is the dominant bottleneck, so we batch them with
@@ -453,8 +447,8 @@ def normalise_format(raw):
 # ---------------------------------------------------------------------------
 
 TRUNCATE_SQL = (
-    "TRUNCATE TABLE dataset_years, dataset_api, dataset_content_hash, embedding_map, dataset_embeddings, "
-    "metadata_values, metadata_keys, links, temporal_periods, dataset_json, datasets, "
+    "TRUNCATE TABLE embedding_map, dataset_embeddings, "
+    "links, temporal_periods, dataset_json, datasets, "
     "organisations, harvest_sources CASCADE"
 )
 
@@ -666,7 +660,7 @@ def _load_orgs() -> list:
             "Run `just get-organisations` first (regenerates it from the CKAN API).",
             file=sys.stderr,
         )
-        raise typer.Exit(1) from None
+        raise SystemExit(1) from None
 
 
 def _load_harvest_sources() -> list:
@@ -681,7 +675,7 @@ def _load_harvest_sources() -> list:
             "Run `just get-harvest-sources` first (regenerates it from the CKAN API).",
             file=sys.stderr,
         )
-        raise typer.Exit(1) from None
+        raise SystemExit(1) from None
 
 
 def _collect_files() -> list[dict[str, str | Path]]:
@@ -693,7 +687,7 @@ def _collect_files() -> list[dict[str, str | Path]]:
             f"No {DATASETS_DIR}/ directory found — run get_datasets.py first.",
             file=sys.stderr,
         )
-        raise typer.Exit(1)
+        raise SystemExit(1)
 
     all_files: list[dict[str, str | Path]] = []
     for org_dir in sorted(DATASETS_DIR.iterdir(), key=lambda p: p.name):
@@ -823,25 +817,6 @@ def build() -> None:
         # creates. On the baseline DB they pre-exist.
         print("  indexes: migration-owned (0001)", file=sys.stderr)
 
-        # Phase 7: full-text search — tags + fts (tsvector) columns.
-        # idx_datasets_fts (GIN) is migration-owned (0001) — the populated
-        # fts rows are indexed by the migration-created index.
-        fts_count = _populate_fts(db)
-        print(f"  tsvector populated: {fts_count} datasets", file=sys.stderr)
-
-        # Phase 8: views (search clicks per dataset)
-        views_by_id = _load_views_csv()
-        if views_by_id:
-            db.transaction(partial(_write_views_tx, views_by_id=views_by_id))
-            print(f"  {len(views_by_id)} datasets have views data.", file=sys.stderr)
-
-        # Phase 9: metadata field usage — field/value counts for the /metadata report.
-        field_count, val_rows = _populate_metadata(db)
-        print(
-            f"  metadata: {field_count} fields, {val_rows} distinct values",
-            file=sys.stderr,
-        )
-
         link_row = db.prepare("SELECT COUNT(*) AS n FROM links").get()
         link_count = link_row["n"]
         print(
@@ -852,19 +827,18 @@ def build() -> None:
         db.close()
 
 
-@app.command()
 def main() -> None:
     """Rebuild the database from downloads/ + organisations.json +
     harvest_sources.json + CSVs."""
 
     try:
         build()
-    except typer.Exit:
+    except SystemExit:
         raise  # exit codes raised inside build() (e.g. missing inputs)
     except (RuntimeError, ValueError, OSError) as e:
         print(f"Error: {e}", file=sys.stderr)
-        raise typer.Exit(1) from None
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":
-    app()
+    main()

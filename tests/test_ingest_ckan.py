@@ -15,7 +15,6 @@ import json
 import os
 
 import pytest
-import typer
 
 # The module-level guard fires on import if DATABASE_URL is unset — tests
 # never connect, so give it a dummy URL.
@@ -263,9 +262,9 @@ def test_load_harvest_sources_missing_file(tmp_path, monkeypatch, capsys):
         "HARVEST_SOURCES_FILE",
         tmp_path / "harvest_sources.json",
     )
-    with pytest.raises(typer.Exit) as exc:
+    with pytest.raises(SystemExit) as exc:
         bd._load_harvest_sources()
-    assert exc.value.exit_code == 1
+    assert exc.value.code == 1
     err = capsys.readouterr().err
     assert "get-harvest-sources" in err
 
@@ -275,6 +274,6 @@ def test_load_harvest_sources_bad_json(tmp_path, monkeypatch):
     f = tmp_path / "harvest_sources.json"
     f.write_text("{not json", encoding="utf-8")
     monkeypatch.setattr(bd, "HARVEST_SOURCES_FILE", f)
-    with pytest.raises(typer.Exit) as exc:
+    with pytest.raises(SystemExit) as exc:
         bd._load_harvest_sources()
-    assert exc.value.exit_code == 1
+    assert exc.value.code == 1
