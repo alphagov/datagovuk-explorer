@@ -90,7 +90,7 @@ def test_fetch_datasets():
 
     limiter = scripts.get_datasets.create_rate_limiter(4)
     with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
-        results = scripts.get_datasets.fetch_datasets(limiter, client, "ons")
+        results = scripts.get_datasets.fetch_datasets("ons", client, limiter)
 
     assert len(results) == total
     # three pages: 1000, 1000, 500 — short page ends the loop
@@ -108,7 +108,7 @@ def test_fetch_datasets():
             follow_redirects=True,
         ) as client,
     ):
-        scripts.get_datasets.fetch_datasets(limiter, client, "ons")
+        scripts.get_datasets.fetch_datasets("ons", client, limiter)
 
     # success:false -> RuntimeError
     with (
@@ -118,7 +118,7 @@ def test_fetch_datasets():
             follow_redirects=True,
         ) as client,
     ):
-        scripts.get_datasets.fetch_datasets(limiter, client, "ons")
+        scripts.get_datasets.fetch_datasets("ons", client, limiter)
 
 
 def test_process_org():
@@ -132,7 +132,7 @@ def test_process_org():
     def run(org):
         limiter = scripts.get_datasets.create_rate_limiter(4)
         with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
-            return scripts.get_datasets.process_org(org, 0, 1, limiter, client)
+            return scripts.get_datasets.process_org(org, client, limiter)
 
     with tempfile.TemporaryDirectory() as d, chdir(d):
         # first run: saves 2 files
@@ -185,11 +185,9 @@ def test_process_org():
             redirect_stderr(err),
             httpx.Client(transport=httpx.MockTransport(error_handler), follow_redirects=True) as client,
         ):
-            r1 = scripts.get_datasets.process_org({"name": "bad-org"}, 0, 2, limiter, client)
-            r2 = scripts.get_datasets.process_org({"name": "good-org"}, 1, 2, limiter, client)
+            r1 = scripts.get_datasets.process_org({"name": "bad-org"}, client, limiter)
+            r2 = scripts.get_datasets.process_org({"name": "good-org"}, client, limiter)
         assert "✗ error: HTTP 500" in err.getvalue()
-        assert "[1/2]" in out.getvalue()
-        assert "[2/2]" in out.getvalue()
         assert r1 == 0
         assert r2 == 2
         assert Path("downloads/datasets/good-org/dataset-number-1-00000001.json").exists()

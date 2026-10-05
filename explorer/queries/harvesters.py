@@ -37,7 +37,7 @@ HARVEST_SOURCES = Query(
     """SELECT h.id, h.title, h.url, h.type, h.active, h.frequency,
               h.created, h.last_run,
               COALESCE(o.display_name, o.title, o.name) AS org_name,
-              h.dataset_count
+              COALESCE(h.dataset_count, 0) AS dataset_count
        FROM harvest_sources h
        LEFT JOIN organisations o ON o.slug = h.org_slug
        ORDER BY LOWER(h.title), h.id""",

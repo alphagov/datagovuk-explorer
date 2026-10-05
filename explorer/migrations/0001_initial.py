@@ -18,6 +18,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunSQL(
+            "CREATE EXTENSION IF NOT EXISTS vector",
+            reverse_sql="DROP EXTENSION IF EXISTS vector",
+        ),
         migrations.CreateModel(
             name='Collection',
             fields=[
@@ -153,6 +157,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='MetadataValue',
             fields=[
+                ('metadata_key', models.ForeignKey(db_column='key', db_index=False, on_delete=django.db.models.deletion.CASCADE, to='explorer.metadatakey')),
                 ('value', models.TextField()),
                 ('count', models.IntegerField()),
                 ('pk', models.CompositePrimaryKey('metadata_key', 'value', blank=True, editable=False, primary_key=True, serialize=False)),
@@ -220,6 +225,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='SeriesDataset',
             fields=[
+                ('series', models.ForeignKey(db_column='series_id', db_index=False, on_delete=django.db.models.deletion.CASCADE, to='explorer.series')),
                 ('dataset_id', models.IntegerField()),
                 ('dataset_title', models.TextField()),
                 ('date_suffix', models.TextField(blank=True, null=True)),
@@ -250,6 +256,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='TemporalPeriod',
             fields=[
+                ('dataset', models.ForeignKey(db_column='dataset_id', db_index=False, on_delete=django.db.models.deletion.CASCADE, to='explorer.dataset')),
                 ('position', models.IntegerField()),
                 ('from_year', models.IntegerField(blank=True, null=True)),
                 ('to_year', models.IntegerField(blank=True, null=True)),
@@ -368,11 +375,6 @@ class Migration(migrations.Migration):
             index=models.Index(fields=['url'], include=('ok', 'http_status', 'error', 'checked_at'), name='idx_lcr_url_cover'),
         ),
         migrations.AddField(
-            model_name='metadatavalue',
-            name='metadata_key',
-            field=models.ForeignKey(db_column='key', db_index=False, on_delete=django.db.models.deletion.CASCADE, to='explorer.metadatakey'),
-        ),
-        migrations.AddField(
             model_name='relateddataset',
             name='related',
             field=models.ForeignKey(db_column='related_id', db_index=False, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='explorer.dataset'),
@@ -387,17 +389,7 @@ class Migration(migrations.Migration):
             constraint=models.CheckConstraint(condition=models.Q(('type__in', ('template', 'timeseries'))), name='series_type_check'),
         ),
         migrations.AddField(
-            model_name='seriesdataset',
-            name='series',
-            field=models.ForeignKey(db_column='series_id', db_index=False, on_delete=django.db.models.deletion.CASCADE, to='explorer.series'),
-        ),
-        migrations.AddField(
             model_name='suggestion',
-            name='dataset',
-            field=models.ForeignKey(db_column='dataset_id', db_index=False, on_delete=django.db.models.deletion.CASCADE, to='explorer.dataset'),
-        ),
-        migrations.AddField(
-            model_name='temporalperiod',
             name='dataset',
             field=models.ForeignKey(db_column='dataset_id', db_index=False, on_delete=django.db.models.deletion.CASCADE, to='explorer.dataset'),
         ),
