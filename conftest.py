@@ -619,6 +619,9 @@ def make_fixtures():
         cur.execute(
             "UPDATE datasets SET fts = to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(notes, ''))",
         )
+        # /links/status reads this matview instead of the live join; the
+        # pipeline refreshes it after ingest, so the seed must too.
+        cur.execute("REFRESH MATERIALIZED VIEW mv_link_status")
 
     FIXTURE["ckan_to_pk"] = ckan_to_pk
     return FIXTURE

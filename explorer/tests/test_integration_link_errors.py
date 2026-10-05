@@ -72,7 +72,7 @@ def test_link_errors_list_shape_and_sort_whitelist():
 @pytest.mark.parametrize("sort", LINK_ERRORS_SORT)
 def test_link_errors_count_matches_list_and_deterministic(sort):
     """Each sortable column, both directions: count/list agree and the
-    ORDER BY ends with `, l.id`, so ties order the same on every run."""
+    ORDER BY ends with `, link_id`, so ties order the same on every run."""
     for dir_ in ("asc", "desc"):
         out = link_errors_stmts({}, sort, dir_)
         n = out["count"].get(*out["params"])["n"]

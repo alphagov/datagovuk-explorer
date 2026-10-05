@@ -567,6 +567,17 @@ def _refresh_org_link_health(db: Db) -> None:
         cur.execute(_REFRESH_LINK_HEALTH_SQL)
 
 
+def _refresh_link_status(db: Db) -> None:
+    """Rebuild the /links/status matview from the fresh check results.
+
+    CONCURRENTLY so a live site keeps reading the previous snapshot while
+    the view rebuilds; the unique index on link_id (migrations/0003) is what
+    makes that possible. db.exec autocommits, so this is not in a transaction
+    block — a requirement of CONCURRENTLY.
+    """
+    db.exec("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_link_status")
+
+
 def _bulk_mark_dead_host(db: Db, host: str) -> int:
     """Mark all remaining unchecked URLs for host as timed-out. Returns count marked."""
     now = datetime.now(tz=UTC)
@@ -845,6 +856,8 @@ async def _main(
         print(f"Done: {counter[0]}/{total} URL(s) checked.", flush=True)
         print("Refreshing org link health…", flush=True)
         _refresh_org_link_health(db)
+        print("Refreshing link status report…", flush=True)
+        _refresh_link_status(db)
     finally:
         db.close()
 

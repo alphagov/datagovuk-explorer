@@ -818,6 +818,10 @@ def build() -> None:
         print("  indexes: migration-owned (0001)", file=sys.stderr)
 
         db.exec("REFRESH MATERIALIZED VIEW mv_org_aggregates")
+        # /links/status reads its pre-joined matview; links/datasets/
+        # organisations just changed, so rebuild it here too. (check_links
+        # refreshes it again once link_check_results change.)
+        db.exec("REFRESH MATERIALIZED VIEW mv_link_status")
 
         link_row = db.prepare("SELECT COUNT(*) AS n FROM links").get()
         link_count = link_row["n"]
