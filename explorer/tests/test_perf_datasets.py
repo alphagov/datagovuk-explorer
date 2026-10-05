@@ -14,7 +14,7 @@ from threading import Lock
 from unittest.mock import patch
 
 import pytest
-from django.db import connection, reset_queries
+from django.db import reset_queries
 from django.test import override_settings
 
 pytestmark = pytest.mark.perf
@@ -34,7 +34,7 @@ _results: list[dict] = []
 
 def _clear_caches():
     from explorer.queries.datasets import datasets_facet_counts
-    from explorer.views.datasets import _theme_master, _in_window_temporal_years, _created_year_master
+    from explorer.views.datasets import _created_year_master, _in_window_temporal_years, _theme_master
     _theme_master.cache_clear()
     _in_window_temporal_years.cache_clear()
     _created_year_master.cache_clear()
@@ -76,14 +76,14 @@ def _write_report():
         lines.append(
             f"| {r['label']} "
             f"| {r['wall_ms']:.0f}ms "
-            f"| {r['render_ms']:.0f}ms |\n"
+            f"| {r['render_ms']:.0f}ms |\n",
         )
     lines.append("\n")
     for r in _results:
         lines.append(f"\n## {r['label']}\n")
         lines.append(
             f"wall={r['wall_ms']:.1f}ms  render={r['render_ms']:.1f}ms  "
-            f"({r['query_count']} queries, parallel)\n"
+            f"({r['query_count']} queries, parallel)\n",
         )
         lines.append("\n| ms | sql |\n|---|---|\n")
         for q in r["queries"]:
@@ -98,8 +98,9 @@ def _write_report():
 @pytest.mark.parametrize(("label", "params"), CASES)
 @override_settings(DEBUG=True)
 def test_datasets_perf(client, label, params):
-    import explorer.queries.core as _core
     import django.shortcuts
+
+    import explorer.queries.core as _core
 
     if not hasattr(_core, "_real_fetch_all"):
         _core._real_fetch_all = _core._fetch_all

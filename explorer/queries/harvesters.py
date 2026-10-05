@@ -6,12 +6,9 @@ name and their dataset count.
 The organisation join is on harvest_sources.org_slug → organisations.slug
 (the primary key) — org_slug is denormalised at build time from the
 CKAN UUID (scripts/build_db.py), so no json extraction is needed there.
-The dataset count joins on datasets.harvest_source_id = h.id — the
-datasets→sources key promoted from the dataset's harvest_source_id extra
-at build time. (Title joins overcount: source titles aren't unique, e.g.
-"UKME WAF" is used by ~50 different orgs.) A LEFT JOIN so sources with
-zero datasets still appear. The only json extraction is last_run (the
-status block's last_harvest_request), which the /harvesters page sorts on.
+dataset_count and last_run are pre-computed columns populated by
+scripts/build_harvester_stats.py, so no join against datasets or JSON
+extraction is needed at query time.
 
 HARVESTED_TOTAL is the headline "datasets harvested" figure: the count of
 datasets with harvested = 1, the same definition the /datasets SOURCE
@@ -33,21 +30,16 @@ from explorer.sort import order_by
 
 from .core import Query, facet_where
 
-# All harvest sources, with org display name and dataset count. h.id is
-# the primary key, so the other h.* columns are functionally dependent
-# on it and don't need GROUP BY entries. last_run is the source's last
-# harvest request timestamp, read out of the status block in the json
-# record (null when never run / missing).
+# All harvest sources, with org display name. dataset_count and last_run
+# are pre-computed columns (populated by scripts/build_harvester_stats.py),
+# so no join or JSON extraction is needed here.
 HARVEST_SOURCES = Query(
     """SELECT h.id, h.title, h.url, h.type, h.active, h.frequency,
-              h.created,
-              NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None') AS last_run,
+              h.created, h.last_run,
               COALESCE(o.display_name, o.title, o.name) AS org_name,
-              COUNT(d.id) AS dataset_count
+              h.dataset_count
        FROM harvest_sources h
        LEFT JOIN organisations o ON o.slug = h.org_slug
-       LEFT JOIN datasets d ON d.harvest_source_id = h.id
-       GROUP BY h.id, o.display_name, o.title, o.name
        ORDER BY LOWER(h.title), h.id""",
 )
 
@@ -81,8 +73,8 @@ HARVESTER_SORT = {
     "type": "LOWER(COALESCE(h.type, ''))",
     "active": "h.active",
     "frequency": "LOWER(COALESCE(h.frequency, ''))",
-    "dataset_count": "COUNT(d.id)",
-    "last_run": "COALESCE(NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None'), '')",
+    "dataset_count": "COALESCE(h.dataset_count, 0)",
+    "last_run": "COALESCE(h.last_run, '')",
 }
 
 # The order /harvesters starts in — shared by parse_sort and preserve_params.
@@ -90,17 +82,12 @@ HARVESTER_SORT_DEFAULT = ("dataset_count", "desc")
 
 _HARVEST_SOURCE_SELECT = (
     "SELECT h.id, h.title, h.url, h.type, h.active, h.frequency, h.created,"
-    "       NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None') AS last_run,"
+    "       h.last_run,"
     "       COALESCE(o.display_name, o.title, o.name) AS org_name,"
-    "       COUNT(d.id) AS dataset_count"
+    "       h.dataset_count"
     " FROM harvest_sources h"
     " LEFT JOIN organisations o ON o.slug = h.org_slug"
-    " LEFT JOIN datasets d ON d.harvest_source_id = h.id"
 )
-
-# h.id is the primary key, so the other h.* columns are functionally
-# dependent on it and don't need GROUP BY entries (same as HARVEST_SOURCES).
-_GROUP_BY = " GROUP BY h.id, o.display_name, o.title, o.name"
 
 
 def _type_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
@@ -136,7 +123,7 @@ def _frequency_clause(filters: dict, exclude: str | None) -> tuple[list, list]:
 
 # The three WHERE clause builders, keyed by facet — core.facet_where ANDs
 # them together. The datasets bucket is handled separately in the builder:
-# it's a HAVING on the COUNT(d.id) aggregate, not a WHERE on a column.
+# it's a WHERE on h.dataset_count (a pre-computed column).
 _HARVESTER_FACET_CLAUSES = {
     "type": _type_clause,
     "active": _active_clause,
@@ -149,18 +136,20 @@ def harvest_sources_stmts(filters: dict, sort: str, dir_: str) -> dict:
 
     {params, count, list} contract, same as datasets_stmts: the view
     drives the LIMIT/OFFSET page with core.paginate(). The datasets-count
-    bucket becomes a HAVING with boundaries from DATASET_BUCKET_RANGES —
-    the same edges as the view's Python bucket tests, applied to
-    COUNT(d.id)."""
+    bucket is a WHERE on h.dataset_count (a pre-computed column)."""
     where, params = facet_where(_HARVESTER_FACET_CLAUSES, filters)
-    having = ""
     bucket = filters.get("datasets")
     if bucket:
         lo, hi = DATASET_BUCKET_RANGES[bucket]
-        having = " HAVING COUNT(d.id) > %s" if hi is None else " HAVING COUNT(d.id) BETWEEN %s AND %s"
-        params = [*params, lo] if hi is None else [*params, lo, hi]
+        connector = " AND" if where else " WHERE"
+        if hi is None:
+            where += f"{connector} h.dataset_count > %s"
+            params = [*params, lo]
+        else:
+            where += f"{connector} h.dataset_count BETWEEN %s AND %s"
+            params = [*params, lo, hi]
     order_sql = order_by(HARVESTER_SORT, sort, dir_, "LOWER(h.title), h.id")
-    stmt = f"{_HARVEST_SOURCE_SELECT}{where}{_GROUP_BY}{having}"
+    stmt = f"{_HARVEST_SOURCE_SELECT}{where}"
     return {
         "params": params,
         "count": Query(f"SELECT COUNT(*) AS n FROM ({stmt}) s"),
@@ -171,12 +160,9 @@ def harvest_sources_stmts(filters: dict, sort: str, dir_: str) -> dict:
 # Harvest sources belonging to one org — the org overview page.
 HARVESTERS_BY_ORG = Query(
     """SELECT h.id, h.title, h.type, h.active, h.frequency,
-              NULLIF(h.json::jsonb -> 'status' ->> 'last_harvest_request', 'None') AS last_run,
-              COUNT(d.id) AS dataset_count
+              h.last_run, h.dataset_count
          FROM harvest_sources h
-         LEFT JOIN datasets d ON d.harvest_source_id = h.id
         WHERE h.org_slug = %s
-        GROUP BY h.id
         ORDER BY LOWER(COALESCE(h.title, '')), h.id""",
 )
 

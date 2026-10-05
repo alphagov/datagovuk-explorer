@@ -43,14 +43,14 @@ test *args:
     # (The dev server skips this: DEBUG=true emits plain URLs, served by
     # WHITENOISE_USE_FINDERS. Tests render the same hashed URLs as production.)
     uv run python manage.py collectstatic --noinput
-    uv run pytest -m "not slow and not live" --cov --cov-report=term-missing {{args}}
+    uv run pytest -m "not slow and not live and not perf" --cov --cov-report=term-missing {{args}}
 
 # Everything: the fast suite (incl. slow) then the opt-in live smoke, in two
 # invocations. The fixture DB rewrites the default connection, so live and
 # fixture tests cannot share a session; a single `pytest -m ""` would run the
 # live smoke against the test DB.
 test-all:
-    uv run pytest -m "not live"
+    uv run pytest -m "not live and not perf"
     uv run pytest -m live
 
 # Opt-in smoke tests against the full live dev database (must run alone).
@@ -83,6 +83,7 @@ migrate:
 build-db: migrate
     uv run --env-file .env python -m scripts.build_db main
     psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
+    uv run --env-file .env python -m scripts.build_harvester_stats
 
 # Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Use when tweaking the API detection algorithm.
@@ -114,6 +115,12 @@ fresh-db db_name="datagovuk_explorer":
     uv run --env-file .env python manage.py migrate
     uv run --env-file .env python -m scripts.build_db main
     psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
+    uv run --env-file .env python -m scripts.build_harvester_stats
+
+# Populate denormalised stats columns on harvest_sources (dataset_count,
+# last_run). Run after build-db; re-runnable.
+build-harvester-stats:
+    uv run --env-file .env python -m scripts.build_harvester_stats
 
 # Build series data from dataset titles (DATABASE_URL from .env)
 build-series:

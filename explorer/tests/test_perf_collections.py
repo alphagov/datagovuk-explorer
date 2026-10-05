@@ -1,9 +1,9 @@
-"""Performance timing for GET /organisations.
+"""Performance timing for GET /collections.
 
 Opt-in, runs against the live local database:
     just perf
 
-Writes a dated report to docs/perf/YYYY-MM-DD/organisations.md.
+Writes a dated report to docs/perf/YYYY-MM-DD/collections.md.
 No assertions — this is observation, not a gate.
 """
 
@@ -22,9 +22,9 @@ REPO_ROOT = Path(__file__).parents[2]
 
 CASES = [
     ("baseline", {}),
-    ("sort by dataset_count desc", {"sort": "dataset_count", "dir": "desc"}),
-    ("filter by datasets=0", {"datasets": "0"}),
-    ("filter by last_published=never", {"last_published_year": "__none__"}),
+    ("sort by title asc", {"sort": "title", "dir": "asc"}),
+    ("filter by collection=environment", {"collection": "environment"}),
+    ("sort by related desc", {"sort": "related", "dir": "desc"}),
     ("page 2", {"page": "2"}),
 ]
 
@@ -35,20 +35,8 @@ _extra_lock = Lock()
 
 
 def _clear_caches():
-    from explorer.queries.organisations import (
-        all_org_rows,
-        org_aggregate_rows,
-        org_created_years,
-        org_last_published_years,
-        org_link_health_rows,
-        organisations_facet_counts,
-    )
-    all_org_rows.cache_clear()
-    org_aggregate_rows.cache_clear()
-    org_created_years.cache_clear()
-    org_last_published_years.cache_clear()
-    org_link_health_rows.cache_clear()
-    organisations_facet_counts.cache_clear()
+    from explorer.queries.collections import collections_facet_counts
+    collections_facet_counts.cache_clear()
 
 
 def _patched_fetch_all(sql, params):
@@ -72,9 +60,9 @@ def _write_report():
     yield
     if not _results:
         return
-    out = REPO_ROOT / "docs" / "perf" / str(date.today()) / "organisations.md"
+    out = REPO_ROOT / "docs" / "perf" / str(date.today()) / "collections.md"
     out.parent.mkdir(parents=True, exist_ok=True)
-    lines = [f"# /organisations performance — {date.today()}\n\n"]
+    lines = [f"# /collections performance — {date.today()}\n\n"]
     lines.append("| case | wall | render |\n")
     lines.append("|---|---|---|\n")
     for r in _results:
@@ -102,7 +90,7 @@ def _write_report():
 
 @pytest.mark.parametrize(("label", "params"), CASES)
 @override_settings(DEBUG=True)
-def test_organisations_perf(client, label, params):
+def test_collections_perf(client, label, params):
     import django.shortcuts
 
     import explorer.queries.core as _core
@@ -125,10 +113,10 @@ def test_organisations_perf(client, label, params):
 
     with (
         patch("explorer.queries.core._fetch_all", _patched_fetch_all),
-        patch("explorer.views.organisations.render", _timed_render),
+        patch("explorer.views.collections.render", _timed_render),
     ):
         t0 = time.perf_counter()
-        response = client.get("/organisations", params)
+        response = client.get("/collections", params)
         wall_ms = (time.perf_counter() - t0) * 1000
 
     assert response.status_code == 200

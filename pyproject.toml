@@ -142,6 +142,10 @@ lint.per-file-ignores."conftest.py" = [
 # per page behaviour — not a complexity smell.
 lint.per-file-ignores."explorer/facets.py" = [ "PLR0913", "PLR0917" ]
 lint.per-file-ignores."explorer/tests/*.py" = [ "PLR2004" ]
+# Perf tests use lazy local imports (PLC0415) and monkey-patch private members
+# (SLF001) intentionally; date.today() (DTZ011) is fine for dated report paths;
+# list.extend (PERF401) is a style nit in report-writing code.
+lint.per-file-ignores."explorer/tests/test_perf_*.py" = [ "DTZ011", "PERF401", "PLC0415", "SLF001" ]
 # _report_facets' keyword-only sort params are its interface, not complexity.
 lint.per-file-ignores."explorer/views/reports.py" = [ "PLR0913" ]
 lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]

@@ -15,16 +15,16 @@ import time
 from datetime import date
 from pathlib import Path
 from threading import Lock
+from unittest.mock import patch
 
 import pytest
 from django.test import override_settings
-from unittest.mock import patch
 
 pytestmark = pytest.mark.perf
 
 REPO_ROOT = Path(__file__).parents[2]
 
-# (label, clear_cache)
+# (label, clear_cache)  # noqa: ERA001
 CASES = [
     ("cold (cache miss)", True),
     ("warm (cache hit)", False),
@@ -71,14 +71,14 @@ def _write_report():
         lines.append(
             f"| {r['label']} "
             f"| {r['wall_ms']:.0f}ms "
-            f"| {r['render_ms']:.0f}ms |\n"
+            f"| {r['render_ms']:.0f}ms |\n",
         )
     lines.append("\n")
     for r in _results:
         lines.append(f"\n## {r['label']}\n")
         lines.append(
             f"wall={r['wall_ms']:.1f}ms  render={r['render_ms']:.1f}ms  "
-            f"({r['query_count']} queries, parallel)\n"
+            f"({r['query_count']} queries, parallel)\n",
         )
         lines.append("\n| ms | sql |\n|---|---|\n")
         for q in r["queries"]:
@@ -93,8 +93,9 @@ def _write_report():
 @pytest.mark.parametrize(("label", "clear_cache"), CASES)
 @override_settings(DEBUG=True)
 def test_dashboard_perf(client, label, clear_cache):
-    import explorer.queries.core as _core
     import django.shortcuts
+
+    import explorer.queries.core as _core
 
     if not hasattr(_core, "_real_fetch_all"):
         _core._real_fetch_all = _core._fetch_all

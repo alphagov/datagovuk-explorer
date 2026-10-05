@@ -59,6 +59,8 @@ class HarvestSource(models.Model):
     org_slug = models.TextField(blank=True, null=True)
     created = models.TextField(blank=True, null=True)
     json = models.TextField(blank=True, null=True)
+    dataset_count = models.IntegerField(blank=True, null=True)
+    last_run = models.TextField(blank=True, null=True)
 
     class Meta:
         app_label = "explorer"
