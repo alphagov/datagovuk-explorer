@@ -1,11 +1,12 @@
 """Unit tests for scripts/ingest_ckan.py (offline — no database).
 
 Covers the deterministic pure functions — the algorithmic risk
-lives here: temporal_val/year/periods, extract_host, normalise_format,
-field_value_str. Edge cases: malformed URLs, www. hosts, out-of-range
-ports, IANA media-type URLs, OGC prefixes, messy temporal values.
+lives here: temporal_val/year/periods, extract_host, normalise_format.
+Edge cases: malformed URLs, www. hosts, out-of-range ports, IANA
+media-type URLs, OGC prefixes, messy temporal values.
 
 Views-CSV tests live in tests/test_ingest_views.py.
+field_value_str tests live in tests/test_build_metadata.py.
 The DB write path is verified separately by a scratch-DB table diff
 against a full build of the same data.
 """
@@ -244,27 +245,6 @@ def test_normalise_format():
     assert bd.normalise_format("CITYGML") == "CITYGML"
     # JSON value (non-string) -> null like JS typeof check
     assert bd.normalise_format(123) is None
-
-
-def test_field_value_str():
-    assert bd.field_value_str(None) == "(empty)"
-    assert bd.field_value_str("") == "(empty)"
-    assert bd.field_value_str("hello") == "hello"
-    assert bd.field_value_str("x" * 501) == "x" * 500 + "..."
-    assert bd.field_value_str(v=True) == "true"
-    assert bd.field_value_str(1.0) == "1"
-    assert bd.field_value_str(3) == "3"
-    assert bd.field_value_str([]) == "(empty)"
-    assert bd.field_value_str([1, 2]) == "[1,2]"  # compact separators
-    assert bd.field_value_str({}) == "(empty)"
-    assert bd.field_value_str({"a": 1}) == '{"a":1}'
-    # long arrays/objects truncated at 500 (no '...' suffix — only strings
-    # get the ellipsis); compact separators like JSON.stringify
-    compact = json.dumps(list(range(100)), separators=(",", ":"))
-    assert bd.field_value_str(list(range(100))) == compact[:500]
-    truncated = bd.field_value_str(list(range(1000)))
-    assert len(truncated) == 500
-    assert not truncated.endswith("...")
 
 
 def test_load_harvest_sources(tmp_path, monkeypatch):

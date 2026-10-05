@@ -30,6 +30,7 @@ from urllib.parse import urlsplit
 import typer
 
 from scripts.build_fts import _populate_fts
+from scripts.build_metadata import _populate_metadata
 from scripts.db import connect, database_url
 from scripts.ingest_views import _write_views_tx, load_views_csv as _load_views_csv
 
@@ -39,9 +40,6 @@ app = typer.Typer(add_completion=False)
 # files one-at-a-time is the dominant bottleneck, so we batch them with
 # threads to overlap I/O.
 READ_BATCH_SIZE = 2000
-
-# Value-distribution table: strings/JSON truncated at this length.
-MAX_FIELD_VALUE_LENGTH = 500
 
 _DOWNLOADS = Path(__file__).resolve().parent.parent / "downloads"
 DATASETS_DIR = _DOWNLOADS / "datasets"
@@ -450,36 +448,6 @@ def normalise_format(raw):
 
 
 # ---------------------------------------------------------------------------
-# Metadata field usage
-# ---------------------------------------------------------------------------
-def field_value_str(v):
-    """Convert a field value to a string for the value-distribution table.
-    Long strings/JSON are truncated at 500 chars to keep the index
-    reasonable; None, empty string, empty array and empty object all
-    collapse to a single "(empty)" bucket so they don't clutter the value
-    table as separate rows."""
-
-    if v is None:
-        return "(empty)"
-    if isinstance(v, str):
-        if v == "":
-            return "(empty)"
-        return v[:MAX_FIELD_VALUE_LENGTH] + "..." if len(v) > MAX_FIELD_VALUE_LENGTH else v
-    if isinstance(v, (bool, int, float)):
-        return _stringify(v)
-    if isinstance(v, list):
-        if not v:
-            return "(empty)"
-        return json.dumps(v, ensure_ascii=False, separators=(",", ":"))[:MAX_FIELD_VALUE_LENGTH]
-    if isinstance(v, dict):
-        s = json.dumps(v, ensure_ascii=False, separators=(",", ":"))
-        if s == "{}":
-            return "(empty)"
-        return s[:MAX_FIELD_VALUE_LENGTH]
-    return _stringify(v)
-
-
-# ---------------------------------------------------------------------------
 # Wipe — schema is owned by Django migrations; the build only truncates
 # the 9 tables it populates (series tables excluded).
 # ---------------------------------------------------------------------------
@@ -549,9 +517,6 @@ class _BuildState:
     def __init__(self) -> None:
         self.count = 0
         self.skipped = 0
-        self.field_counts: dict = {}
-        self.value_counts: dict = {}
-        self.seen_meta_ids: set = set()
 
 
 def _read_parse(item: dict) -> dict:
@@ -644,43 +609,6 @@ def _link_rows(ds: dict, int_id: int, org_name, org_display, year_created) -> li
     return rows
 
 
-def _meta_counts(ds: dict, st: _BuildState) -> None:
-    """Metadata field usage — count each top-level field and extras key so
-    the /metadata report can show field adoption across the catalogue.
-
-    Only the first occurrence of each dataset id is counted (duplicate
-    files are skipped) so the counts match the deduplicated datasets table
-    — that invariant is why this can't fold into _dataset_row.
-    """
-    if ds.get("id") in st.seen_meta_ids:
-        return
-    st.seen_meta_ids.add(ds.get("id"))
-    for key, value in ds.items():
-        if key.startswith("_") or key in {"resources", "extras"}:
-            continue
-        fk = f"top:{key}"
-        fc = st.field_counts.setdefault(fk, {"total": 0, "nonEmpty": 0})
-        fc["total"] += 1
-        vm = st.value_counts.setdefault(fk, {})
-        vs = field_value_str(value)
-        vm[vs] = vm.get(vs, 0) + 1
-        if vs != "(empty)":
-            fc["nonEmpty"] += 1
-    seen_extras: set = set()
-    for e in ds.get("extras") or []:
-        if e["key"] in seen_extras:
-            continue
-        seen_extras.add(e["key"])
-        fk = f"extras:{e['key']}"
-        fc = st.field_counts.setdefault(fk, {"total": 0, "nonEmpty": 0})
-        fc["total"] += 1
-        vm = st.value_counts.setdefault(fk, {})
-        vs = field_value_str(e.get("value"))
-        vm[vs] = vm.get(vs, 0) + 1
-        if vs != "(empty)":
-            fc["nonEmpty"] += 1
-
-
 def _process_batch(db, batch: list[dict], st: _BuildState) -> None:
     """Process files in batches: read each batch in parallel (overlapping
     I/O via threads), parse, then insert in a single transaction."""
@@ -721,7 +649,6 @@ def _process_batch(db, batch: list[dict], st: _BuildState) -> None:
             for period_row in _dataset_period_rows(ds, int_id):
                 insert_period.run(*period_row)
 
-            _meta_counts(ds, st)
             st.count += 1
 
     db.transaction(_tx)
@@ -845,29 +772,6 @@ def _load_harvest_sources_tx(tx, sources, org_slug_by_uuid) -> None:
         )
 
 
-def _write_meta_tx(tx, field_counts, value_counts) -> int:
-    """Write the metadata field/value counters into metadata_keys /
-    metadata_values for the /metadata report; returns the distinct-value row
-    count."""
-    insert_meta_key = tx.prepare(
-        "INSERT INTO metadata_keys (key, section, count, non_empty, distinct_values) VALUES (?, ?, ?, ?, ?)",
-    )
-    insert_meta_val = tx.prepare(
-        "INSERT INTO metadata_values (key, value, count) VALUES (?, ?, ?)",
-    )
-    val_rows = 0
-    for fk, fc in field_counts.items():
-        section = "extras" if fk.startswith("extras:") else "top"
-        vm = value_counts.get(fk)
-        distinct = len(vm) if vm else 0
-        insert_meta_key.run(fk, section, fc["total"], fc["nonEmpty"], distinct)
-        if vm:
-            for val, vc in vm.items():
-                insert_meta_val.run(fk, val, vc)
-                val_rows += 1
-    return val_rows
-
-
 # ---------------------------------------------------------------------------
 # Main build
 # ---------------------------------------------------------------------------
@@ -931,13 +835,10 @@ def build() -> None:
             db.transaction(partial(_write_views_tx, views_by_id=views_by_id))
             print(f"  {len(views_by_id)} datasets have views data.", file=sys.stderr)
 
-        # Phase 9: metadata field usage — write the counters collected during
-        # the dataset load into metadata_keys / metadata_values.
-        val_rows = db.transaction(
-            partial(_write_meta_tx, field_counts=st.field_counts, value_counts=st.value_counts),
-        )
+        # Phase 9: metadata field usage — field/value counts for the /metadata report.
+        field_count, val_rows = _populate_metadata(db)
         print(
-            f"  metadata: {len(st.field_counts)} fields, {val_rows} distinct values",
+            f"  metadata: {field_count} fields, {val_rows} distinct values",
             file=sys.stderr,
         )
 

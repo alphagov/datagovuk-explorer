@@ -110,6 +110,11 @@ build-dataset-years:
 build-fts:
     uv run --env-file .env python -m scripts.build_fts
 
+# Rebuild just the metadata_keys + metadata_values tables (TRUNCATE + INSERT).
+# Reads raw JSON from dataset_json — run after ingest_ckan.
+build-metadata:
+    uv run --env-file .env python -m scripts.build_metadata
+
 # One-shot fresh local database: create it if missing, apply the schema,
 # then populate it. The path for a fresh checkout. db_name must be the
 # database DATABASE_URL names (default
