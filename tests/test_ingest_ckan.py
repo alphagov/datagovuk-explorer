@@ -21,7 +21,7 @@ import typer
 # never connect, so give it a dummy URL.
 os.environ.setdefault("DATABASE_URL", "postgresql://localhost:5432/test-db")
 
-import scripts.build_db as bd
+import scripts.ingest_ckan as bd
 
 
 def test_temporal_val():
@@ -48,7 +48,7 @@ def test_temporal_year():
     # first 4-digit year wins
     assert bd.temporal_year("1960 to 1992") == "1960"
     # re.ASCII: fullwidth digits don't match the ASCII \d class
-    assert bd.temporal_year("２０１０") is None
+    assert bd.temporal_year("２０１０") is None  # noqa: RUF001
 
 
 def test_temporal_periods():
@@ -76,7 +76,7 @@ def test_text_periods():
     # explicit ranges — hyphen, spaces, "to", en/em-dash
     assert bd._text_periods("Something 1838 - 1862") == [[1838, 1862]]
     assert bd._text_periods("2009 to 2010") == [[2009, 2010]]
-    assert bd._text_periods("1838–1862") == [[1838, 1862]]  # en dash
+    assert bd._text_periods("1838–1862") == [[1838, 1862]]  # en dash  # noqa: RUF001
     assert bd._text_periods("1838—1862") == [[1838, 1862]]  # em dash
     # 2-digit range tail expanded via its century: 2019-20 -> 2019-2020
     assert bd._text_periods("2019-20 data") == [[2019, 2020]]

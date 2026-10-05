@@ -81,29 +81,29 @@ migrate:
 # older dump can't hit missing tables — the schema is applied before the
 # build populates. Run `just build-embeddings` afterwards for embeddings.
 build-db: migrate
-    uv run --env-file .env python -m scripts.build_db main
+    uv run --env-file .env python -m scripts.ingest_ckan main
     psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
     uv run --env-file .env python -m scripts.build_harvester_stats
 
 # Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Use when tweaking the API detection algorithm.
 build-dataset-api:
-    uv run --env-file .env python -m scripts.build_db dataset-api
+    uv run --env-file .env python -m scripts.ingest_ckan dataset-api
 
 # Reload dataset view counts from GA page views, GA Google landing pages,
 # and Search Console clicks — fast, no full rebuild needed.
 ingest-views:
-    uv run --env-file .env python -m scripts.build_db views
+    uv run --env-file .env python -m scripts.ingest_ckan views
 
 # Rebuild just the dataset_content_hash table (TRUNCATE + INSERT) — fast,
 # no full rebuild needed. Use when tweaking the duplicate-detection hash.
 build-dataset-content-hash:
-    uv run --env-file .env python -m scripts.build_db dataset-content-hash
+    uv run --env-file .env python -m scripts.ingest_ckan dataset-content-hash
 
 # Rebuild just the dataset_years table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Expands temporal_periods into one row per (dataset, year).
 build-dataset-years:
-    uv run --env-file .env python -m scripts.build_db dataset-years
+    uv run --env-file .env python -m scripts.ingest_ckan dataset-years
 
 # One-shot fresh local database: create it if missing, apply the schema,
 # then populate it. The path for a fresh checkout. db_name must be the
@@ -113,7 +113,7 @@ build-dataset-years:
 fresh-db db_name="datagovuk_explorer":
     @createdb "{{db_name}}" 2>/dev/null && echo "created {{db_name}}" || echo "{{db_name}} already exists"
     uv run --env-file .env python manage.py migrate
-    uv run --env-file .env python -m scripts.build_db main
+    uv run --env-file .env python -m scripts.ingest_ckan main
     psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
     uv run --env-file .env python -m scripts.build_harvester_stats
 

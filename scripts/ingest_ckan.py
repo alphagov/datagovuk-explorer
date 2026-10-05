@@ -1155,7 +1155,7 @@ def _populate_dataset_content_hash(db) -> int:
 # dataset_years summary table
 # ---------------------------------------------------------------------------
 # Expands temporal_periods [from_year, to_year] ranges into one row per
-# (dataset_id, year), clamped to 1900–2100. Built after temporal_periods is
+# (dataset_id, year), clamped to 1900-2100. Built after temporal_periods is
 # populated; can be rebuilt standalone with `build_db dataset-years`.
 
 INSERT_DATASET_YEARS_SQL = """

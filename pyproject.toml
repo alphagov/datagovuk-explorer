@@ -148,7 +148,7 @@ lint.per-file-ignores."explorer/tests/*.py" = [ "PLR2004" ]
 lint.per-file-ignores."explorer/tests/test_perf_*.py" = [ "DTZ011", "PERF401", "PLC0415", "SLF001" ]
 # _report_facets' keyword-only sort params are its interface, not complexity.
 lint.per-file-ignores."explorer/views/reports.py" = [ "PLR0913" ]
-lint.per-file-ignores."scripts/build_db.py" = [ "PLR0911" ]
+lint.per-file-ignores."scripts/ingest_ckan.py" = [ "PLR0911" ]
 lint.per-file-ignores."scripts/build_embeddings.py" = [ "PLR0913", "PLR0917" ]
 # Status codes and pagination sizes in test assertions are intent, not magic.
 # Tests also legitimately unit-test private script helpers (_parse_int, _subscore,
