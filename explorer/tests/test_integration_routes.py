@@ -40,6 +40,9 @@ BASE_ROUTES = [
     ("/search/publishers", {"q": "alpha"}),
     ("/search/datasets", {"q": "flood"}),
     ("/api/publishers", {"q": "al"}),
+    ("/organisations/reviews", {}),
+    ("/check-progress", {}),
+    ("/check-progress/data", {}),
     # Duplicate-content detail mode (?hash=) — see root conftest.py's
     # DatasetContentHash fixture (d01/d09 share "hash-shared-d01-d09").
     ("/report/datasets-duplicate-content", {"hash": "hash-shared-d01-d09"}),
@@ -59,6 +62,7 @@ SORTABLE_ROUTES = [
     ("/reviews", {"sort": "findability", "dir": "desc"}),
     ("/suggestions", {"sort": "confidence", "dir": "desc"}),
     ("/series", {"sort": "dataset_count", "dir": "desc"}),
+    ("/organisations/reviews", {"sort": "avg_findability", "dir": "desc"}),
 ]
 
 
