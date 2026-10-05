@@ -82,12 +82,6 @@ YEARLY_ORGS = Query(
 
 
 @functools.cache
-def all_org_rows() -> list[dict[str, Any]]:
-    """All organisations (ORGS.all) — memoised: build-time snapshot."""
-    return ORGS.all()
-
-
-@functools.cache
 def org_aggregate_rows() -> list[dict[str, Any]]:
     """One-pass per-org aggregates over datasets (ORG_AGGREGATES.all) —
     memoised: build-time snapshot. The dominant cost on /organisations."""

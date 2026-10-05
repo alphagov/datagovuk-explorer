@@ -138,6 +138,11 @@ lint.per-file-ignores."conftest.py" = [
   "PLC0415",
   "PLR0913",
 ]
+# Gunicorn imports the config in the master process before the WSGI app,
+# so post_worker_init's query imports must be local (Django settings aren't
+# ready at module level). The broad except is deliberate: a warm-up failure
+# must never stop a worker from serving (it's logged instead).
+lint.per-file-ignores."gunicorn.conf.py" = [ "BLE001", "PLC0415" ]
 # The shared facet builder's parameters are its API surface — one option
 # per page behaviour — not a complexity smell.
 lint.per-file-ignores."explorer/facets.py" = [ "PLR0913", "PLR0917" ]

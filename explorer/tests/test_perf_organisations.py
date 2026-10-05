@@ -36,14 +36,12 @@ _extra_lock = Lock()
 
 def _clear_caches():
     from explorer.queries.organisations import (
-        all_org_rows,
         org_aggregate_rows,
         org_created_years,
         org_last_published_years,
         org_link_health_rows,
         organisations_facet_counts,
     )
-    all_org_rows.cache_clear()
     org_aggregate_rows.cache_clear()
     org_created_years.cache_clear()
     org_last_published_years.cache_clear()
