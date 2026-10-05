@@ -1022,50 +1022,6 @@ def _write_meta_tx(tx, field_counts, value_counts) -> int:
 
 
 # ---------------------------------------------------------------------------
-# dataset_content_hash summary table
-# ---------------------------------------------------------------------------
-# Tier-1 exact-duplicate detection (docs/ideas.md "Duplicate dataset
-# detection"): one md5 hash per dataset over its normalised title, notes and
-# the sorted, deduped set of its resource URLs. Two datasets with the same
-# hash are byte-for-byte content duplicates (the harvest-flooding pattern —
-# see docs/harvest-flooding-report.md); GROUP BY content_hash HAVING
-# COUNT(*) > 1 finds them in one indexed pass, no self-join.
-#
-# Computed entirely in SQL (like dataset_api above) rather than a Python
-# loop, both for speed and so the normalisation lives in one place. URL
-# normalisation strips the query string/fragment and a trailing slash —
-# tracking params shouldn't defeat a match.
-INSERT_DATASET_CONTENT_HASH_SQL = r"""
-INSERT INTO dataset_content_hash (dataset_id, content_hash)
-SELECT
-    d.id,
-    md5(
-        trim(regexp_replace(lower(coalesce(d.title, '')), '\s+', ' ', 'g')) || E'\x1f' ||
-        trim(regexp_replace(lower(coalesce(d.notes, '')), '\s+', ' ', 'g')) || E'\x1f' ||
-        coalesce(u.urls, '')
-    )
-FROM datasets d
-LEFT JOIN (
-    SELECT dataset_id, string_agg(DISTINCT norm_url, E'\x1f' ORDER BY norm_url) AS urls
-    FROM (
-        SELECT dataset_id, rtrim(regexp_replace(lower(trim(url)), '[?#].*$', ''), '/') AS norm_url
-        FROM links
-        WHERE url IS NOT NULL AND url != ''
-    ) norm
-    GROUP BY dataset_id
-) u ON u.dataset_id = d.id
-"""
-
-
-def _populate_dataset_content_hash(db) -> int:
-    """Populate the dataset_content_hash summary table. Returns the row
-    count inserted (one per dataset)."""
-    db.exec(INSERT_DATASET_CONTENT_HASH_SQL)
-    row = db.prepare("SELECT COUNT(*) AS n FROM dataset_content_hash").get()
-    return row["n"]
-
-
-# ---------------------------------------------------------------------------
 # dataset_years summary table
 # ---------------------------------------------------------------------------
 # Expands temporal_periods [from_year, to_year] ranges into one row per
@@ -1174,11 +1130,6 @@ def build() -> None:
             file=sys.stderr,
         )
 
-        # Phase 11: dataset_content_hash — exact-duplicate detection
-        # (Tier 1, see docs/ideas.md); needs links loaded first.
-        hash_count = _populate_dataset_content_hash(db)
-        print(f"  dataset_content_hash: {hash_count} datasets", file=sys.stderr)
-
         link_row = db.prepare("SELECT COUNT(*) AS n FROM links").get()
         link_count = link_row["n"]
         print(
@@ -1217,28 +1168,6 @@ def views() -> None:
         if views_by_id:
             db.transaction(partial(_write_views_tx, views_by_id=views_by_id))
         print(f"views: {len(views_by_id)} datasets updated")
-    finally:
-        db.close()
-
-
-@app.command()
-def dataset_content_hash() -> None:
-    """Rebuild just the dataset_content_hash table (TRUNCATE + INSERT).
-
-    Runs in seconds against the existing datasets/links data — use this
-    when tweaking the hash normalisation without a full rebuild."""
-
-    db = connect(DATABASE_URL)
-    try:
-        db.exec("TRUNCATE TABLE dataset_content_hash")
-        n = _populate_dataset_content_hash(db)
-        dupes = db.prepare(
-            "SELECT COUNT(*) AS n FROM ("
-            "  SELECT content_hash FROM dataset_content_hash"
-            "  GROUP BY content_hash HAVING COUNT(*) > 1"
-            ") sub",
-        ).get()["n"]
-        print(f"dataset_content_hash: {n} datasets, {dupes} duplicate hash groups")
     finally:
         db.close()
 

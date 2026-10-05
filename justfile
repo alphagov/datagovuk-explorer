@@ -98,7 +98,7 @@ ingest-views:
 # Rebuild just the dataset_content_hash table (TRUNCATE + INSERT) — fast,
 # no full rebuild needed. Use when tweaking the duplicate-detection hash.
 build-dataset-content-hash:
-    uv run --env-file .env python -m scripts.ingest_ckan dataset-content-hash
+    uv run --env-file .env python -m scripts.build_dataset_content_hash
 
 # Rebuild just the dataset_years table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Expands temporal_periods into one row per (dataset, year).

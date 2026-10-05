@@ -1,5 +1,5 @@
 """Scratch-DB tests for the dataset_content_hash write path in
-scripts/ingest_ckan.py.
+scripts/build_dataset_content_hash.py.
 
 Runs the real INSERT_DATASET_CONTENT_HASH_SQL (via
 _populate_dataset_content_hash) against a throwaway migrated database:
@@ -9,8 +9,9 @@ deduped), and that datasets with no links still get a hash. Never touches
 the dev DB — see tests/conftest.py.
 """
 
+from scripts.build_dataset_content_hash import _populate_dataset_content_hash
 from scripts.db import connect
-from scripts.ingest_ckan import TRUNCATE_SQL, _populate_dataset_content_hash
+from scripts.ingest_ckan import TRUNCATE_SQL
 
 
 def insert_dataset(db, ckan_id, title, notes, org_slug="council-a"):
