@@ -29,6 +29,7 @@ from urllib.parse import urlsplit
 
 import typer
 
+from scripts.build_fts import _populate_fts
 from scripts.db import connect, database_url
 from scripts.ingest_views import _write_views_tx, load_views_csv as _load_views_csv
 
@@ -548,7 +549,6 @@ class _BuildState:
     def __init__(self) -> None:
         self.count = 0
         self.skipped = 0
-        self.fts_rows: list = []
         self.field_counts: dict = {}
         self.value_counts: dict = {}
         self.seen_meta_ids: set = set()
@@ -644,26 +644,6 @@ def _link_rows(ds: dict, int_id: int, org_name, org_display, year_created) -> li
     return rows
 
 
-def _fts_row(ds: dict, int_id: int) -> dict:
-    """The fts-row dict for the tsvector column (tags space-joined)."""
-    return {
-        "id": int_id,
-        "title": _WS_RE.sub(" ", (ds.get("title") or "")).strip(),
-        "notes": _WS_RE.sub(" ", (ds.get("notes") or "")).strip(),
-        "tags": " ".join(
-            t
-            for t in (
-                _WS_RE.sub(
-                    " ",
-                    (t.get("display_name") or t.get("name") or ""),
-                ).strip()
-                for t in ds.get("tags") or []
-            )
-            if t
-        ),
-    }
-
-
 def _meta_counts(ds: dict, st: _BuildState) -> None:
     """Metadata field usage — count each top-level field and extras key so
     the /metadata report can show field adoption across the catalogue.
@@ -741,7 +721,6 @@ def _process_batch(db, batch: list[dict], st: _BuildState) -> None:
             for period_row in _dataset_period_rows(ds, int_id):
                 insert_period.run(*period_row)
 
-            st.fts_rows.append(_fts_row(ds, int_id))
             _meta_counts(ds, st)
             st.count += 1
 
@@ -866,24 +845,6 @@ def _load_harvest_sources_tx(tx, sources, org_slug_by_uuid) -> None:
         )
 
 
-def _populate_fts_tx(tx, fts_rows) -> None:
-    """Populate the tags + fts (tsvector) columns. Tags are stored as a
-    space-joined string for the suggestions route; fts is a tsvector for the
-    "more like this" query (lexical, via tsquery @@)."""
-    update_fts = tx.prepare(
-        """
-        UPDATE datasets
-        SET tags = ?, fts = to_tsvector(
-            'english',
-            coalesce(?, '') || ' ' || coalesce(?, '') || ' ' || coalesce(?, '')
-        )
-        WHERE id = ?
-        """,
-    )
-    for r in fts_rows:
-        update_fts.run(r["tags"], r["title"], r["notes"], r["tags"], r["id"])
-
-
 def _write_meta_tx(tx, field_counts, value_counts) -> int:
     """Write the metadata field/value counters into metadata_keys /
     metadata_values for the /metadata report; returns the distinct-value row
@@ -961,8 +922,8 @@ def build() -> None:
         # Phase 7: full-text search — tags + fts (tsvector) columns.
         # idx_datasets_fts (GIN) is migration-owned (0001) — the populated
         # fts rows are indexed by the migration-created index.
-        db.transaction(partial(_populate_fts_tx, fts_rows=st.fts_rows))
-        print(f"  tsvector populated: {len(st.fts_rows)} datasets", file=sys.stderr)
+        fts_count = _populate_fts(db)
+        print(f"  tsvector populated: {fts_count} datasets", file=sys.stderr)
 
         # Phase 8: views (search clicks per dataset)
         views_by_id = _load_views_csv()

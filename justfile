@@ -105,6 +105,11 @@ build-dataset-content-hash:
 build-dataset-years:
     uv run --env-file .env python -m scripts.build_dataset_years
 
+# Rebuild just the tags + fts columns (TRUNCATE implicit — UPDATE all rows).
+# Reads from datasets + dataset_json — run after ingest_ckan.
+build-fts:
+    uv run --env-file .env python -m scripts.build_fts
+
 # One-shot fresh local database: create it if missing, apply the schema,
 # then populate it. The path for a fresh checkout. db_name must be the
 # database DATABASE_URL names (default
