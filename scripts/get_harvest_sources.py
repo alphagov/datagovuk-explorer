@@ -15,11 +15,16 @@ Rate limit: 4 requests per second (scripts/ckan.py).
 
 import json
 import sys
+import time
 from pathlib import Path
 
 import httpx
 
 from scripts.ckan import BASE_URL, MAX_RPS, create_rate_limiter, write_json
+
+MAX_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = 2.0
+RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "downloads/organisations"
 
@@ -44,12 +49,33 @@ def get_harvest_sources(
 
     sources: dict[str, dict] = {}
     for i, org_id in enumerate(org_ids, 1):
-        rate_limit()
+        # The API intermittently spikes to ~30s or returns 5xx on an
+        # individual org (tiny response, server-side flakiness), so a single
+        # bad call must not abort the whole walk. Retry a few times.
+        res = None
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            rate_limit()
+            reason = None
+            try:
+                candidate = client.get(
+                    f"{BASE_URL}/harvest_source_list",
+                    params={"organization_id": org_id},
+                )
+                if candidate.status_code not in RETRY_STATUS_CODES:
+                    res = candidate
+                    break
+                reason = f"HTTP {candidate.status_code}"
+            except httpx.TransportError as e:
+                reason = f"{type(e).__name__}: {e}"
 
-        res = client.get(
-            f"{BASE_URL}/harvest_source_list",
-            params={"organization_id": org_id},
-        )
+            if attempt == MAX_ATTEMPTS:
+                raise httpx.HTTPError(f"{reason} fetching org {org_id}")
+            print(
+                f"  retry {attempt}/{MAX_ATTEMPTS - 1} for org {org_id}: {reason}",
+                file=sys.stderr,
+            )
+            time.sleep(RETRY_BACKOFF_SECONDS * attempt)
+
         if not res.is_success:
             raise RuntimeError(
                 f"HTTP {res.status_code} fetching org {org_id}: {res.reason_phrase}",
@@ -78,7 +104,7 @@ def main() -> None:
         org_ids = load_organisation_ids()
         print(f"Loaded {len(org_ids)} organisations from organisations.json", file=sys.stderr)
 
-        with httpx.Client(follow_redirects=True, timeout=30) as client:
+        with httpx.Client(follow_redirects=True, timeout=60) as client:
             rate_limit = create_rate_limiter(MAX_RPS)
             sources = get_harvest_sources(client, rate_limit, org_ids)
 
