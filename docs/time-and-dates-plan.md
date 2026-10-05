@@ -1,11 +1,10 @@
 # Time and dates: replace text timestamps with real types
 
-> **Living document — updated after Phase 6 landed.**
-> Phases 0–2 and 4–6 are done and committed. **Phase 3 (links) was
+> **Living document — complete.**
+> Phases 0–2 and 4–7 are done and committed. **Phase 3 (links) was
 > implemented and then deliberately reverted** — see [Corrections](#corrections-to-this-plan)
-> #8. Phase 7 (cleanup) is done except the migration squash. See
-> [Status](#status) for what landed and [Next session](#next-session) for the
-> one remaining step.
+> #8. The one apparent leftover, squashing migrations, is deliberately not
+> done (#13). See [Status](#status).
 
 ## Status
 
@@ -13,8 +12,8 @@
 (`f10d973 refactor dates part 2`), the Phase 3 revert
 (`2c1aa75 refactor dates part 3`), Phase 4
 (`50c5e97 refactor dates part 4`), Phase 5
-(`ada1bbe refactor dates part 5`) and Phase 6 (`refactor dates part 6`).
-Working tree clean.
+(`ada1bbe refactor dates part 5`) and Phases 6+7
+(`bbd38e5 refactor dates part 6`). Working tree clean.
 
 **Phase 3 (links) — reverted by decision.** `links.year_created` is kept as a
 pipeline-owned denormalisation: the `/links` year facet is hot, and the
@@ -64,11 +63,14 @@ harvest-sources phase.
   already pins UTC, so no script change was needed; the fixture seed wraps
   the values in `_utc`, and the two scratch-DB ingest tests compare aware
   datetimes rather than strings.
-- **Phase 7 — cleanup (squash pending).** `models.py`'s schema note and
-  `format_date`'s docstring no longer frame the string path as transitional
-  — it is still needed for **JSON** values (dataset resource dates, harvest
-  `next_run`), which are not columns (see [Corrections](#corrections-to-this-plan)
-  #12). The only work left is squashing the migrations.
+- **Phase 7 — cleanup.** `models.py`'s schema note and `format_date`'s
+  docstring no longer frame the string path as transitional — it is still
+  needed for **JSON** values (dataset resource dates, harvest `next_run`),
+  which are not columns (see [Corrections](#corrections-to-this-plan) #12).
+  The documented migration squash is **deliberately not done**: squashing
+  `0001`–`0011` into one file would collapse the intermediate text schema
+  that `tests/test_migrations.py` migrates to, gutting the timezone-trap
+  regression coverage (#13).
 
 **Local dev DB is migrated** (`0011` applied): `datasets.metadata_created` /
 `metadata_modified`, `mv_org_aggregates.last_published`,
@@ -102,8 +104,9 @@ tables); full suite **419 passed** (one pre-existing failure, below);
 - Local `pg_dump` is 17.4 against a 18.6 server, so `just dump-db` can't run
   until the client is upgraded.
 
-**Next:** only the migration squash remains (Phase 7 tail). See
-[Next session](#next-session).
+**Next:** nothing — the plan is complete. Squashing migrations is
+**deliberately not done**; see [Corrections](#corrections-to-this-plan) #13
+and [Next session](#next-session).
 
 ## Corrections to this plan
 
@@ -200,6 +203,13 @@ otherwise, **this section wins**.
     reframes the docstring/type hint (strings are JSON-sourced, not legacy
     columns) and updates `models.py`'s schema note; the parsing behaviour is
     unchanged and stays covered by `test_unit_helpers.py`.
+13. **Migration squash deliberately dropped (Phase 7).** The plan ended with
+    "then squash migrations". Doing so would fold `0001`–`0011` into a single
+    atomic migration, and `tests/test_migrations.py` migrates to *named
+    intermediate* revisions (`0006`, `0007`, `0008`, `0009`, `0010`) to insert
+    text-era values and assert the conversion. A squashed migration has no
+    midpoint, so the timezone-trap coverage for the whole plan would be lost.
+    File-count is not worth that, so squashing is not done.
 
 ## Summary
 
@@ -724,28 +734,21 @@ that constrains the order:
 | 4 | ✅ done | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Migration `0009` (forward-only), 25 empty `last_run` → NULL. `HARVESTER_SORT["last_run"]` is plain + `HARVESTER_NULLS_LAST`, so missing rows now sort **last** ascending (they sorted first under `COALESCE`). `scripts/build_harvester_stats.py` cast + empty-NULL fix ([Corrections](#corrections-to-this-plan) #9); templates already formatted (#10). |
 | 5 | ✅ done | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. Migration `0010` (forward-only, `NULLIF(col, '')::date`); `COLLECTIONS_NULLS_LAST` added so missing rows sort last; templates already used `date_short`. |
 | 6 | ✅ done | LLM ingest | `reviews.created_at`, `suggestions.created_at` | none | Migration `0011` (forward-only, same timestamptz CASE). `Z`-suffixed; never read by the app; no script change (COPY + UTC-pinned session). Fixture seed wraps in `_utc`; scratch-DB tests compare aware datetimes. |
-| 7 | 🟡 partial | Cleanup | — | all | ✅ `models.py` schema note and `format_date` docstring rewritten (the string branch is permanent — JSON values, not columns; [Corrections](#corrections-to-this-plan) #12). ⬜ squash migrations (see [Next session](#next-session)). |
+| 7 | ✅ done | Cleanup | — | all | ✅ `models.py` schema note and `format_date` docstring rewritten (the string branch is permanent — JSON values, not columns; [Corrections](#corrections-to-this-plan) #12). Squash **deliberately dropped** so the intermediate-revision migration tests survive (#13). |
 
-Sequencing is additive: phases 1–2 and 4–6 are done; phase 3 is dropped and
-phase 7 is down to the migration squash (see
+Sequencing is additive: phases 1–2 and 4–7 are done; phase 3 is dropped (see
 [Corrections](#corrections-to-this-plan) #8).
 
 ## Next session
 
-Phases 0–2 and 4–6 are done; phase 3 was dropped; the Phase 7 code cleanup
-is done. **One step remains: squash the migrations.**
+**No further work.** Phases 0–2 and 4–7 are done; phase 3 was dropped by
+decision. The only item the original plan listed that is not done is the
+migration squash, and that is deliberate — squashing would remove the
+intermediate revisions `tests/test_migrations.py` migrates to, losing the
+timezone-trap regression coverage (see
+[Corrections](#corrections-to-this-plan) #13).
 
-`explorer/migrations/0001_initial.py` … `0011_llm_created_at.py` can be
-squashed (`manage.py squashmigrations explorer 0001 0011`). Things to watch:
-
-- The squashed migration keeps the `RunSQL` conversions in order, so a fresh
-  DB still creates the text columns and then alters them. That is correct but
-  not shorter — the win is file count, not DDL.
-- Existing dev/Railway DBs have `0001`–`0011` applied; Django treats the
-  squashed migration as applied when every migration in its `replaces` list
-  is applied, so no `--fake` should be needed. Confirm with a dry run before
-  deleting the replaced files.
-- Verify on a scratch DB from empty (this is what `just fresh-db` does, but a
-  local `pg_dump`/17.4 against the 18.6 server blocks the full path — a plain
-  `migrate` on a fresh database is enough for the schema check).
-- Then `just test`, `just test-live`, `just lint`.
+If a future session does want fewer migration files, the precondition is
+first replacing `tests/test_migrations.py` with an equivalent that works
+against the squashed schema (e.g. asserting the final types and a
+round-trip through a fresh install), not simply deleting it.
