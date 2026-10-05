@@ -71,12 +71,13 @@ LAST_PUBLISHED_BY_ORG = Query(
 )
 
 
-# Orgs created per year (YYYY) — created is always ISO, so
-# substr(created, 1, 4) is the year; the regex skips anything non-ISO.
+# Orgs created per year (YYYY) — created is a timestamptz, so EXTRACT is
+# the year. NULL rows (orgs with no creation date) land in no bucket.
+# ::text keeps the facet contract: year values render as strings.
 YEARLY_ORGS = Query(
-    r"""SELECT substr(created, 1, 4) AS year, COUNT(*) AS count
-       FROM organisations WHERE created ~ '^\d{4}'
-       GROUP BY substr(created, 1, 4)""",
+    """SELECT EXTRACT(YEAR FROM created)::text AS year, COUNT(*) AS count
+       FROM organisations WHERE created IS NOT NULL
+       GROUP BY EXTRACT(YEAR FROM created)::text""",
 )
 
 
@@ -122,10 +123,9 @@ def org_link_health_rows() -> list[dict[str, Any]]:
 # builder (1:1 per org — GROUP BY org_slug, the primary key).
 _ORG_AGG = "LEFT JOIN mv_org_aggregates a ON a.org_slug = o.slug"
 
-# Pool guards: the \d{4} created-year skip (created is always ISO) and
-# the last-published IS NOT NULL skip (orgs with no datasets land in no
-# last-published-year bucket).
-_YEAR_CREATED_GUARD = r"substr(o.created, 1, 4) ~ '^\d{4}'"
+# Pool guard: the last-published IS NOT NULL skip (orgs with no datasets
+# land in no last-published-year bucket). The created-year guard is gone —
+# created is a timestamptz now, so there is nothing non-ISO to skip.
 _PUB_YEAR_GUARD = "a.last_published IS NOT NULL"
 
 
@@ -136,7 +136,7 @@ def _created_year_clause(filters: dict, exclude: str | None) -> tuple[list, list
         return [], []
     year = filters.get("created_year")
     if year:
-        return ["substr(o.created, 1, 4) = %s"], [year]
+        return ["EXTRACT(YEAR FROM o.created)::text = %s"], [year]
     return [], []
 
 
@@ -196,11 +196,10 @@ def _org_facet_counts(filters: dict) -> dict:
     )
     datasets_where, datasets_params = facet_where(_ORG_FACET_CLAUSES, filters, exclude="datasets")
 
-    # The pool guards join the (possibly empty) WHERE fragments. `no_last_\
-    # published_year` reuses the pubyear fragment (the other groups'
-    # filters) with the guard flipped — last_published IS NULL (orgs with
-    # no datasets) instead of the year-list guard's IS NOT NULL.
-    year_where = f"{year_where} AND {_YEAR_CREATED_GUARD}" if year_where else f" WHERE {_YEAR_CREATED_GUARD}"
+    # The last-published pool guards join the (possibly empty) WHERE
+    # fragments. `no_last_published_year` reuses the pubyear fragment (the
+    # other groups' filters) with the guard flipped — last_published IS NULL
+    # (orgs with no datasets) instead of the year-list guard's IS NOT NULL.
     pubyear_where = f"{pubyear_frag} AND {_PUB_YEAR_GUARD}" if pubyear_frag else f" WHERE {_PUB_YEAR_GUARD}"
     no_pubyear_where = (
         f"{pubyear_frag} AND a.last_published IS NULL" if pubyear_frag else " WHERE a.last_published IS NULL"
@@ -214,9 +213,9 @@ def _org_facet_counts(filters: dict) -> dict:
             "datasets": datasets_params,
         },
         "created_years": Query(
-            "SELECT substr(o.created, 1, 4) AS created_year, COUNT(*) AS count"
+            "SELECT EXTRACT(YEAR FROM o.created)::text AS created_year, COUNT(*) AS count"
             f" FROM organisations o {_ORG_AGG}{year_where}"
-            " GROUP BY substr(o.created, 1, 4)",
+            " GROUP BY EXTRACT(YEAR FROM o.created)::text",
         ),
         "last_published_years": Query(
             "SELECT EXTRACT(YEAR FROM a.last_published)::text AS last_published_year, COUNT(*) AS count"

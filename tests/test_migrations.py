@@ -25,6 +25,7 @@ from scripts.db import connect
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 DATASET_TIMESTAMPS = "0007_dataset_timestamps"
+ORG_CREATED = "0008_organisation_created"
 PREVIOUS = "0006_harvest_sources_stats_columns"
 
 # The dev server's timezone — deliberately not UTC, so a naive cast that
@@ -73,13 +74,27 @@ def _read_instants(url: str) -> dict[str, datetime | None]:
     return out
 
 
+def _read_org_instants(url: str) -> dict[str, datetime | None]:
+    """Read each sample organisation's created as a UTC-normalised instant."""
+    out: dict[str, datetime | None] = {}
+    with psycopg.connect(url) as conn, conn.cursor() as cur:
+        cur.execute(f"SET TIME ZONE '{SESSION_TZ}'")
+        for slug in SAMPLES:
+            cur.execute("SELECT created FROM organisations WHERE slug = %s", (slug,))
+            got = cur.fetchone()[0]
+            out[slug] = got.astimezone(UTC) if got is not None else None
+    return out
+
+
 def test_dataset_timestamps_are_pinned_to_utc(migration_db_url):
     """Every input shape converts to the exact same instant in UTC — not one
     shifted by the session timezone (Europe/London in summer). The reverse
     migration is lossy in *format* (space/Z become T) but must preserve the
     instant, so the round-trip is asserted too."""
-    _migrate(migration_db_url)  # full schema
-    _migrate(migration_db_url, "explorer", PREVIOUS)  # columns back to text
+    # Fresh DB: apply up to the last text-schema migration (0006) forwards
+    # from empty. Going forward avoids having to unwind the irreversible
+    # later migrations (0008+) just to get back to text columns.
+    _migrate(migration_db_url, "explorer", PREVIOUS)
 
     with psycopg.connect(migration_db_url) as conn, conn.cursor() as cur:
         cur.execute(f"SET TIME ZONE '{SESSION_TZ}'")
@@ -96,10 +111,23 @@ def test_dataset_timestamps_are_pinned_to_utc(migration_db_url):
     assert _read_instants(migration_db_url) == forward
 
 
+def test_organisation_created_is_pinned_to_utc(migration_db_url):
+    """The organisations.created conversion (0008) has the same timezone
+    trap as datasets — assert every input shape round-trips to UTC."""
+    _migrate(migration_db_url, "explorer", DATASET_TIMESTAMPS)  # 0007: text created
+
+    with psycopg.connect(migration_db_url) as conn, conn.cursor() as cur:
+        cur.execute(f"SET TIME ZONE '{SESSION_TZ}'")
+        for slug, (created, _expected) in SAMPLES.items():
+            cur.execute("INSERT INTO organisations (slug, created) VALUES (%s, %s)", (slug, created))
+
+    _migrate(migration_db_url, "explorer", ORG_CREATED)
+    assert _read_org_instants(migration_db_url) == {slug: expected for slug, (_c, expected) in SAMPLES.items()}
+
+
 def test_pipeline_connection_stores_naive_strings_as_utc(migration_db_url):
     """scripts/db.py pins the session timezone to UTC, so the pipeline's
     naive ISO strings land as the same wall-clock instant."""
-    _migrate(migration_db_url)  # idempotent — ensure the latest schema
     d = connect(migration_db_url)
     try:
         assert d.prepare("SHOW TimeZone").get() == {"TimeZone": "UTC"}

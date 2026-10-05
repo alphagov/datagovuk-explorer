@@ -427,7 +427,7 @@ def make_fixtures():
         return FIXTURE
 
     Organisation.objects.bulk_create(
-        [Organisation(slug=slug, **fields) for slug, fields in _ORGS.items()],
+        [Organisation(slug=slug, **{**fields, "created": _utc(fields["created"])}) for slug, fields in _ORGS.items()],
     )
     display = {slug: fields["display_name"] for slug, fields in _ORGS.items()}
     by_ckan = {row["ckan_id"]: row for row in _DATASETS}
