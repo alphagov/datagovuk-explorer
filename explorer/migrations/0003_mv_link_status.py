@@ -14,7 +14,8 @@ Columns are raw (no ``category`` expression): the derived outcome stays in
 unique index that ``REFRESH MATERIALIZED VIEW CONCURRENTLY`` requires.
 
 Refreshed by ``scripts/ingest_ckan.py`` (links/datasets/organisations) and
-by ``scripts/check_links.py`` (link_check_results).
+by ``scripts/check_links.py`` (link_check_results); between refreshes it is
+a snapshot, so mid-check the report shows the previous run's results.
 
 """
 
@@ -78,29 +79,13 @@ class Migration(migrations.Migration):
             sql="CREATE INDEX mv_link_status_ok_idx ON mv_link_status(ok)",
             reverse_sql="DROP INDEX IF EXISTS mv_link_status_ok_idx",
         ),
-        # One index per sort column, each paired with link_id (the ORDER BY
-        # tie-breaker): the planner walks the index in order and stops after
-        # LIMIT rows instead of seq-scanning + top-N sorting the whole view.
+        # Only the default sort (url/host) gets an index, paired with link_id
+        # (the ORDER BY tie-breaker): the planner walks it in order and stops
+        # after LIMIT rows instead of top-N sorting the whole view. The other
+        # sorts fall back to a ~60 ms sort and don't justify 3x ~11 MB of
+        # indexes on a view this size.
         migrations.RunSQL(
             sql="CREATE INDEX mv_link_status_url_sort_idx ON mv_link_status(LOWER(COALESCE(host, '')), link_id)",
             reverse_sql="DROP INDEX IF EXISTS mv_link_status_url_sort_idx",
-        ),
-        migrations.RunSQL(
-            sql=(
-                "CREATE INDEX mv_link_status_dataset_sort_idx "
-                "ON mv_link_status(LOWER(COALESCE(dataset_title, '')), link_id)"
-            ),
-            reverse_sql="DROP INDEX IF EXISTS mv_link_status_dataset_sort_idx",
-        ),
-        migrations.RunSQL(
-            sql=(
-                "CREATE INDEX mv_link_status_publisher_sort_idx "
-                "ON mv_link_status(LOWER(COALESCE(publisher_name, '')), link_id)"
-            ),
-            reverse_sql="DROP INDEX IF EXISTS mv_link_status_publisher_sort_idx",
-        ),
-        migrations.RunSQL(
-            sql=("CREATE INDEX mv_link_status_status_sort_idx ON mv_link_status(COALESCE(http_status, -1), link_id)"),
-            reverse_sql="DROP INDEX IF EXISTS mv_link_status_status_sort_idx",
         ),
     ]

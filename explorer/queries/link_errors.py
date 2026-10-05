@@ -1,10 +1,8 @@
 """/links/status query layer — statements per (filters, sort, dir),
 self-excluding SQL sidebar facet pools and memoised whole-table stats.
 
-The report's statements — the page list/count, the self-excluding sidebar
-facet pools and the memoised whole-table stats — all read the
-`mv_link_status` matview (ORG_BROKEN_LINKS, the publisher detail count,
-stays on the base tables).
+Every statement here — the page list/count, the sidebar facet pools, the
+memoised stats and ORG_BROKEN_LINKS — reads the `mv_link_status` matview.
 
 `mv_link_status` is the links LEFT JOIN link_check_results LEFT JOIN
 datasets LEFT JOIN organisations join, flattened once at build time
@@ -15,6 +13,11 @@ source title are materialised on the row; the derived `category` is still
 computed here (see _CATEGORY_EXPR) so the report's logic stays in one place.
 Rows whose package is absent from the datasets snapshot → harvest_state
 'unknown'.
+
+Freshness: the view is a snapshot, rebuilt only at the end of an ingest or
+check run (and the memoised pools/stats only when the worker restarts). So
+mid-check the page shows the previous run's results — same tradeoff as
+org_link_health on /organisations, with /check-progress for live status.
 """
 
 import functools
@@ -294,13 +297,12 @@ def link_errors_facet_counts(filters: dict) -> dict:
 
 
 # --- Per-org broken link count (publisher detail page) --------------------
-
+# Same relation as the report, so the org page and the report can't disagree.
 ORG_BROKEN_LINKS = Query(
     "SELECT COUNT(*) AS n"
-    " FROM links l"
-    " LEFT JOIN link_check_results lcr ON l.url = lcr.url"
-    " WHERE l.org_slug = %s"
-    " AND (l.url IS NULL OR lcr.ok = false AND lcr.checked_at IS NOT NULL)",
+    f" FROM {_LINK_ERRORS_FROM}"
+    " WHERE org_slug = %s"
+    " AND (url IS NULL OR ok = false AND checked_at IS NOT NULL)",
 )
 
 
