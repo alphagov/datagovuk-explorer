@@ -1,11 +1,14 @@
 """Django models — the tables the migrations own.
 
 Schema notes:
-- Timestamps are real instants: dataset metadata_created/
-  metadata_modified, organisation created and harvest_source created/
-  last_run are timestamptz (migrations 0007, 0008, 0009). The remaining
-  timestamp columns are still TEXT, converted one slice at a time;
-  format_date bridges both forms while that is in progress.
+- Timestamps are real instants. dataset metadata_created/
+  metadata_modified, organisation created, harvest_source created/
+  last_run, review/suggestion created_at are timestamptz (migrations 0007,
+  0008, 0009, 0011) and collection_pages.page_last_updated is a date
+  (0010). The one exception is links.created, left TEXT because nothing
+  reads it; links.year_created is a pipeline-owned TEXT facet key, not a
+  timestamp. format_date still accepts ISO strings because some values
+  come from JSON (dataset resource dates, harvest next_run), not columns.
   LinkCheckResult.checked_at is already a DateTimeField.
 - links.id / series.id are SERIAL -> AutoField.
 - embedding_map.rowid / dataset_embeddings.rowid are plain INTEGER PRIMARY KEY
@@ -433,7 +436,7 @@ class Review(models.Model):
     )
     findability = models.IntegerField(blank=True, null=True)
     resources = models.IntegerField(blank=True, null=True)
-    created_at = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(blank=True, null=True)
     json = models.TextField()
 
     class Meta:
@@ -470,7 +473,7 @@ class Suggestion(models.Model):
     tags = models.TextField(blank=True, null=True)
     title = models.TextField(blank=True, null=True)
     desc = models.TextField(blank=True, null=True)
-    created_at = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(blank=True, null=True)
     json = models.TextField()
 
     class Meta:

@@ -1,8 +1,9 @@
 """Unit tests for explorer/helpers.py — date formatting and theme labels.
 
-Pure functions, no DB or request: these lock in the offset→UTC conversion
-(the reason the helper exists), the real-datetime/date path used once the
-DB columns are typed, and the label fallback.
+Pure functions, no DB or request: these lock in the offset→UTC conversion,
+both the real-datetime/date path (typed DB columns) and the ISO-string path
+(JSON-sourced values such as resource dates and harvest next_run), and the
+label fallback.
 """
 
 from datetime import UTC, date, datetime, timedelta, timezone

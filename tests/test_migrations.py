@@ -28,6 +28,7 @@ DATASET_TIMESTAMPS = "0007_dataset_timestamps"
 ORG_CREATED = "0008_organisation_created"
 HARVEST_TIMESTAMPS = "0009_harvest_source_timestamps"
 COLLECTION_DATE = "0010_collection_page_last_updated"
+LLM_CREATED_AT = "0011_llm_created_at"
 PREVIOUS = "0006_harvest_sources_stats_columns"
 
 # The dev server's timezone — deliberately not UTC, so a naive cast that
@@ -192,6 +193,51 @@ def test_collection_page_last_updated_converts_to_date(migration_db_url):
     _migrate(migration_db_url, "explorer", COLLECTION_DATE)
     # Every sample truncates to its date component; empty and null stay NULL.
     assert _read_collection_dates(migration_db_url) == {slug: expected for slug, (_v, expected) in DATE_SAMPLES.items()}
+
+
+def _read_llm_instants(url: str, table: str) -> dict[str, datetime | None]:
+    """Read each sample's created_at as a UTC-normalised instant. `table` is a
+    literal from this module, never user input."""
+    out: dict[str, datetime | None] = {}
+    with psycopg.connect(url) as conn, conn.cursor() as cur:
+        cur.execute(f"SET TIME ZONE '{SESSION_TZ}'")
+        for ckan_id in SAMPLES:
+            cur.execute(
+                f"SELECT t.created_at FROM {table} t JOIN datasets d ON d.id = t.dataset_id WHERE d.ckan_id = %s",
+                (ckan_id,),
+            )
+            got = cur.fetchone()[0]
+            out[ckan_id] = got.astimezone(UTC) if got is not None else None
+    return out
+
+
+def test_llm_created_at_is_pinned_to_utc(migration_db_url):
+    """reviews/suggestions.created_at (0011) share the datasets timezone trap
+    even though the live pipeline writes a trailing `Z` — assert every shape
+    lands on the same UTC instant."""
+    _migrate(migration_db_url, "explorer", COLLECTION_DATE)  # 0010: text created_at
+
+    with psycopg.connect(migration_db_url) as conn, conn.cursor() as cur:
+        cur.execute(f"SET TIME ZONE '{SESSION_TZ}'")
+        for ckan_id, (value, _expected) in SAMPLES.items():
+            cur.execute(
+                "INSERT INTO datasets (ckan_id, org_slug) VALUES (%s, 'test-org') RETURNING id",
+                (ckan_id,),
+            )
+            ds_id = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO reviews (dataset_id, created_at, json) VALUES (%s, %s, '{}')",
+                (ds_id, value),
+            )
+            cur.execute(
+                "INSERT INTO suggestions (dataset_id, created_at, json) VALUES (%s, %s, '{}')",
+                (ds_id, value),
+            )
+
+    _migrate(migration_db_url, "explorer", LLM_CREATED_AT)
+    expected = {ckan_id: expected for ckan_id, (_v, expected) in SAMPLES.items()}
+    assert _read_llm_instants(migration_db_url, "reviews") == expected
+    assert _read_llm_instants(migration_db_url, "suggestions") == expected
 
 
 def test_pipeline_connection_stores_naive_strings_as_utc(migration_db_url):

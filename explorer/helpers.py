@@ -23,13 +23,13 @@ THEME_LABELS = {
 def format_date(value: str | datetime | date | None) -> str:
     """Format a timestamp/date as dd/mm/yyyy.
 
-    Accepts a real `datetime`/`date` (the converted DB columns) and —
-    transitionally, while the timestamp columns are still being converted
-    slice by slice — a legacy ISO string. Naive datetimes are treated as
-    UTC (that is the DB convention now); aware ones are converted to UTC
-    before formatting so the displayed day can't shift with the session
-    timezone. Falsy input becomes an em-dash; an unparseable string is
-    returned unchanged.
+    Accepts a real `datetime`/`date` (the typed DB columns) and an ISO
+    string — the latter for values that come from JSON rather than a column
+    (dataset resource `last_modified`/`created`, harvest `next_run`). Naive
+    datetimes are treated as UTC (that is the DB convention now); aware ones
+    are converted to UTC before formatting so the displayed day can't shift
+    with the session timezone. Falsy input becomes an em-dash; an unparseable
+    string is returned unchanged.
     """
     if not value:
         return "—"

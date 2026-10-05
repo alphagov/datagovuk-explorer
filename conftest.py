@@ -566,7 +566,7 @@ def make_fixtures():
                 dataset_id=ckan_to_pk[record["dataset_id"]],
                 findability=record["title-description"]["score"],
                 resources=record["resources"]["score"],
-                created_at=record["reviewed_at"],
+                created_at=_utc(record["reviewed_at"]),
                 json=json.dumps(record),
             )
             for record in _REVIEWS
@@ -582,7 +582,7 @@ def make_fixtures():
                 tags=json.dumps(record["suggested_tags"]),
                 title=record["suggested_title"],
                 desc=record["suggested_description"],
-                created_at=record["classified_at"],
+                created_at=_utc(record["classified_at"]),
                 json=json.dumps(record),
             )
             for record in _SUGGESTIONS

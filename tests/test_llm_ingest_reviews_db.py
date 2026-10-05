@@ -8,6 +8,7 @@ DB — see ``tests/conftest.py``.
 """
 
 import json
+from datetime import UTC, datetime
 
 from scripts import db
 from scripts.llm.ingest_reviews import ingest
@@ -44,7 +45,7 @@ def test_ingest_round_trip(migrated_db_url):
                 "dataset_id": pk,
                 "findability": 2,
                 "resources": None,
-                "created_at": "2026-08-01T00:00:00Z",
+                "created_at": datetime(2026, 8, 1, tzinfo=UTC),
             },
         ]
         stored = d.prepare("SELECT json FROM reviews").get()

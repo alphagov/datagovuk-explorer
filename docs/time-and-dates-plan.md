@@ -1,18 +1,20 @@
 # Time and dates: replace text timestamps with real types
 
-> **Living document — updated after Phase 5 landed.**
-> Phases 0–2, 4 and 5 are done and committed. **Phase 3 (links) was
+> **Living document — updated after Phase 6 landed.**
+> Phases 0–2 and 4–6 are done and committed. **Phase 3 (links) was
 > implemented and then deliberately reverted** — see [Corrections](#corrections-to-this-plan)
-> #8. See [Status](#status) for what landed and [Next session](#next-session)
-> to resume at Phase 6.
+> #8. Phase 7 (cleanup) is done except the migration squash. See
+> [Status](#status) for what landed and [Next session](#next-session) for the
+> one remaining step.
 
 ## Status
 
 **Committed:** Phase 0+1 (`831ef68 refactor dates part 1`), Phase 2
 (`f10d973 refactor dates part 2`), the Phase 3 revert
 (`2c1aa75 refactor dates part 3`), Phase 4
-(`50c5e97 refactor dates part 4`) and Phase 5
-(`refactor dates part 5`). Working tree clean.
+(`50c5e97 refactor dates part 4`), Phase 5
+(`ada1bbe refactor dates part 5`) and Phase 6 (`refactor dates part 6`).
+Working tree clean.
 
 **Phase 3 (links) — reverted by decision.** `links.year_created` is kept as a
 pipeline-owned denormalisation: the `/links` year facet is hot, and the
@@ -55,24 +57,39 @@ harvest-sources phase.
   `COLLECTIONS_NULLS_LAST = {"page_last_updated"}`, so missing rows sort
   **last**. The fixture seed gives two collections a date and one NULL, so
   the `/collections` sort exercises both branches.
+- **Phase 6 — LLM ingest.** `reviews.created_at` / `suggestions.created_at`
+  → `DateTimeField`; migration `0011_llm_created_at` (forward-only, the same
+  timestamptz CASE). Both live columns are `Z`-suffixed with no empty/NULL
+  values. The pipeline `COPY`s the strings straight through and `db.py`
+  already pins UTC, so no script change was needed; the fixture seed wraps
+  the values in `_utc`, and the two scratch-DB ingest tests compare aware
+  datetimes rather than strings.
+- **Phase 7 — cleanup (squash pending).** `models.py`'s schema note and
+  `format_date`'s docstring no longer frame the string path as transitional
+  — it is still needed for **JSON** values (dataset resource dates, harvest
+  `next_run`), which are not columns (see [Corrections](#corrections-to-this-plan)
+  #12). The only work left is squashing the migrations.
 
-**Local dev DB is migrated** (`0010` applied): `datasets.metadata_created` /
+**Local dev DB is migrated** (`0011` applied): `datasets.metadata_created` /
 `metadata_modified`, `mv_org_aggregates.last_published`,
-`organisations.created`, `harvest_sources.created` / `last_run` are all
-`timestamptz`, and `collection_pages.page_last_updated` is `date`.
+`organisations.created`, `harvest_sources.created` / `last_run`,
+`reviews.created_at` / `suggestions.created_at` are all `timestamptz`, and
+`collection_pages.page_last_updated` is `date`. `links.created` stays text by
+[decision](#corrections-to-this-plan) #8.
 
-**Verified this session:** `tests/test_migrations.py` **5 passed** (the new
-collection test migrates up from `0009`, inserting a date-only value, a naive
-`T` timestamp, an empty and a NULL, and asserts the date/None results); full
-suite **418 passed** (one pre-existing failure, below); `just test-live`
-**3 passed**; live checks of `/collections`
-(`?sort=page_last_updated&dir=asc|desc` both 200 and chronological, no NULLs
-in the snapshot) and `/collections/environment/air-quality`, with the rows
-rendering `dd/mm/yyyy` (`24/03/2026`).
+**Verified this session:** `tests/test_migrations.py` **6 passed** (the new
+LLM test migrates up from `0010` and asserts the UTC instants for both
+tables); full suite **419 passed** (one pre-existing failure, below);
+`just test-live` **3 passed**; the migrated dev columns read back as aware
+`datetime`s.
 
-**Phase 5 files:** `explorer/models.py`,
-`explorer/migrations/0010_collection_page_last_updated.py` (new),
-`explorer/queries/collections.py`, `conftest.py`, `tests/test_migrations.py`.
+**Phase 6 files:** `explorer/models.py`,
+`explorer/migrations/0011_llm_created_at.py` (new), `conftest.py`,
+`tests/test_migrations.py`, `tests/test_llm_ingest_reviews_db.py`,
+`tests/test_llm_ingest_suggestions_db.py`.
+
+**Phase 7 files:** `explorer/models.py`, `explorer/helpers.py`,
+`explorer/tests/test_unit_helpers.py`.
 
 **Known pre-existing problems (not caused by this work):**
 
@@ -85,8 +102,8 @@ rendering `dd/mm/yyyy` (`24/03/2026`).
 - Local `pg_dump` is 17.4 against a 18.6 server, so `just dump-db` can't run
   until the client is upgraded.
 
-**Next:** Phase 6 (LLM ingest) is optional; Phase 7 (cleanup) is the real
-remainder. See [Next session](#next-session).
+**Next:** only the migration squash remains (Phase 7 tail). See
+[Next session](#next-session).
 
 ## Corrections to this plan
 
@@ -174,6 +191,15 @@ otherwise, **this section wins**.
     uses a dedicated `DATE_SAMPLES` (date-only, a naive `T` timestamp, empty,
     NULL) rather than the timestamptz `SAMPLES`, whose offset case would
     assert the wrong thing.
+12. **`format_date`'s string branch is permanent, not a bridge (Phase 7).**
+    The plan said to delete the `isinstance(value, str)` branch once every
+    DB column was typed. It cannot be deleted: `date_short` is also applied
+    to values that come from JSON, not columns — dataset resource
+    `last_modified`/`created` (`dataset.html:235`) and harvest `next_run`
+    (`views/harvesters.py:367`), both ISO strings. The cleanup instead
+    reframes the docstring/type hint (strings are JSON-sourced, not legacy
+    columns) and updates `models.py`'s schema note; the parsing behaviour is
+    unchanged and stays covered by `test_unit_helpers.py`.
 
 ## Summary
 
@@ -195,6 +221,10 @@ It is phased by user-facing slice, not landed as one migration — see
 template + test changes together.
 
 ## Current state
+
+> Historical: this is the state **before** the work. Every column below is
+> now typed (see [Status](#status)) except `links.created` / `links.year_created`,
+> which stay text by [decision](#corrections-to-this-plan) #8.
 
 | Table | Column | Type | Observed format |
 |---|---|---|---|
@@ -631,6 +661,18 @@ Phase 5 results:
   proves the cast and empty→NULL against a scratch DB migrating up from
   `0009`.
 
+Phase 6 results:
+
+- ✅ Live `reviews.created_at` / `suggestions.created_at` are all
+  `Z`-suffixed with no empty/NULL values; after migration both columns read
+  back as aware UTC `datetime`s.
+- ✅ `tests/test_migrations.py::test_llm_created_at_is_pinned_to_utc` migrates
+  up from `0010`, inserting every input shape into both tables, and asserts
+  the UTC instants.
+- ✅ `tests/test_llm_ingest_reviews_db.py` / `..._suggestions_db.py` run the
+  real COPY ingest end to end and now compare `datetime(2026, 8, 1, tzinfo=UTC)`
+  rather than the old string.
+
 ## Risks and non-goals
 
 - **Timezone trap (highest risk).** Casting naive text directly to
@@ -681,45 +723,29 @@ that constrains the order:
 | 3 | ↩︎ reverted | Links | `links.created`; **drop** `year_created` | `/links`, `/links/errors` | **Deliberately not done.** Keeping the pipeline-owned `year_created` denormalisation beats the dataset join on every hot `/links` facet pool; `links.created` is unread. See [Corrections](#corrections-to-this-plan) #8. |
 | 4 | ✅ done | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Migration `0009` (forward-only), 25 empty `last_run` → NULL. `HARVESTER_SORT["last_run"]` is plain + `HARVESTER_NULLS_LAST`, so missing rows now sort **last** ascending (they sorted first under `COALESCE`). `scripts/build_harvester_stats.py` cast + empty-NULL fix ([Corrections](#corrections-to-this-plan) #9); templates already formatted (#10). |
 | 5 | ✅ done | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. Migration `0010` (forward-only, `NULLIF(col, '')::date`); `COLLECTIONS_NULLS_LAST` added so missing rows sort last; templates already used `date_short`. |
-| 6 | ⬜ | LLM ingest | `reviews.created_at`, `suggestions.created_at` | none | Optional. `Z`-suffixed; never read by the app. |
-| 7 | ⬜ | Cleanup | — | all | Drop the `format_date` `isinstance` bridge; rewrite the `models.py` schema note; remove the text-timestamp sections from this doc; then squash migrations. |
+| 6 | ✅ done | LLM ingest | `reviews.created_at`, `suggestions.created_at` | none | Migration `0011` (forward-only, same timestamptz CASE). `Z`-suffixed; never read by the app; no script change (COPY + UTC-pinned session). Fixture seed wraps in `_utc`; scratch-DB tests compare aware datetimes. |
+| 7 | 🟡 partial | Cleanup | — | all | ✅ `models.py` schema note and `format_date` docstring rewritten (the string branch is permanent — JSON values, not columns; [Corrections](#corrections-to-this-plan) #12). ⬜ squash migrations (see [Next session](#next-session)). |
 
-Sequencing is additive: phases 1–2 and 4–5 are done; the remaining phases
-have no order dependency on each other (phase 3 is dropped — see
+Sequencing is additive: phases 1–2 and 4–6 are done; phase 3 is dropped and
+phase 7 is down to the migration squash (see
 [Corrections](#corrections-to-this-plan) #8).
 
 ## Next session
 
-Resume at **Phase 6 — LLM ingest** (`reviews.created_at`,
-`suggestions.created_at`) or **Phase 7 — cleanup**, in either order.
+Phases 0–2 and 4–6 are done; phase 3 was dropped; the Phase 7 code cleanup
+is done. **One step remains: squash the migrations.**
 
-### Phase 6 (optional — nothing reads these columns)
+`explorer/migrations/0001_initial.py` … `0011_llm_created_at.py` can be
+squashed (`manage.py squashmigrations explorer 0001 0011`). Things to watch:
 
-Both values carry a trailing `Z`, so the shared timestamptz CASE from
-0007–0009 applies unchanged (the offset branch handles it; no `AT TIME
-ZONE` needed, though the CASE keeps them uniform).
-
-- **Migration** `0011_llm_created_at`, forward-only (no `reverse_sql`) — see
-  [Corrections](#corrections-to-this-plan) #4.
-- **`explorer/models.py`:** `Review.created_at` / `Suggestion.created_at` →
-  `DateTimeField`.
-- **Writers:** `scripts/llm/ingest_reviews.py` / `ingest_suggestions.py` pass
-  the `Z` strings straight through; `scripts/db.py` already pins UTC, and
-  `::timestamptz` accepts `Z` (verified) — no script change expected.
-- **Tests:** conversion test from `0010` in `tests/test_migrations.py`;
-  check `tests/test_llm_ingest_*_db.py` doesn't compare strings (the model
-  JSON already keeps the raw string, so likely fine).
-
-### Phase 7 (cleanup)
-
-- **Drop the bridge:** `helpers.format_date` no longer needs the `str`
-  branch (keep `datetime` / `date` / falsy). Delete the legacy
-  `datetime.fromisoformat` path and the transitional docstring.
-- **`models.py` schema note:** the top-of-file note still frames timestamps
-  as text; rewrite it to say every timestamp is a real instant
-  (`timestamptz`, or `date` where the value is date-only).
-- **This doc:** remove the text-timestamp framing (Current state / Target
-  model / Migration / Data preservation / Risks) once no column is text;
-  keep the conversion history as a short note.
-- **Squash migrations** after all phases land.
-- Re-run `just test`, `just test-live`, `just lint`.
+- The squashed migration keeps the `RunSQL` conversions in order, so a fresh
+  DB still creates the text columns and then alters them. That is correct but
+  not shorter — the win is file count, not DDL.
+- Existing dev/Railway DBs have `0001`–`0011` applied; Django treats the
+  squashed migration as applied when every migration in its `replaces` list
+  is applied, so no `--fake` should be needed. Confirm with a dry run before
+  deleting the replaced files.
+- Verify on a scratch DB from empty (this is what `just fresh-db` does, but a
+  local `pg_dump`/17.4 against the 18.6 server blocks the full path — a plain
+  `migrate` on a fresh database is enough for the schema check).
+- Then `just test`, `just test-live`, `just lint`.
