@@ -88,7 +88,7 @@ build-db: migrate
 # Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Use when tweaking the API detection algorithm.
 build-dataset-api:
-    uv run --env-file .env python -m scripts.ingest_ckan dataset-api
+    uv run --env-file .env python -m scripts.build_dataset_api
 
 # Reload dataset view counts from GA page views, GA Google landing pages,
 # and Search Console clicks — fast, no full rebuild needed.
