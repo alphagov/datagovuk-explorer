@@ -34,7 +34,7 @@ GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-apr-aug.csv"
 # sampling noise (a handful of opted-in landings against many Search Console
 # clicks) and would otherwise inflate views without bound. ~0.10 is the
 # corpus-wide pooled rate; see docs/ga-opt-in-analysis.md. Kept in sync with
-# scripts/build_db.py.
+# scripts/ingest_views.py.
 CONSENT_RATE_FLOOR = 0.10
 
 EMBED_URL = "http://localhost:8080/v1/embeddings"

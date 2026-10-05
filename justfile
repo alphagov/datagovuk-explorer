@@ -93,7 +93,7 @@ build-dataset-api:
 # Reload dataset view counts from GA page views, GA Google landing pages,
 # and Search Console clicks — fast, no full rebuild needed.
 ingest-views:
-    uv run --env-file .env python -m scripts.ingest_ckan views
+    uv run --env-file .env python -m scripts.ingest_views
 
 # Rebuild just the dataset_content_hash table (TRUNCATE + INSERT) — fast,
 # no full rebuild needed. Use when tweaking the duplicate-detection hash.
