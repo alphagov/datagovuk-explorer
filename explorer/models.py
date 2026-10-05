@@ -422,19 +422,16 @@ class SeriesDataset(models.Model):
 
 
 class Review(models.Model):
-    """One row per dataset — exactly one LLM quality-score record per dataset_id.
+    """One row per CKAN dataset guid — one LLM quality-score record each.
 
-    Ingest is TRUNCATE + COPY; failed (ok:false) records are skipped at ingest
-    time so the one-per-dataset invariant is enforced here as a UNIQUE constraint.
+    dataset_ckan_id is the stable external key; datasets.id is reassigned on
+    every rebuild, so there is no FK (same pattern as link_check_results keyed
+    by url). Ingest is TRUNCATE + COPY and failed (ok:false) records are
+    skipped, so one-per-dataset is a UNIQUE constraint.
     """
 
     id = models.AutoField(primary_key=True)
-    dataset = models.ForeignKey(
-        Dataset,
-        on_delete=models.CASCADE,
-        db_column="dataset_id",
-        db_index=False,
-    )
+    dataset_ckan_id = models.TextField()
     findability = models.IntegerField(blank=True, null=True)
     resources = models.IntegerField(blank=True, null=True)
     created_at = models.DateTimeField(blank=True, null=True)
@@ -445,30 +442,26 @@ class Review(models.Model):
         db_table = "reviews"
         constraints = [
             models.UniqueConstraint(
-                fields=["dataset"],
+                fields=["dataset_ckan_id"],
                 include=["findability", "resources"],
                 name="uniq_reviews_dataset",
             ),
         ]
 
     def __str__(self):
-        return str(self.dataset)
+        return self.dataset_ckan_id
 
 
 class Suggestion(models.Model):
-    """One row per dataset — exactly one LLM suggestion record per dataset_id.
+    """One row per CKAN dataset guid — one LLM suggestion record each.
 
-    Ingest is TRUNCATE + COPY; failed (ok:false) records are skipped at ingest
-    time so the one-per-dataset invariant is enforced here as a UNIQUE constraint.
+    Keyed by dataset_ckan_id for the same reason as Review; no FK. Ingest is
+    TRUNCATE + COPY and failed (ok:false) records are skipped, so
+    one-per-dataset is a UNIQUE constraint.
     """
 
     id = models.AutoField(primary_key=True)
-    dataset = models.ForeignKey(
-        Dataset,
-        on_delete=models.CASCADE,
-        db_column="dataset_id",
-        db_index=False,
-    )
+    dataset_ckan_id = models.TextField()
     theme = models.TextField(blank=True, null=True)
     theme_confidence = models.TextField(blank=True, null=True)
     tags = models.TextField(blank=True, null=True)
@@ -482,14 +475,14 @@ class Suggestion(models.Model):
         db_table = "suggestions"
         constraints = [
             models.UniqueConstraint(
-                fields=["dataset"],
+                fields=["dataset_ckan_id"],
                 include=["theme", "theme_confidence", "tags", "title", "desc"],
                 name="uniq_suggestions_dataset",
             ),
         ]
 
     def __str__(self):
-        return self.title or str(self.dataset)
+        return self.title or self.dataset_ckan_id
 
 
 class LinkCheckResult(models.Model):

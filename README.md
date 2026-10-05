@@ -57,10 +57,11 @@ then all derived tables in order (dataset_years, FTS, views, metadata,
 dataset_api, dataset_content_hash). Each derived-table script is also a
 standalone recipe, so individual tables can be rebuilt without a full run.
 
-`ingest-reviews` and `ingest-suggestions` are required steps after every
-`build-db` (or full rebuild): the build only populates the pipeline tables
-and leaves `reviews` and `suggestions` empty, so the Reviews, Suggestions
-and dataset-review UI all show nothing until they're run. Both are
+`ingest-reviews` and `ingest-suggestions` load the LLM output into the
+`reviews` and `suggestions` tables. Both are keyed by the CKAN dataset
+guid (`dataset_ckan_id`), not the local integer pk, so they survive a
+`build-db`/`ingest_ckan` rebuild — you only need to run them on a fresh
+DB, or after a new `review`/`suggest` run produces files. Both are
 idempotent (TRUNCATE + reload), so running them again is always safe.
 
 Embeddings (semantic search over datasets) are optional: run

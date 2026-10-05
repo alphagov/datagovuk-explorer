@@ -24,25 +24,25 @@ def rec(dataset_id, **over):
 def test_ingest_round_trip(migrated_db_url):
     d = db.connect(migrated_db_url)
     try:
-        pk = d.prepare(
-            "INSERT INTO datasets (ckan_id, org_slug) VALUES (?, ?) RETURNING id",
-        ).get("ir-1", "alpha")["id"]
+        d.prepare(
+            "INSERT INTO datasets (ckan_id, org_slug) VALUES (?, ?)",
+        ).run("ir-1", "alpha")
         records = [
             rec(
                 "ir-1",
                 **{"title-description": {"score": 2}},
                 reviewed_at="2026-08-01T00:00:00Z",
             ),
-            rec("ir-absent"),  # not in datasets -> dropped by the FK guard
+            rec("ir-absent"),  # not in datasets -> dropped by the existence guard
         ]
 
         assert ingest(d, records) == 1
 
         assert d.prepare(
-            "SELECT dataset_id, findability, resources, created_at FROM reviews",
+            "SELECT dataset_ckan_id, findability, resources, created_at FROM reviews",
         ).all() == [
             {
-                "dataset_id": pk,
+                "dataset_ckan_id": "ir-1",
                 "findability": 2,
                 "resources": None,
                 "created_at": datetime(2026, 8, 1, tzinfo=UTC),

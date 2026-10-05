@@ -23,9 +23,9 @@ def rec(dataset_id, **over):
 def test_ingest_round_trip(migrated_db_url):
     d = db.connect(migrated_db_url)
     try:
-        pk = d.prepare(
-            "INSERT INTO datasets (ckan_id, org_slug) VALUES (?, ?) RETURNING id",
-        ).get("is-1", "alpha")["id"]
+        d.prepare(
+            "INSERT INTO datasets (ckan_id, org_slug) VALUES (?, ?)",
+        ).run("is-1", "alpha")
         records = [
             rec(
                 "is-1",
@@ -36,16 +36,16 @@ def test_ingest_round_trip(migrated_db_url):
                 suggested_description="D",
                 classified_at="2026-08-01T00:00:00Z",
             ),
-            rec("is-absent"),  # not in datasets -> dropped by the FK guard
+            rec("is-absent"),  # not in datasets -> dropped by the existence guard
         ]
 
         assert ingest(d, records) == 1
 
         assert d.prepare(
-            'SELECT dataset_id, theme, theme_confidence, tags, title, "desc", created_at FROM suggestions',
+            'SELECT dataset_ckan_id, theme, theme_confidence, tags, title, "desc", created_at FROM suggestions',
         ).all() == [
             {
-                "dataset_id": pk,
+                "dataset_ckan_id": "is-1",
                 "theme": "environment",
                 "theme_confidence": "high",
                 "tags": json.dumps(["env", "climate"], ensure_ascii=False),

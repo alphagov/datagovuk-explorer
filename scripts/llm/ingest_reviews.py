@@ -53,24 +53,27 @@ def _subscore(r: dict, key: str):
 
 
 def ingest(db, records: list[dict]) -> int:
-    """Truncate + COPY ok records whose dataset exists locally; returns inserted count."""
+    """Truncate + COPY ok records whose dataset exists locally; returns inserted count.
+
+    Source records are already keyed by CKAN guid, so they are copied straight
+    through — no id mapping.
+    """
     ids = [r["dataset_id"] for r in records]
-    rows = db.prepare("SELECT id, ckan_id FROM datasets WHERE ckan_id = ANY(?)").all(ids)
+    rows = db.prepare("SELECT ckan_id FROM datasets WHERE ckan_id = ANY(?)").all(ids)
     existing = {row["ckan_id"] for row in rows}
-    id_map = {row["ckan_id"]: row["id"] for row in rows}
     present = [r for r in records if r.get("ok") and r["dataset_id"] in existing]
     skipped = len(records) - len(present)
     if skipped:
         print(f"Skipped {skipped} review(s) — ok:false or dataset not in local DB.")
 
-    copy_sql = "COPY reviews (dataset_id, findability, resources, created_at, json) FROM STDIN"
+    copy_sql = "COPY reviews (dataset_ckan_id, findability, resources, created_at, json) FROM STDIN"
     with db.conn.transaction(), db.conn.cursor() as cur:
         cur.execute("TRUNCATE reviews RESTART IDENTITY")
         with cur.copy(copy_sql) as copy:
             for r in present:
                 copy.write_row(
                     (
-                        id_map[r["dataset_id"]],
+                        r["dataset_id"],
                         _subscore(r, "title-description"),
                         _subscore(r, "resources"),
                         r.get("reviewed_at"),

@@ -2,7 +2,8 @@
 
 Suggestions (theme/tags/title/desc) come from the ``suggestions`` table
 (populated by scripts/llm/ingest_suggestions.py). Ingest is TRUNCATE + COPY —
-exactly one row per dataset_id — so no dedup is needed at query time."""
+exactly one row per CKAN guid — so no dedup is needed at query time. Join via
+datasets.ckan_id."""
 
 import json
 
@@ -12,12 +13,12 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 
 # --- Single-record lookup ---
 
-_SUGGESTION_FOR = Query("SELECT json FROM suggestions WHERE dataset_id = %s")
+_SUGGESTION_FOR = Query("SELECT json FROM suggestions WHERE dataset_ckan_id = %s")
 
 
-def get_classification(dataset_id: int) -> dict | None:
-    """Latest ok suggestion for one dataset id (integer PK), or None."""
-    rows = _SUGGESTION_FOR.all(dataset_id)
+def get_classification(dataset_ckan_id: str) -> dict | None:
+    """Latest ok suggestion for one CKAN dataset guid, or None."""
+    rows = _SUGGESTION_FOR.all(dataset_ckan_id)
     if not rows:
         return None
     raw = json.loads(rows[0]["json"])
@@ -34,7 +35,7 @@ def get_classification(dataset_id: int) -> dict | None:
 # One facet: suggested theme (?theme=). The join to `datasets` supplies
 # the *current* title/org/theme/tags.
 
-_SUGGESTIONS_FROM = "suggestions r JOIN datasets d ON d.id = r.dataset_id"
+_SUGGESTIONS_FROM = "suggestions r JOIN datasets d ON d.ckan_id = r.dataset_ckan_id"
 
 # Text columns sort case-insensitively; confidence maps high/medium/low to
 # 3/2/1 (so default asc lists the least confident first). `theme` sorts on
@@ -84,7 +85,7 @@ def _suggestions_facet_where(filters: dict, exclude: str | None = None) -> tuple
 def suggestions_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = _suggestions_facet_where(filters)
-    order_sql = order_by(SUGGESTIONS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.dataset_id")
+    order_sql = order_by(SUGGESTIONS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.dataset_ckan_id")
 
     return {
         "params": params,

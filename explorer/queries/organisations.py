@@ -302,7 +302,7 @@ _ORG_LIST_SELECT = (
 
 # ── /organisations/reviews — per-publisher average review scores ──
 
-_PUBLISHER_REVIEWS_FROM = "reviews r JOIN datasets d ON d.id = r.dataset_id"
+_PUBLISHER_REVIEWS_FROM = "reviews r JOIN datasets d ON d.ckan_id = r.dataset_ckan_id"
 
 PUBLISHER_REVIEWS_SORT = {
     "name": "LOWER(COALESCE(MAX(d.org_display_name), d.org_slug))",

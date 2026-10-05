@@ -562,7 +562,7 @@ def make_fixtures():
     Review.objects.bulk_create(
         [
             Review(
-                dataset_id=ckan_to_pk[record["dataset_id"]],
+                dataset_ckan_id=record["dataset_id"],
                 findability=record["title-description"]["score"],
                 resources=record["resources"]["score"],
                 created_at=_utc(record["reviewed_at"]),
@@ -575,7 +575,7 @@ def make_fixtures():
     Suggestion.objects.bulk_create(
         [
             Suggestion(
-                dataset_id=ckan_to_pk[record["dataset_id"]],
+                dataset_ckan_id=record["dataset_id"],
                 theme=record["suggested_theme"],
                 theme_confidence=record["suggested_theme_confidence"],
                 tags=json.dumps(record["suggested_tags"]),

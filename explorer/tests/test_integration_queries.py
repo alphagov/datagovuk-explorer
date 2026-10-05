@@ -480,10 +480,9 @@ def test_latest_reviews_one_per_dataset():
     assert len(ids) == len(set(ids)), "one review per dataset"
 
 
-def test_get_review_returns_review(fixtures):
+def test_get_review_returns_review():
     """get_review returns the single review for d01 (findability 5)."""
-    pk = fixtures["ckan_to_pk"]["d01"]
-    rev = get_review(pk)
+    rev = get_review("d01")
     assert rev is not None
     assert rev["dataset_id"] == "d01"
     assert rev["title-description"]["score"] == 5
@@ -491,17 +490,16 @@ def test_get_review_returns_review(fixtures):
 
 
 def test_get_review_missing():
-    assert get_review(-1) is None
+    assert get_review("no-such-ckan-id") is None
 
 
-def test_get_classification(fixtures):
+def test_get_classification():
     """get_classification reads from the suggestions table."""
-    pk = fixtures["ckan_to_pk"]["d01"]
-    cls = get_classification(pk)
+    cls = get_classification("d01")
     assert cls is not None
     assert cls["dataset_id"] == "d01"
     assert cls.get("suggested_theme") is not None
 
 
 def test_get_classification_missing():
-    assert get_classification(-1) is None
+    assert get_classification("no-such-ckan-id") is None

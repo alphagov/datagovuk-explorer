@@ -2,7 +2,7 @@
 
 Reviews (quality scores) come from the ``reviews`` table (populated by
 scripts/llm/ingest_reviews.py). Ingest is TRUNCATE + COPY — exactly one row
-per dataset_id — so no dedup is needed at query time."""
+per CKAN guid — so no dedup is needed at query time. Join via datasets.ckan_id."""
 
 import json
 from functools import cache
@@ -14,12 +14,12 @@ from .core import Query, cached_unfiltered, facet_where, fetch_parallel
 # ---------------------------------------------------------------------------
 # Reviews — quality scores from the `reviews` table
 # ---------------------------------------------------------------------------
-# One row per dataset_id (enforced by UNIQUE constraint). json is TEXT,
+# One row per dataset_ckan_id (enforced by UNIQUE constraint). json is TEXT,
 # so it comes back as a plain string the views json.loads.
 
-_LATEST_REVIEWS = Query("SELECT json FROM reviews ORDER BY dataset_id")
+_LATEST_REVIEWS = Query("SELECT json FROM reviews ORDER BY dataset_ckan_id")
 
-_REVIEW_FOR = Query("SELECT json FROM reviews WHERE dataset_id = %s")
+_REVIEW_FOR = Query("SELECT json FROM reviews WHERE dataset_ckan_id = %s")
 
 
 @cache
@@ -28,9 +28,9 @@ def latest_reviews() -> list[dict]:
     return [json.loads(row["json"]) for row in _LATEST_REVIEWS.all()]
 
 
-def get_review(dataset_id: int) -> dict | None:
-    """Review for one dataset id (integer PK), or None."""
-    rows = _REVIEW_FOR.all(dataset_id)
+def get_review(dataset_ckan_id: str) -> dict | None:
+    """Review for one CKAN dataset guid, or None."""
+    rows = _REVIEW_FOR.all(dataset_ckan_id)
     if not rows:
         return None
     return json.loads(rows[0]["json"])
@@ -116,8 +116,8 @@ def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
 def reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = _facet_where(filters)
-    order_sql = order_by(REVIEWS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.dataset_id")
-    from_sql = "reviews r JOIN datasets d ON d.id = r.dataset_id"
+    order_sql = order_by(REVIEWS_SORT, sort, dir_, "LOWER(COALESCE(d.title, '')), r.dataset_ckan_id")
+    from_sql = "reviews r JOIN datasets d ON d.ckan_id = r.dataset_ckan_id"
 
     return {
         "params": params,
@@ -142,7 +142,7 @@ def _facet_pool(filters: dict, key: str) -> Query:
     where, _ = _facet_where(filters, exclude=key)
     return Query(
         f"SELECT COALESCE(r.{key}::text, '__none__') AS value, COUNT(*) AS count"
-        f" FROM reviews r JOIN datasets d ON d.id = r.dataset_id{where}"
+        f" FROM reviews r JOIN datasets d ON d.ckan_id = r.dataset_ckan_id{where}"
         f" GROUP BY COALESCE(r.{key}::text, '__none__')",
     )
 
@@ -161,7 +161,7 @@ def reviews_facet_counts(filters: dict) -> dict:
     pub_q = Query(
         "SELECT d.org_slug AS value,"
         f"       {_PUBLISHER_NAME} AS name, COUNT(*) AS count"
-        f" FROM reviews r JOIN datasets d ON d.id = r.dataset_id{pub_where}"
+        f" FROM reviews r JOIN datasets d ON d.ckan_id = r.dataset_ckan_id{pub_where}"
         " GROUP BY d.org_slug"
         f" ORDER BY count DESC, LOWER({_PUBLISHER_NAME})",
     )
