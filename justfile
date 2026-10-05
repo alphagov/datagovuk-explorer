@@ -82,6 +82,7 @@ migrate:
 # build populates. Run `just build-embeddings` afterwards for embeddings.
 build-db: migrate
     uv run --env-file .env python -m scripts.ingest_ckan
+    uv run --env-file .env python -m scripts.build_series
     uv run --env-file .env python -m scripts.build_dataset_years
     uv run --env-file .env python -m scripts.build_fts
     uv run --env-file .env python -m scripts.ingest_views
@@ -129,6 +130,7 @@ fresh-db db_name="datagovuk_explorer":
     @createdb "{{db_name}}" 2>/dev/null && echo "created {{db_name}}" || echo "{{db_name}} already exists"
     uv run --env-file .env python manage.py migrate
     uv run --env-file .env python -m scripts.ingest_ckan
+    uv run --env-file .env python -m scripts.build_series
     uv run --env-file .env python -m scripts.build_dataset_years
     uv run --env-file .env python -m scripts.build_fts
     uv run --env-file .env python -m scripts.ingest_views

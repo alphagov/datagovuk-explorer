@@ -449,7 +449,7 @@ def normalise_format(raw):
 TRUNCATE_SQL = (
     "TRUNCATE TABLE embedding_map, dataset_embeddings, "
     "links, temporal_periods, dataset_json, datasets, "
-    "organisations, harvest_sources CASCADE"
+    "organisations, harvest_sources RESTART IDENTITY CASCADE"
 )
 
 

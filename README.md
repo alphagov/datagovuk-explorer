@@ -53,9 +53,11 @@ already exists you can run `just build-db` instead — it runs `migrate`
 first too, so missing tables are never a thing to remember.
 
 `build-db` runs the full pipeline sequence: core ingestion (`ingest_ckan`),
-then all derived tables in order (dataset_years, FTS, views, metadata,
+then all derived tables in order (series, dataset_years, FTS, views, metadata,
 dataset_api, dataset_content_hash). Each derived-table script is also a
 standalone recipe, so individual tables can be rebuilt without a full run.
+`build-series` is part of this sequence — it must re-run after `ingest_ckan`
+because series link to datasets by the local integer id.
 
 `ingest-reviews` and `ingest-suggestions` load the LLM output into the
 `reviews` and `suggestions` tables. Both are keyed by the CKAN dataset
