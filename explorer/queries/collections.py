@@ -11,11 +11,15 @@ COLLECTIONS_SORT = {
     "title": "LOWER(COALESCE(c.title, ''))",
     "collection": "LOWER(c.collection)",
     "views": "COALESCE(c.views, 0)",
-    "page_last_updated": "COALESCE(c.page_last_updated, '')",
+    "page_last_updated": "c.page_last_updated",
     "related": "COALESCE(c.related_count, 0)",
 }
 
 COLLECTIONS_SORT_DEFAULT = ("views", "desc")
+
+# page_last_updated is a nullable real date — missing values sort last like
+# the other date columns (see sort.order_by).
+COLLECTIONS_NULLS_LAST = frozenset({"page_last_updated"})
 
 COLLECTION_TOTAL = Query("SELECT COUNT(*) AS n FROM collection_pages")
 
@@ -44,7 +48,7 @@ def _facet_where(filters: dict, exclude: str | None = None) -> tuple[str, list]:
 def collections_stmts(filters: dict, sort: str, dir_: str) -> dict:
     """Return { count, list, params } for one (filters, sort, dir) combo."""
     where, params = _facet_where(filters)
-    order_sql = order_by(COLLECTIONS_SORT, sort, dir_, "c.slug")
+    order_sql = order_by(COLLECTIONS_SORT, sort, dir_, "c.slug", nulls_last=COLLECTIONS_NULLS_LAST)
 
     return {
         "params": params,

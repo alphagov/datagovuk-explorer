@@ -591,9 +591,27 @@ def make_fixtures():
 
     Collection.objects.bulk_create(
         [
-            Collection(slug="environment/air-quality", collection="environment", title="Air quality", views=200),
-            Collection(slug="environment/flood-risk", collection="environment", title="Flood risk", views=150),
-            Collection(slug="transport/roads", collection="transport", title="Roads", views=80),
+            Collection(
+                slug="environment/air-quality",
+                collection="environment",
+                title="Air quality",
+                page_last_updated="2026-03-24",
+                views=200,
+            ),
+            Collection(
+                slug="environment/flood-risk",
+                collection="environment",
+                title="Flood risk",
+                page_last_updated=None,
+                views=150,
+            ),
+            Collection(
+                slug="transport/roads",
+                collection="transport",
+                title="Roads",
+                page_last_updated="2025-01-15",
+                views=80,
+            ),
         ],
     )
 

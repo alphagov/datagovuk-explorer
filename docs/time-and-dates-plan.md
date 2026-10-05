@@ -1,17 +1,18 @@
 # Time and dates: replace text timestamps with real types
 
-> **Living document — updated after Phase 4 landed.**
-> Phases 0–2 and 4 are done and committed. **Phase 3 (links) was implemented
-> and then deliberately reverted** — see [Corrections](#corrections-to-this-plan)
+> **Living document — updated after Phase 5 landed.**
+> Phases 0–2, 4 and 5 are done and committed. **Phase 3 (links) was
+> implemented and then deliberately reverted** — see [Corrections](#corrections-to-this-plan)
 > #8. See [Status](#status) for what landed and [Next session](#next-session)
-> to resume at Phase 5.
+> to resume at Phase 6.
 
 ## Status
 
 **Committed:** Phase 0+1 (`831ef68 refactor dates part 1`), Phase 2
 (`f10d973 refactor dates part 2`), the Phase 3 revert
-(`2c1aa75 refactor dates part 3`) and Phase 4
-(`50c5e97 refactor dates part 4`). Working tree clean.
+(`2c1aa75 refactor dates part 3`), Phase 4
+(`50c5e97 refactor dates part 4`) and Phase 5
+(`refactor dates part 5`). Working tree clean.
 
 **Phase 3 (links) — reverted by decision.** `links.year_created` is kept as a
 pipeline-owned denormalisation: the `/links` year facet is hot, and the
@@ -47,28 +48,31 @@ harvest-sources phase.
   `scripts/build_harvester_stats.py` now casts its json-derived text to
   timestamptz and maps `''`/`"None"` to NULL (a bare `''` can no longer be
   assigned).
+- **Phase 5 — collection pages.** `collection_pages.page_last_updated` →
+  `DateField`; migration `0010_collection_page_last_updated` (forward-only,
+  plain `NULLIF(col, '')::date` — no timezone applies).
+  `COLLECTIONS_SORT["page_last_updated"]` is now the plain column with
+  `COLLECTIONS_NULLS_LAST = {"page_last_updated"}`, so missing rows sort
+  **last**. The fixture seed gives two collections a date and one NULL, so
+  the `/collections` sort exercises both branches.
 
-**Local dev DB is migrated** (`0009` applied): `datasets.metadata_created` /
+**Local dev DB is migrated** (`0010` applied): `datasets.metadata_created` /
 `metadata_modified`, `mv_org_aggregates.last_published`,
-`organisations.created` and `harvest_sources.created` / `last_run` are all
-`timestamptz`.
+`organisations.created`, `harvest_sources.created` / `last_run` are all
+`timestamptz`, and `collection_pages.page_last_updated` is `date`.
 
-**Verified this session:** `tests/test_migrations.py` **4 passed** (the new
-harvest-sources conversion test inserts a naive `T`, a space-separated, a
-`Z`, a date-only, an offset, an empty and a NULL sample into both columns and
-asserts the UTC instants, with empty → NULL); full suite **417 passed** (one
-pre-existing failure, below); `just test-live` **3 passed**; live checks of
-`harvest_sources_stmts` sorting `last_run` asc/desc (`NULLS LAST` holds),
-`scripts/build_harvester_stats` re-run against the migrated dev DB
-(idempotent — 29 NULLs, instants unchanged), and rendered pages
-(`/harvesters` last_run cells and `/harvester/:id` Created/Last run both
-`dd/mm/yyyy`).
+**Verified this session:** `tests/test_migrations.py` **5 passed** (the new
+collection test migrates up from `0009`, inserting a date-only value, a naive
+`T` timestamp, an empty and a NULL, and asserts the date/None results); full
+suite **418 passed** (one pre-existing failure, below); `just test-live`
+**3 passed**; live checks of `/collections`
+(`?sort=page_last_updated&dir=asc|desc` both 200 and chronological, no NULLs
+in the snapshot) and `/collections/environment/air-quality`, with the rows
+rendering `dd/mm/yyyy` (`24/03/2026`).
 
-**Phase 4 files:** `explorer/models.py`,
-`explorer/migrations/0009_harvest_source_timestamps.py` (new),
-`explorer/queries/harvesters.py`, `scripts/build_harvester_stats.py`,
-`conftest.py`, `tests/test_migrations.py`,
-`tests/test_build_harvester_stats_db.py` (new).
+**Phase 5 files:** `explorer/models.py`,
+`explorer/migrations/0010_collection_page_last_updated.py` (new),
+`explorer/queries/collections.py`, `conftest.py`, `tests/test_migrations.py`.
 
 **Known pre-existing problems (not caused by this work):**
 
@@ -81,7 +85,8 @@ pre-existing failure, below); `just test-live` **3 passed**; live checks of
 - Local `pg_dump` is 17.4 against a 18.6 server, so `just dump-db` can't run
   until the client is upgraded.
 
-**Next:** Phase 5 (Collection pages). See [Next session](#next-session).
+**Next:** Phase 6 (LLM ingest) is optional; Phase 7 (cleanup) is the real
+remainder. See [Next session](#next-session).
 
 ## Corrections to this plan
 
@@ -160,6 +165,15 @@ otherwise, **this section wins**.
     and `organisation.html` applies `date_short` itself — so no template
     change was needed. The `format_date` bridge handles the now-`datetime`
     values unchanged.
+11. **A `::date` cast does not normalise to UTC (Phase 5).** Postgres
+    truncates the *written* date portion rather than converting the instant:
+    `'2021-01-31T23:30:00-05:00'::date` is `2021-01-31`, not `2021-02-01`.
+    That is fine here — every live `page_last_updated` is exactly
+    `YYYY-MM-DD` with no time or offset (verified: 17 distinct values across
+    83 rows, all date-only), so there is no zone to apply. The migration test
+    uses a dedicated `DATE_SAMPLES` (date-only, a naive `T` timestamp, empty,
+    NULL) rather than the timestamptz `SAMPLES`, whose offset case would
+    assert the wrong thing.
 
 ## Summary
 
@@ -606,6 +620,17 @@ Phase 1 results:
   mattered, `l.year_created = EXTRACT(YEAR FROM d.metadata_created)::text`, was
   run anyway and held for all 218,739 links, then `year_created` was kept.)
 
+Phase 5 results:
+
+- ✅ Live `page_last_updated` values are all date-only (17 distinct dates
+  across 83 rows; none empty or NULL) — the `::date` cast is lossless.
+- ✅ `/collections` (`?sort=page_last_updated&dir=asc|desc`) and
+  `/collections/environment/air-quality` return 200; asc/desc come back
+  chronological and the rows render `dd/mm/yyyy` (`24/03/2026`).
+- ✅ `tests/test_migrations.py::test_collection_page_last_updated_converts_to_date`
+  proves the cast and empty→NULL against a scratch DB migrating up from
+  `0009`.
+
 ## Risks and non-goals
 
 - **Timezone trap (highest risk).** Casting naive text directly to
@@ -655,37 +680,46 @@ that constrains the order:
 | 2 | ✅ done | Organisations | `organisations.created` | `/organisations`, `/organisation/:slug` | Org-created facet (`organisations.py:77,217-219`); drop `_YEAR_CREATED_GUARD` (`:128`); `YEARLY_ORGS`. `ORG_SORT` already plain + `nulls_last`. Forward-only migration. Fixture seed converts `created` to aware UTC. |
 | 3 | ↩︎ reverted | Links | `links.created`; **drop** `year_created` | `/links`, `/links/errors` | **Deliberately not done.** Keeping the pipeline-owned `year_created` denormalisation beats the dataset join on every hot `/links` facet pool; `links.created` is unread. See [Corrections](#corrections-to-this-plan) #8. |
 | 4 | ✅ done | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Migration `0009` (forward-only), 25 empty `last_run` → NULL. `HARVESTER_SORT["last_run"]` is plain + `HARVESTER_NULLS_LAST`, so missing rows now sort **last** ascending (they sorted first under `COALESCE`). `scripts/build_harvester_stats.py` cast + empty-NULL fix ([Corrections](#corrections-to-this-plan) #9); templates already formatted (#10). |
-| 5 | ⬜ next | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. |
+| 5 | ✅ done | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. Migration `0010` (forward-only, `NULLIF(col, '')::date`); `COLLECTIONS_NULLS_LAST` added so missing rows sort last; templates already used `date_short`. |
 | 6 | ⬜ | LLM ingest | `reviews.created_at`, `suggestions.created_at` | none | Optional. `Z`-suffixed; never read by the app. |
 | 7 | ⬜ | Cleanup | — | all | Drop the `format_date` `isinstance` bridge; rewrite the `models.py` schema note; remove the text-timestamp sections from this doc; then squash migrations. |
 
-Sequencing is additive: phases 1–4 are done; the remaining phases have no
-order dependency on each other (phase 3 is dropped — see
+Sequencing is additive: phases 1–2 and 4–5 are done; the remaining phases
+have no order dependency on each other (phase 3 is dropped — see
 [Corrections](#corrections-to-this-plan) #8).
 
 ## Next session
 
-Resume at **Phase 5 — Collection pages** (`collection_pages.page_last_updated`,
-`date` not `timestamptz`). Small and mechanical:
+Resume at **Phase 6 — LLM ingest** (`reviews.created_at`,
+`suggestions.created_at`) or **Phase 7 — cleanup**, in either order.
 
-- **Migration** `0010_collection_page_last_updated`, forward-only (no
-  `reverse_sql`) — see [Corrections](#corrections-to-this-plan) #4. Date-only
-  values: use `NULLIF(col, '')::date`, not the timestamptz CASE (no timezone
-  applies).
-- **`explorer/models.py`:** `Collection.page_last_updated` → `DateField`.
-- **`explorer/queries/collections.py`** already keeps `c.page_last_updated`
-  plain and routes the sort through `order_by()` — check whether it needs a
-  `COLLECTIONS_NULLS_LAST` (mirror `ORG_NULLS_LAST`) and add it if the column
-  is nullable in practice.
-- **Templates:** `collections.html` / `collection_detail.html` already use
-  `date_short`, which handles a `date` unchanged — verify, don't assume.
-- **Fixture:** `conftest.py` writes `page_last_updated` via the ORM; a
-  date-only string is fine for a `DateField` (no timezone), so this may need
-  no `_utc` change.
-- **Test:** add a collection conversion test to `tests/test_migrations.py`
-  (migrate up from 0009 on the function-scoped `migration_db_url`); include an
-  empty string → NULL and a date-only value.
-- Re-run `just migrate`, `just test`, `just test-live`; browser-check
-  `/collections` and a `/collection/:slug` page.
-- Phases 5–6 are self-contained — consider combining them if fewer PRs are
-  wanted.
+### Phase 6 (optional — nothing reads these columns)
+
+Both values carry a trailing `Z`, so the shared timestamptz CASE from
+0007–0009 applies unchanged (the offset branch handles it; no `AT TIME
+ZONE` needed, though the CASE keeps them uniform).
+
+- **Migration** `0011_llm_created_at`, forward-only (no `reverse_sql`) — see
+  [Corrections](#corrections-to-this-plan) #4.
+- **`explorer/models.py`:** `Review.created_at` / `Suggestion.created_at` →
+  `DateTimeField`.
+- **Writers:** `scripts/llm/ingest_reviews.py` / `ingest_suggestions.py` pass
+  the `Z` strings straight through; `scripts/db.py` already pins UTC, and
+  `::timestamptz` accepts `Z` (verified) — no script change expected.
+- **Tests:** conversion test from `0010` in `tests/test_migrations.py`;
+  check `tests/test_llm_ingest_*_db.py` doesn't compare strings (the model
+  JSON already keeps the raw string, so likely fine).
+
+### Phase 7 (cleanup)
+
+- **Drop the bridge:** `helpers.format_date` no longer needs the `str`
+  branch (keep `datetime` / `date` / falsy). Delete the legacy
+  `datetime.fromisoformat` path and the transitional docstring.
+- **`models.py` schema note:** the top-of-file note still frames timestamps
+  as text; rewrite it to say every timestamp is a real instant
+  (`timestamptz`, or `date` where the value is date-only).
+- **This doc:** remove the text-timestamp framing (Current state / Target
+  model / Migration / Data preservation / Risks) once no column is text;
+  keep the conversion history as a short note.
+- **Squash migrations** after all phases land.
+- Re-run `just test`, `just test-live`, `just lint`.

@@ -15,7 +15,7 @@ fully-migrated database the other scratch-DB tests share.
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import psycopg
@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DATASET_TIMESTAMPS = "0007_dataset_timestamps"
 ORG_CREATED = "0008_organisation_created"
 HARVEST_TIMESTAMPS = "0009_harvest_source_timestamps"
+COLLECTION_DATE = "0010_collection_page_last_updated"
 PREVIOUS = "0006_harvest_sources_stats_columns"
 
 # The dev server's timezone — deliberately not UTC, so a naive cast that
@@ -100,6 +101,25 @@ def _read_harvest_instants(url: str, column: str) -> dict[str, datetime | None]:
     return out
 
 
+# date-only values plus a timestamp truncated to its date.
+DATE_SAMPLES = {
+    "date_only": ("2026-03-24", date(2026, 3, 24)),
+    "naive_t": ("2010-07-09T16:02:42.310217", date(2010, 7, 9)),
+    "empty": ("", None),
+    "null": (None, None),
+}
+
+
+def _read_collection_dates(url: str) -> dict[str, date | None]:
+    """Read each sample collection's page_last_updated as a plain date."""
+    out: dict[str, date | None] = {}
+    with psycopg.connect(url) as conn, conn.cursor() as cur:
+        for slug in DATE_SAMPLES:
+            cur.execute("SELECT page_last_updated FROM collection_pages WHERE slug = %s", (slug,))
+            out[slug] = cur.fetchone()[0]
+    return out
+
+
 def test_dataset_timestamps_are_pinned_to_utc(migration_db_url):
     """Every input shape converts to the exact same instant in UTC — not one
     shifted by the session timezone (Europe/London in summer). The reverse
@@ -157,6 +177,21 @@ def test_harvest_source_timestamps_are_pinned_to_utc(migration_db_url):
     expected = {hs_id: expected for hs_id, (_v, expected) in SAMPLES.items()}
     assert _read_harvest_instants(migration_db_url, "created") == expected
     assert _read_harvest_instants(migration_db_url, "last_run") == expected
+
+
+def test_collection_page_last_updated_converts_to_date(migration_db_url):
+    """collection_pages.page_last_updated (0010) is date-only: the cast is a
+    plain `::date` (no timezone applies), and empty becomes NULL."""
+    _migrate(migration_db_url, "explorer", HARVEST_TIMESTAMPS)  # 0009: text date
+
+    insert = "INSERT INTO collection_pages (slug, collection, title, page_last_updated) VALUES (%s, 'test', 'Test', %s)"
+    with psycopg.connect(migration_db_url) as conn, conn.cursor() as cur:
+        for slug, (value, _expected) in DATE_SAMPLES.items():
+            cur.execute(insert, (slug, value))
+
+    _migrate(migration_db_url, "explorer", COLLECTION_DATE)
+    # Every sample truncates to its date component; empty and null stay NULL.
+    assert _read_collection_dates(migration_db_url) == {slug: expected for slug, (_v, expected) in DATE_SAMPLES.items()}
 
 
 def test_pipeline_connection_stores_naive_strings_as_utc(migration_db_url):

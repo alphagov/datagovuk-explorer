@@ -541,7 +541,7 @@ class Collection(models.Model):
     websites = models.JSONField(blank=True, null=True)
     api = models.JSONField(blank=True, null=True)
     dataset = models.JSONField(blank=True, null=True)
-    page_last_updated = models.TextField(blank=True, null=True)
+    page_last_updated = models.DateField(blank=True, null=True)
     visualisation_data = models.TextField(blank=True, null=True)
     status = models.TextField(blank=True, null=True)
     views = models.IntegerField(db_default=0)
