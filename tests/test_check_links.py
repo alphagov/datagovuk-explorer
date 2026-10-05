@@ -7,6 +7,7 @@ is needed.
 
 import asyncio
 import os
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
@@ -418,3 +419,41 @@ def test_strip_pw_error_removes_call_log():
     result = cl._strip_pw_error(msg)
     assert "logs" not in result
     assert "Error: net::ERR_NAME_NOT_RESOLVED" in result
+
+
+# ---------------------------------------------------------------------------
+# checked_at is TIMESTAMPTZ — the skip/dead-host markers must pass a datetime
+# (an isoformat() string raises DatatypeMismatch).
+# ---------------------------------------------------------------------------
+
+
+def _db_with_cursor() -> tuple[MagicMock, MagicMock]:
+    """A Db whose cursor() context manager yields the same mock cursor."""
+    cursor = MagicMock()
+    cursor.rowcount = 0
+    cursor.__enter__.return_value = cursor
+    db = MagicMock()
+    db.conn.cursor.return_value = cursor
+    return db, cursor
+
+
+def test_mark_malformed_urls_passes_datetime():
+    db, cursor = _db_with_cursor()
+    cl._mark_malformed_urls(db)
+    params = cursor.execute.call_args[0][1]
+    assert isinstance(params[0], datetime)
+
+
+def test_mark_uncheckable_urls_passes_datetime():
+    db, cursor = _db_with_cursor()
+    cl._mark_uncheckable_urls(db)
+    params = cursor.execute.call_args[0][1]
+    assert isinstance(params[0], datetime)
+
+
+def test_bulk_mark_dead_host_passes_datetime():
+    db, cursor = _db_with_cursor()
+    cl._bulk_mark_dead_host(db, "example.com")
+    params = cursor.execute.call_args[0][1]
+    assert isinstance(params[0], datetime)
+    assert params[1] == "example.com"

@@ -525,7 +525,7 @@ ON CONFLICT (url) DO NOTHING
 
 def _mark_malformed_urls(db: Db) -> int:
     """Mark links with unparseable URLs (host IS NULL) as url:malformed. Returns count marked."""
-    now = datetime.now(tz=UTC).isoformat()
+    now = datetime.now(tz=UTC)
     with db.conn.cursor() as cur:
         cur.execute(_MARK_MALFORMED_SQL, (now,))
         return cur.rowcount
@@ -533,7 +533,7 @@ def _mark_malformed_urls(db: Db) -> int:
 
 def _mark_uncheckable_urls(db: Db) -> int:
     """Mark non-HTTP/non-checkable URLs (typo schemes, ftp://, etc.) as url:malformed."""
-    now = datetime.now(tz=UTC).isoformat()
+    now = datetime.now(tz=UTC)
     with db.conn.cursor() as cur:
         cur.execute(_MARK_UNCHECKABLE_SQL, (now,))
         return cur.rowcount
@@ -569,7 +569,7 @@ def _refresh_org_link_health(db: Db) -> None:
 
 def _bulk_mark_dead_host(db: Db, host: str) -> int:
     """Mark all remaining unchecked URLs for host as timed-out. Returns count marked."""
-    now = datetime.now(tz=UTC).isoformat()
+    now = datetime.now(tz=UTC)
     with db.conn.cursor() as cur:
         cur.execute(_DEAD_HOST_SQL, (now, host))
         return cur.rowcount
