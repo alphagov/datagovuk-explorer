@@ -7,7 +7,8 @@ Covers:
 - database_url()'s fail-loud guard
 - the connection layer against a throwaway scratch database (created and
   dropped per session): exec / prepare / get / all / run, transaction
-  commit + rollback, dict rows.
+  commit + rollback, dict rows, and the UTC session pin the ingest scripts
+  rely on.
 
 The scratch DB is skipped when the postgres user can't create databases
 (CREATEDB privilege); the pure tests always run. These tests never import
