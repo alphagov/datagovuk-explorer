@@ -99,6 +99,10 @@ lint.select = [
   "YTT",
 ]
 lint.ignore = [
+  # COM812 fights the formatter: `ruff check --fix` adds the trailing comma
+  # and `ruff format` removes it, so check and format can never both pass.
+  # Ruff's own warning recommends ignoring the rule when using the formatter.
+  "COM812",
   # TextFields are null=True deliberately: they mirror CKAN JSON where the
   # key can be absent/null (views defensively write `or ""`). Django's
   # convention (empty string, not NULL) would break the pipeline contract.

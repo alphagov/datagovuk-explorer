@@ -1,7 +1,5 @@
 """Unit tests for scripts.ingest_collections parsing helpers."""
 
-import pytest
-
 from scripts.ingest_collections import _normalise_slug, parse_collection
 
 

@@ -74,21 +74,35 @@ def test_get_harvest_sources_tags_and_dedupes():
     assert by_id["src-0001"]["title"] == "Harvest Source 1"
 
 
-def test_error_paths():
+def test_error_paths(monkeypatch):
+    # Retryable failures sleep between attempts — don't slow the test down.
+    monkeypatch.setattr(scripts.get_harvest_sources.time, "sleep", lambda _: None)
+
     def http_error(request):
         return httpx.Response(500, text="boom")
 
     def bad_success(request):
         return httpx.Response(200, json={"success": False})
 
+    # 500 is retryable, so it is retried MAX_ATTEMPTS times and then gives up
+    # with an HTTPError rather than the immediate RuntimeError used for a
+    # non-retryable status.
+    attempts = []
+
+    def counting_http_error(request):
+        attempts.append(request.url.params["organization_id"])
+        return http_error(request)
+
     with (
-        pytest.raises(RuntimeError, match="HTTP 500"),
+        pytest.raises(httpx.HTTPError, match="HTTP 500"),
         httpx.Client(
-            transport=httpx.MockTransport(http_error),
+            transport=httpx.MockTransport(counting_http_error),
             follow_redirects=True,
         ) as client,
     ):
         scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, ["org-0001"])
+
+    assert len(attempts) == scripts.get_harvest_sources.MAX_ATTEMPTS
 
     with (
         pytest.raises(RuntimeError, match="success: false"),
@@ -98,6 +112,48 @@ def test_error_paths():
         ) as client,
     ):
         scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, ["org-0001"])
+
+
+def test_retries_transient_errors_then_succeeds(monkeypatch):
+    monkeypatch.setattr(scripts.get_harvest_sources.time, "sleep", lambda _: None)
+    attempts = []
+
+    def flaky(request):
+        attempts.append(request.url.params["organization_id"])
+        if len(attempts) < scripts.get_harvest_sources.MAX_ATTEMPTS:
+            return httpx.Response(503, text="unavailable")
+        return httpx.Response(
+            200,
+            json={"success": True, "result": [make_source(1, "org-0001")]},
+        )
+
+    with httpx.Client(
+        transport=httpx.MockTransport(flaky),
+        follow_redirects=True,
+    ) as client:
+        sources = scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, ["org-0001"])
+
+    assert len(attempts) == scripts.get_harvest_sources.MAX_ATTEMPTS
+    assert [s["id"] for s in sources] == ["src-0001"]
+
+
+def test_non_retryable_status_fails_immediately():
+    attempts = []
+
+    def not_found(request):
+        attempts.append(request.url.params["organization_id"])
+        return httpx.Response(404, text="nope")
+
+    with (
+        pytest.raises(RuntimeError, match="HTTP 404"),
+        httpx.Client(
+            transport=httpx.MockTransport(not_found),
+            follow_redirects=True,
+        ) as client,
+    ):
+        scripts.get_harvest_sources.get_harvest_sources(client, lambda: None, ["org-0001"])
+
+    assert len(attempts) == 1
 
 
 def test_write_json_roundtrip(tmp_path):

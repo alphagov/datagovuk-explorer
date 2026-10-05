@@ -371,15 +371,15 @@ view and pin UTC independently of settings:
 migrations.SeparateDatabaseAndState(
     database_operations=[
         migrations.RunSQL(
-            sql="ALTER TABLE datasets ALTER COLUMN metadata_created TYPE timestamptz "
-                "USING CASE ... END",
+            sql="ALTER TABLE datasets ALTER COLUMN metadata_created TYPE timestamptz USING CASE ... END",
             reverse_sql="ALTER TABLE datasets ALTER COLUMN metadata_created TYPE text "
-                "USING to_char(metadata_created, 'YYYY-MM-DD\"T\"HH24:MI:SS.US')",
+            "USING to_char(metadata_created, 'YYYY-MM-DD\"T\"HH24:MI:SS.US')",
         ),
     ],
     state_operations=[
         migrations.AlterField(
-            "dataset", "metadata_created",
+            "dataset",
+            "metadata_created",
             models.DateTimeField(blank=True, null=True),
         ),
     ],

@@ -35,10 +35,12 @@ _results: list[dict] = []
 def _clear_caches():
     from explorer.queries.datasets import datasets_facet_counts
     from explorer.views.datasets import _created_year_master, _in_window_temporal_years, _theme_master
+
     _theme_master.cache_clear()
     _in_window_temporal_years.cache_clear()
     _created_year_master.cache_clear()
     datasets_facet_counts.cache_clear()
+
 
 # Capture queries from fetch_parallel's thread pool by wrapping _fetch_all.
 # The pool uses thread-local connections so connection.queries misses them.
@@ -48,6 +50,7 @@ _extra_lock = Lock()
 
 def _patched_fetch_all(sql, params):
     import explorer.queries.core as _core
+
     t = time.perf_counter()
     result = _core._real_fetch_all(sql, params)
     ms = (time.perf_counter() - t) * 1000
@@ -74,16 +77,13 @@ def _write_report():
     lines.append("|---|---|---|\n")
     for r in _results:
         lines.append(
-            f"| {r['label']} "
-            f"| {r['wall_ms']:.0f}ms "
-            f"| {r['render_ms']:.0f}ms |\n",
+            f"| {r['label']} | {r['wall_ms']:.0f}ms | {r['render_ms']:.0f}ms |\n",
         )
     lines.append("\n")
     for r in _results:
         lines.append(f"\n## {r['label']}\n")
         lines.append(
-            f"wall={r['wall_ms']:.1f}ms  render={r['render_ms']:.1f}ms  "
-            f"({r['query_count']} queries, parallel)\n",
+            f"wall={r['wall_ms']:.1f}ms  render={r['render_ms']:.1f}ms  ({r['query_count']} queries, parallel)\n",
         )
         lines.append("\n| ms | sql |\n|---|---|\n")
         for q in r["queries"]:
@@ -131,13 +131,15 @@ def test_datasets_perf(client, label, params):
 
     all_queries = sorted(_extra_queries, key=lambda q: -float(q["time"]))
 
-    _results.append({
-        "label": label,
-        "wall_ms": wall_ms,
-        "render_ms": render_ms,
-        "query_count": len(all_queries),
-        "queries": all_queries,
-    })
+    _results.append(
+        {
+            "label": label,
+            "wall_ms": wall_ms,
+            "render_ms": render_ms,
+            "query_count": len(all_queries),
+            "queries": all_queries,
+        }
+    )
 
     print(f"\n[{label}]")
     print(f"  wall={wall_ms:.1f}ms  render={render_ms:.1f}ms  ({len(all_queries)} queries, parallel)")

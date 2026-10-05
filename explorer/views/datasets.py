@@ -192,7 +192,7 @@ def _active_labels(filters: DatasetsFilters) -> dict[str, str | None]:
 _API_NAMES = {"data-apis": "Data API", "map-layers": "Map layers"}
 
 
-def datasets(request):  # noqa: PLR0915
+def datasets(request):
     """GET /datasets — the all-datasets report with sidebar facets."""
     fetched_slug_rows = fetched_slugs()
 

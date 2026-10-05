@@ -481,8 +481,7 @@ def make_fixtures():
         start = max(frm if frm is not None else to, 1900)
         end = min(to if to is not None else frm, 2100)
         if start <= end:
-            for y in range(start, end + 1):
-                dy_rows.append(DatasetYear(dataset_id=ckan_to_pk[ckan_id], year=y))
+            dy_rows.extend(DatasetYear(dataset_id=ckan_to_pk[ckan_id], year=y) for y in range(start, end + 1))
     DatasetYear.objects.bulk_create(dy_rows)
     DatasetApi.objects.bulk_create(
         [

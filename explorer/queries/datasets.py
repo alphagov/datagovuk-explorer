@@ -490,9 +490,7 @@ THEME_COUNTS = Query(
 # filter-independent, latest first. Reads from the pre-expanded dataset_years
 # table rather than running generate_series at request time.
 TEMPORAL_YEARS = Query(
-    f"SELECT DISTINCT year FROM dataset_years"
-    f" WHERE year <= {TEMPORAL_MAX_YEAR}"
-    f" ORDER BY year DESC",
+    f"SELECT DISTINCT year FROM dataset_years WHERE year <= {TEMPORAL_MAX_YEAR} ORDER BY year DESC",
 )
 
 # Datasets with no links — for the dashboard card
