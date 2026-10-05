@@ -395,6 +395,7 @@ def make_fixtures():
         DatasetApi,
         DatasetContentHash,
         DatasetJson,
+        DatasetYear,
         HarvestSource,
         Link,
         LinkCheckResult,
@@ -429,6 +430,12 @@ def make_fixtures():
             for row in _DATASETS
         ],
     )
+    # Count harvested datasets per source so the pre-computed column matches.
+    hs_dataset_counts = {}
+    for row in _DATASETS:
+        hs_id = row.get("harvest_source_id")
+        if hs_id:
+            hs_dataset_counts[hs_id] = hs_dataset_counts.get(hs_id, 0) + 1
     HarvestSource.objects.bulk_create(
         [
             HarvestSource(
@@ -441,6 +448,8 @@ def make_fixtures():
                 organization_id=f"uuid-{org}",
                 org_slug=org,
                 created="2012-01-01T00:00:00",
+                dataset_count=hs_dataset_counts.get(hs_id, 0),
+                last_run=last_run,
                 json=json.dumps({"status": {"last_harvest_request": last_run}} if last_run else {}),
             )
             for hs_id, title, org, active, frequency, last_run in _HARVEST_SOURCES
@@ -452,6 +461,15 @@ def make_fixtures():
             for ckan_id, pos, frm, to, source in _TEMPORAL
         ],
     )
+    # Expand temporal_periods into dataset_years (mirrors build_dataset_years.py).
+    dy_rows = []
+    for ckan_id, _pos, frm, to, _source in _TEMPORAL:
+        start = max(frm if frm is not None else to, 1900)
+        end = min(to if to is not None else frm, 2100)
+        if start <= end:
+            for y in range(start, end + 1):
+                dy_rows.append(DatasetYear(dataset_id=ckan_to_pk[ckan_id], year=y))
+    DatasetYear.objects.bulk_create(dy_rows)
     DatasetApi.objects.bulk_create(
         [
             DatasetApi(dataset_id=ckan_to_pk["d09"], api_category="map-layers"),
