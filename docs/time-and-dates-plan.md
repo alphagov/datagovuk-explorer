@@ -1,14 +1,23 @@
 # Time and dates: replace text timestamps with real types
 
-> **Living document — updated at the end of the Phase 2 session.**
-> Phases 0–2 are done. See [Status](#status) for what landed,
-> [Corrections to this plan](#corrections-to-this-plan) for what
-> implementation changed, and [Next session](#next-session) to resume.
+> **Living document — updated after the Phase 3 decision.**
+> Phases 0–2 are done and committed. **Phase 3 (links) was implemented and
+> then deliberately reverted** — see [Corrections](#corrections-to-this-plan)
+> #8. See [Status](#status) for what landed and [Next session](#next-session)
+> to resume at Phase 4.
 
 ## Status
 
-**Committed:** Phase 0+1 as `831ef68 refactor dates part 1` (`HEAD`).
-**In the working tree (uncommitted):** Phase 2 — organisations.
+**Committed:** Phase 0+1 (`831ef68 refactor dates part 1`) and Phase 2
+(`f10d973 refactor dates part 2`). Working tree clean apart from the one-off
+DB-revert script.
+
+**Phase 3 (links) — reverted by decision.** `links.year_created` is kept as a
+pipeline-owned denormalisation: the `/links` year facet is hot, and the
+project rebuilds from a snapshot (`fresh-db`), so there is no dual-write/drift
+problem to justify paying a `datasets` join on every facet pool. `links.created`
+is left as text because nothing in the app reads it. Migration `0009` was
+removed and the dev DB rolled back with `scripts/revert_0009_links.py`.
 
 - **Phase 0 — bridge.** `explorer/helpers.py::format_date` accepts
   `str | datetime | date`, converting aware values to UTC. The timezone-trap
@@ -37,7 +46,7 @@ query-layer checks of `org_created_years()` (strings), unfiltered and filtered
 for `/organisations`, `/organisations?created_year=2013`,
 `/organisations?sort=created&dir=desc`, `/organisation/:slug`.
 
-**Files touched this session:** `explorer/models.py`,
+**Phase 2 files:** `explorer/models.py`,
 `explorer/migrations/0008_organisation_created.py` (new),
 `explorer/queries/organisations.py`, `conftest.py`, `tests/conftest.py`,
 `tests/test_migrations.py`.
@@ -53,7 +62,8 @@ for `/organisations`, `/organisations?created_year=2013`,
 - Local `pg_dump` is 17.4 against a 18.6 server, so `just dump-db` can't run
   until the client is upgraded.
 
-**Next:** Phase 3 (Links) — see [Next session](#next-session).
+**Next:** Phase 4 (Harvest sources) — Phase 3 is skipped. See
+[Next session](#next-session).
 
 ## Corrections to this plan
 
@@ -102,6 +112,19 @@ otherwise, **this section wins**.
    round-trip applies `0006` **forwards from empty** instead of unwinding the
    full schema. Each forward-only phase adds its own conversion test that
    migrates up from the previous text schema (0008 from 0007) — no rewind.
+8. **Phase 3 (links) was reverted — `links.year_created` stays.** The plan
+   treated the denormalised `year_created` as dead weight, but on this project
+   it is a deliberate read optimisation: the `/links` year facet is hot and
+   the pipeline rebuilds from a snapshot (`fresh-db`), so there is no
+   dual-write/drift problem to buy off. Dropping it forced a `datasets` join
+   onto **every** links facet pool (each pool's WHERE carries the other
+   facets): measured ~66 ms added to a **filtered** `/links` facet fetch
+   (the unfiltered pools are memoised once per process). And `links.created`
+   has no reader anywhere, so converting it was pure cost. Net: the phase was
+   negative value, so it was undone — code reverted, migration `0009` deleted,
+   dev DB rolled back by the throwaway `scripts/revert_0009_links.py`, and the
+   `0009` row removed from `django_migrations`. Any future denormalisation
+   doubt can be settled by a build-time assertion instead.
 
 ## Summary
 
@@ -395,7 +418,7 @@ Replace string extraction with date functions. Two shared rules:
 | `organisations.py:143-156,221-226` | **Datasets phase.** Last-published facets read `a.last_published` (a `datasets` column): `substr(a.last_published,1,4)` → `EXTRACT(YEAR FROM a.last_published)::text`; the `= ANY(%s)` text-array clause stays text. |
 | `organisations.py:77,128-139,217-219` | ✅ **Organisations phase done.** `substr(o.created,1,4)` → `EXTRACT(YEAR FROM o.created)::text`; `_YEAR_CREATED_GUARD` deleted (type now guarantees a year). |
 | `organisations.py:284-285` | keep plain `o.created` / `a.last_published`; handled by `order_by()` |
-| `links.py:60-66,144-182` | delete the `year_created` builder. The facet query at `:179` is `FROM links l` with **no `d`** — add `JOIN datasets d ON d.id = l.dataset_id`, and the `year_where` fragment must reference `d.metadata_created`. Use `EXTRACT(YEAR FROM d.metadata_created)::text`. |
+| `links.py:60-66,144-182` | ↩︎ **superseded — not done.** This phase was reverted; `year_created` is kept (see [Corrections](#corrections-to-this-plan) #8). The original intent was to delete the `year_created` builder and join `datasets` for `EXTRACT(YEAR FROM d.metadata_created)::text`. |
 | `collections.py:10-14` | keep plain `c.page_last_updated`; handled by `order_by()` |
 | `reports.py:41-42` | keep plain columns; handled by `order_by()` |
 | `series.py:49,65` | `ORDER BY d.metadata_created DESC` now chronological (no change beyond typing) |
@@ -460,8 +483,9 @@ Verify each writer:
 
 - `scripts/db.py` — ✅ session pinned to UTC on connect.
 - `scripts/ingest_ckan.py` — datasets/organisations/links inserts pass strings
-  straight through. Phase 3: drop the `year_created` derivation (`:635`) and
-  its column from `_link_rows` (`:579-599`) and the `INSERT` (`:503`).
+  straight through, including the `year_created` derivation (`:635`) and its
+  `_link_rows` / `INSERT` columns. (Phase 3 would have dropped them; **not
+  done** — see [Corrections](#corrections-to-this-plan) #8.)
 - `scripts/llm/ingest_reviews.py`, `ingest_suggestions.py` — `created_at`
   values end in `Z`; `::timestamptz` accepts them (verified).
 - `scripts/ingest_collections.py` — date-only string → `date`.
@@ -529,9 +553,9 @@ Phase 1 results:
   would read `31/05/2010` (438 live rows are in this class).
 - ✅ Browser-check `/datasets`, `/organisations?last_published_year=…`,
   `/organisation/:slug`, a report page — all 200.
-- Still to do in Phase 3: confirm `links` year facet counts match the old
-  `year_created`-based counts for the same dataset. If they differ, the
-  derivation assumption was wrong — stop and reconcile.
+- ↩︎ ~~Still to do in Phase 3~~ — moot: Phase 3 was reverted. (The check that
+  mattered, `l.year_created = EXTRACT(YEAR FROM d.metadata_created)::text`, was
+  run anyway and held for all 218,739 links, then `year_created` was kept.)
 
 ## Risks and non-goals
 
@@ -580,46 +604,43 @@ that constrains the order:
 | 0 | ✅ done | Bridge | — | all | `format_date` accepts `str`/`datetime`/`date`; timezone-trap migration test added. |
 | 1 | ✅ done | Datasets | `datasets.metadata_created`, `metadata_modified` | `/datasets`, reports, series, org last-published, dashboard | Drop+recreate `mv_org_aggregates` *around* the ALTER (drop first — Postgres blocks the alter otherwise); `::text` year facets; `order_by()` NULLS rule; fix `org_last_published_years`, `dashboard.cards()`, and the org last-published facet SQL (`organisations.py:143-156,221-226`). |
 | 2 | ✅ done | Organisations | `organisations.created` | `/organisations`, `/organisation/:slug` | Org-created facet (`organisations.py:77,217-219`); drop `_YEAR_CREATED_GUARD` (`:128`); `YEARLY_ORGS`. `ORG_SORT` already plain + `nulls_last`. Forward-only migration. Fixture seed converts `created` to aware UTC. |
-| 3 | ⬜ next | Links | `links.created`; **drop** `year_created` | `/links`, `/links/errors` | Must follow #1. Add the `datasets` join to the year-facet query; `links.created` is never read in-app — convert for consistency only. Re-assert the `year_created` derivation before dropping. |
-| 4 | ⬜ | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Fully self-contained; space-separated values; null/empty sort order change visible here. |
+| 3 | ↩︎ reverted | Links | `links.created`; **drop** `year_created` | `/links`, `/links/errors` | **Deliberately not done.** Keeping the pipeline-owned `year_created` denormalisation beats the dataset join on every hot `/links` facet pool; `links.created` is unread. See [Corrections](#corrections-to-this-plan) #8. |
+| 4 | ⬜ next | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Fully self-contained; space-separated values; null/empty sort order change visible here. |
 | 5 | ⬜ | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. |
 | 6 | ⬜ | LLM ingest | `reviews.created_at`, `suggestions.created_at` | none | Optional. `Z`-suffixed; never read by the app. |
 | 7 | ⬜ | Cleanup | — | all | Drop the `format_date` `isinstance` bridge; rewrite the `models.py` schema note; remove the text-timestamp sections from this doc; then squash migrations. |
 
-Sequencing is additive: phases 1–6 have no order dependency on each other
-except the `datasets` → `links` and `datasets` → `organisations` edges above.
+Sequencing is additive: phases 1–2 are done; the remaining phases have no
+order dependency on each other (phase 3 is dropped — see
+[Corrections](#corrections-to-this-plan) #8).
 
 ## Next session
 
-Resume at **Phase 3 — Links** (`links.created`; drop `links.year_created`).
-This one touches the ingest path as well as the query layer, so it is more
-than a mechanical repeat:
+Resume at **Phase 4 — Harvest sources** (`harvest_sources.created`,
+`last_run`). Self-contained and mechanical:
 
-- **Forward-only migration** (`0009_…`, no `reverse_sql`) — see
-  [Corrections](#corrections-to-this-plan) #4. Same CASE conversion for
-  `links.created`.
-- **Re-assert the derivation before dropping.** In the migration (or a prior
-  manual check) prove `l.year_created = to_char(d.metadata_created,'YYYY')`
-  for every link joined to its dataset (the plan's earlier check held for all
-  218,739 rows). If any mismatch, stop and reconcile — do **not** silently drop
-  the column.
-- **`explorer/models.py`:** `Link.created` → `DateTimeField`; remove
-  `Link.year_created` and its index from `Meta.indexes`.
-- **`explorer/queries/links.py`:** delete the `year_created` builder
-  (`:60-66,144-182`); the facet query at `:179` is `FROM links l` with no `d` —
-  add `JOIN datasets d ON d.id = l.dataset_id` and make the year fragment read
-  `EXTRACT(YEAR FROM d.metadata_created)::text`.
-- **`scripts/ingest_ckan.py`:** drop the `year_created` derivation (`:635`),
-  its key from `_link_rows` (`:579-599`) and the column from the `INSERT`
-  (`:503`). `links.created` keeps passing through as a string (session is
-  UTC-pinned).
-- **Fixture:** `conftest.py` writes link rows — convert `created` to aware UTC
-  the same way as datasets/organisations if it goes through the ORM.
-- **Test:** add a links conversion test to `tests/test_migrations.py`
-  (migrate up from the previous migration on the function-scoped
-  `migration_db_url`); confirm the links year-facet counts match the old
-  `year_created`-based counts for the same dataset before the drop is final.
-- Re-run `just migrate`, `just test`, `just test-live`; browser-check `/links`
-  and `/links/errors`.
-- Phases 4–6 are self-contained and mechanical — consider combining them if
-  fewer PRs are wanted.
+- **Migration** `0009_harvest_source_timestamps` (reusing the freed `0009`
+  number), forward-only (no `reverse_sql`) — see
+  [Corrections](#corrections-to-this-plan) #4. Same CASE conversion for both
+  columns; both are space-separated, which `::timestamp` accepts.
+- **`explorer/models.py`:** `HarvestSource.created` / `.last_run` →
+  `DateTimeField`.
+- **`explorer/queries/harvesters.py`** (`/harvesters`, `/harvester`):
+  `HARVESTER_SORT["last_run"]` is `COALESCE(h.last_run, '')` — change it to
+  the plain `h.last_run` and add
+  `HARVESTER_NULLS_LAST = frozenset({"last_run"})` (mirroring
+  `ORG_NULLS_LAST`). **Watch the visible behaviour change:** moving from
+  `COALESCE(last_run, '')` to `NULLS LAST` puts the 4 NULL + 25 empty rows
+  **last** ascending (they sorted first).
+- **Templates:** `harvester.html` / `harvesters.html` print `created` /
+  `last_run` raw — pipe through `date_short`.
+- **Fixture:** `conftest.py` `_HARVEST_SOURCES` writes `created` / `last_run`
+  via the ORM; convert both to aware UTC, keeping the NULL/empty `last_run`
+  as NULL (per [Data preservation](#data-preservation)).
+- **Test:** add a harvest-sources conversion test to `tests/test_migrations.py`
+  (migrate up from 0008 on the function-scoped `migration_db_url`); cover the
+  25 empty strings → NULL.
+- Re-run `just migrate`, `just test`, `just test-live`; browser-check
+  `/harvesters` and `/harvester/:id`.
+- Phases 5–6 are self-contained too — consider combining them if fewer PRs
+  are wanted.
