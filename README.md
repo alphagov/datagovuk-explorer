@@ -52,6 +52,11 @@ runs `migrate` to apply the schema, then populates it. If the database
 already exists you can run `just build-db` instead — it runs `migrate`
 first too, so missing tables are never a thing to remember.
 
+`build-db` runs the full pipeline sequence: core ingestion (`ingest_ckan`),
+then all derived tables in order (dataset_years, FTS, views, metadata,
+dataset_api, dataset_content_hash). Each derived-table script is also a
+standalone recipe, so individual tables can be rebuilt without a full run.
+
 `ingest-reviews` and `ingest-suggestions` are required steps after every
 `build-db` (or full rebuild): the build only populates the pipeline tables
 and leaves `reviews` and `suggestions` empty, so the Reviews, Suggestions
@@ -72,6 +77,11 @@ Other commands — `just --list` lists them all. Notable ones:
 |---|---|
 | `just check-links` | Check every resource URL — HEAD → GET → Playwright fallback; safe to interrupt and resume |
 | `just ingest-views` | Reload dataset view counts from the GA/Search Console CSVs in `data/` |
+| `just build-fts` | Rebuild the FTS (tsvector) and tags columns on datasets — run after `ingest_ckan` |
+| `just build-metadata` | Rebuild metadata field/value usage tables — run after `ingest_ckan` |
+| `just build-dataset-years` | Rebuild the dataset_years summary table from temporal_periods |
+| `just build-dataset-api` | Rebuild the dataset_api detection table |
+| `just build-dataset-content-hash` | Rebuild the content-hash deduplication table |
 | `just pull-db` | Pull Railway Postgres down to replace the local DB (needs tunnel open) |
 | `just build-series` | Build dataset series groupings from titles |
 | `just download-llm` | Fetch the bge-base-en-v1.5 embedding model into `llm/` |
