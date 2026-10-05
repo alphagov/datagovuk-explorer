@@ -27,7 +27,9 @@ harvest-sources phase.
 
 - **Phase 0 — bridge.** `explorer/helpers.py::format_date` accepts
   `str | datetime | date`, converting aware values to UTC. The timezone-trap
-  regression test lives in `tests/test_migrations.py`.
+  regression test then lived in `tests/test_migrations.py` (deleted at the
+  squash; the surviving pipeline UTC-pin test is now in
+  `tests/test_scripts_db.py`).
 - **Phase 1 — datasets.** `metadata_created` / `metadata_modified` →
   `DateTimeField`; migration `0007_dataset_timestamps` (drops + recreates
   `mv_org_aggregates`, `AT TIME ZONE 'UTC'` conversion); `EXTRACT(YEAR …)::text`
@@ -88,11 +90,11 @@ harvest-sources phase.
 **Verified this session:** the single `0001_initial` was applied to a fresh
 DB and its schema compared against the old 11-migration chain via a
 normalised catalog signature — **identical** columns, indexes, constraints,
-matviews and extensions. `tests/test_migrations.py` **2 passed** (rewritten:
-the conversion round-trips are gone, replaced by a typed-schema assertion
-plus the pipeline UTC-pin test); full suite **415 passed** (one pre-existing
-failure, below); `just test-live` **3 passed**; `makemigrations --check`
-clean and `migrate --plan` a no-op against the dev DB.
+matviews and extensions. The pipeline UTC-pin test now lives in
+`tests/test_scripts_db.py` (**8 passed**); full suite **414 passed** (one
+pre-existing failure, below); `just test-live` **3 passed**;
+`makemigrations --check` clean and `migrate --plan` a no-op against the dev
+DB.
 
 **Phase 6 files:** `explorer/models.py`,
 `explorer/migrations/0011_llm_created_at.py` (new), `conftest.py`,
@@ -103,8 +105,10 @@ clean and `migrate --plan` a no-op against the dev DB.
 `explorer/tests/test_unit_helpers.py`.
 
 **Squash files:** `explorer/migrations/0001_initial.py` (rewritten; the other
-`0*.py` deleted), `tests/test_migrations.py`, `explorer/models.py`,
-`scripts/revert_0009_links.py` (dead throwaway, deleted).
+`0*.py` deleted), `explorer/models.py`, `scripts/revert_0009_links.py` (dead
+throwaway, deleted). `tests/test_migrations.py` was deleted and its only
+still-useful test — the pipeline UTC pin — moved to `tests/test_scripts_db.py`
+(the typed-schema assertions were redundant with the integration suite).
 
 **Known pre-existing problems (not caused by this work):**
 
@@ -229,12 +233,13 @@ otherwise, **this section wins**.
     it was compared to one built from the old 11-migration chain via a
     normalised catalog signature (columns/types/nullability, index
     definitions, constraints, matviews, extensions) — **identical**.
-    Consequence: `tests/test_migrations.py` can no longer migrate to an
-    intermediate text revision, so its conversion round-trips were replaced
-    with a "the initial migration builds the typed schema" assertion plus the
-    pipeline UTC-pin test. The dev DB's `django_migrations` was reduced to the
-    single `0001_initial` row, and the dead `scripts/revert_0009_links.py`
-    removed.
+    Consequence: the old conversion round-trip tests are moot. The
+    `tests/test_migrations.py` file was deleted; its one still-useful test
+    (the pipeline's UTC pin) moved to `tests/test_scripts_db.py`, and the
+    typed-schema assertions were dropped as redundant with the integration
+    suite (which builds its DB from migrations). The dev DB's
+    `django_migrations` was reduced to the single `0001_initial` row, and the
+    dead `scripts/revert_0009_links.py` removed.
     - Dev-DB drift noted (pre-existing, not reproduced by migrations): dev has
       `pg_stat_statements`, DB-level `ON DELETE CASCADE` FKs, the unique index
       named `idx_datasets_ckan_id` (migrations produce `datasets_ckan_id_key`),

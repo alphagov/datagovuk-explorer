@@ -14,6 +14,8 @@ The scratch DB is skipped when the postgres user can't create databases
 Django and never touch the dev database.
 """
 
+from datetime import UTC, datetime
+
 import pytest
 
 from scripts import db
@@ -97,3 +99,18 @@ def test_transaction_rollback(scratch_db_url):
         assert d.prepare("SELECT COUNT(*) AS n FROM t_rollback").get() == {"n": 0}
     finally:
         d.close()
+
+
+def test_connect_pins_session_to_utc(scratch_db_url):
+    """The pipeline's raw psycopg session is pinned to UTC. The ingest
+    scripts pass naive ISO strings straight into timestamptz columns, so
+    without the pin a summer value would land an hour early."""
+    d = db.connect(scratch_db_url)
+    try:
+        assert d.prepare("SHOW TimeZone").get() == {"TimeZone": "UTC"}
+        d.exec("CREATE TEMP TABLE tz_probe (ts timestamptz)")
+        d.prepare("INSERT INTO tz_probe (ts) VALUES (?)").run("2010-07-09T16:02:42.310217")
+        got = d.prepare("SELECT ts FROM tz_probe").get()["ts"]
+    finally:
+        d.close()
+    assert got.astimezone(UTC) == datetime(2010, 7, 9, 16, 2, 42, 310217, tzinfo=UTC)

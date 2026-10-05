@@ -56,19 +56,6 @@ def _scratch_database():
         pass  # best-effort cleanup — the name is unique per run
 
 
-@pytest.fixture
-def migration_db_url():
-    """A fresh throwaway DB per migration test to migrate up/down in.
-
-    Function-scoped: each test controls its own migration state from an
-    empty database, so a test that rewinds to an older schema can't inherit
-    (or leave behind) another test's irreversible forward migrations. Kept
-    apart from ``scratch_db_url`` so it can't disturb ``migrated_db_url``'s
-    fully-migrated database.
-    """
-    yield from _scratch_database()
-
-
 @pytest.fixture(scope="session")
 def migrated_db_url(scratch_db_url):
     """The scratch DB with the real schema (``migrate`` runs in a subprocess)."""
