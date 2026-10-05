@@ -13,7 +13,6 @@ build-time snapshot, so restart the process to refresh after a rebuild.
 """
 
 import functools
-import re
 
 from explorer.queries.core import fetch_parallel
 from explorer.queries.datasets import DATASET_TOTAL, DATASETS_NO_LINKS_COUNT, THEME_COUNTS
@@ -33,14 +32,16 @@ def _active_card(org_rows: list, last_pub_rows: list) -> dict:
     rows. Callers fetch both once (see cards()).
     """
     last_pub = {r["org_slug"]: r["last_published"] for r in last_pub_rows}
+    # Years stay strings: they feed both the active-set comparison and the
+    # /organisations?last_published_year=... link.
     years = sorted(
-        {d[:4] for d in last_pub.values() if re.fullmatch(r"\d{4}", d[:4])},
+        {str(d.year) for d in last_pub.values() if d is not None},
         reverse=True,
     )
     active_years = years[:ACTIVE_YEAR_COUNT]
     active_set = set(active_years)
     since = str(int(active_years[1]) - 1) if len(active_years) >= ACTIVE_YEAR_COUNT else None
-    count = sum(1 for o in org_rows if (last_pub.get(o["slug"]) or "")[:4] in active_set)
+    count = sum(1 for o in org_rows if (lp := last_pub.get(o["slug"])) is not None and str(lp.year) in active_set)
 
     return {
         "key": "orgs-active",

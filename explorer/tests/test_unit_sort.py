@@ -1,12 +1,13 @@
-"""Unit tests for explorer.sort.sort_resources — the in-place sorter behind
-the dataset page's resource table (?sort=...).
+"""Unit tests for explorer.sort — the SQL order_by builder and the
+resource table's in-place sort_resources.
 
-Plain lists of dicts, no DB: these lock in the ordering the table relies on —
-natural (case-insensitive, numeric-aware) text, missing values last, and the
-last_modified → created fallback.
+Plain dicts/lists, no DB: these lock in the ordering the tables rely on —
+natural (case-insensitive, numeric-aware) text, missing values last, the
+last_modified → created fallback, and the NULLS LAST applied to nullable
+date columns.
 """
 
-from explorer.sort import sort_resources
+from explorer.sort import order_by, sort_resources
 
 
 def _names(rows):
@@ -45,3 +46,16 @@ def test_last_modified_falls_back_to_created():
     ]
     sort_resources(rows, "last_modified", "asc")
     assert _names(rows) == ["b", "a", "c"]
+
+
+# --- order_by --------------------------------------------------------------
+def test_order_by_plain_column():
+    exprs = {"name": "LOWER(name)", "created": "created"}
+    assert order_by(exprs, "name", "desc", "id") == "LOWER(name) DESC, id"
+
+
+def test_order_by_nulls_last_only_for_listed_date_columns():
+    exprs = {"name": "LOWER(name)", "created": "created"}
+    assert order_by(exprs, "created", "desc", "id", nulls_last={"created"}) == "created DESC NULLS LAST, id"
+    # a non-date key is left to its own COALESCE handling
+    assert order_by(exprs, "name", "asc", "id", nulls_last={"created"}) == "LOWER(name) ASC, id"

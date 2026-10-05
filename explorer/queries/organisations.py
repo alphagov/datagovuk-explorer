@@ -103,7 +103,7 @@ def org_created_years() -> list[str]:
 def org_last_published_years() -> list[str]:
     """Years in which orgs last published (YYYY) — latest first, memoised."""
     return sorted(
-        {r["last_published"][:4] for r in org_aggregate_rows() if r["last_published"]},
+        {str(r["last_published"].year) for r in org_aggregate_rows() if r["last_published"]},
         reverse=True,
     )
 
@@ -153,7 +153,7 @@ def _last_published_year_clause(filters: dict, exclude: str | None) -> tuple[lis
     if pub_years:
         if "__none__" in pub_years:
             return ["a.last_published IS NULL"], []
-        return ["substr(a.last_published, 1, 4) = ANY(%s)"], [list(pub_years)]
+        return ["EXTRACT(YEAR FROM a.last_published)::text = ANY(%s)"], [list(pub_years)]
     return [], []
 
 
@@ -219,9 +219,9 @@ def _org_facet_counts(filters: dict) -> dict:
             " GROUP BY substr(o.created, 1, 4)",
         ),
         "last_published_years": Query(
-            "SELECT substr(a.last_published, 1, 4) AS last_published_year, COUNT(*) AS count"
+            "SELECT EXTRACT(YEAR FROM a.last_published)::text AS last_published_year, COUNT(*) AS count"
             f" FROM organisations o {_ORG_AGG}{pubyear_where}"
-            " GROUP BY substr(a.last_published, 1, 4)",
+            " GROUP BY EXTRACT(YEAR FROM a.last_published)::text",
         ),
         "no_last_published_year": Query(
             f"SELECT COUNT(*) AS n FROM organisations o {_ORG_AGG}{no_pubyear_where}",
@@ -281,9 +281,12 @@ ORG_SORT = {
     "link_health": "COALESCE(lh.link_health, -1)",
     "type": "LOWER(COALESCE(o.type, ''))",
     "approval_status": "LOWER(COALESCE(o.approval_status, ''))",
-    "created": "COALESCE(o.created, '')",
-    "last_published": "COALESCE(a.last_published, '')",
+    "created": "o.created",
+    "last_published": "a.last_published",
 }
+
+# Nullable date columns — order_by adds NULLS LAST for these.
+ORG_NULLS_LAST = frozenset({"created", "last_published"})
 
 # The order /organisations starts in — shared by parse_sort and preserve_params.
 ORG_SORT_DEFAULT = ("views", "desc")
@@ -373,7 +376,7 @@ def organisations_stmts(filters: dict, sort: str, dir_: str) -> dict:
     the LIMIT/OFFSET page with core.paginate(). The WHERE clauses come from
     _ORG_FACET_CLAUSES, the ORDER BY from ORG_SORT."""
     where, params = facet_where(_ORG_FACET_CLAUSES, filters)
-    order_sql = order_by(ORG_SORT, sort, dir_, "LOWER(o.display_name), o.slug")
+    order_sql = order_by(ORG_SORT, sort, dir_, "LOWER(o.display_name), o.slug", nulls_last=ORG_NULLS_LAST)
 
     # _LINK_HEALTH_AGG is only joined when sorting by link_health so the ORDER BY
     # resolves lh.*. For every other sort the data comes from org_link_health_rows().

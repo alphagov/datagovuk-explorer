@@ -1,6 +1,6 @@
 """Shared helpers for date formatting and theme labels."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 # data.gov.uk primary theme slugs → display labels
 THEME_LABELS = {
@@ -20,21 +20,32 @@ THEME_LABELS = {
 }
 
 
-def format_date(iso: str | None) -> str:
-    """Format an ISO timestamp as dd/mm/yyyy.
+def format_date(value: str | datetime | date | None) -> str:
+    """Format a timestamp/date as dd/mm/yyyy.
 
-    DB timestamps are naive UTC (`timestamp without time zone`): parsing
-    them naively would treat them as local time and shift dates near local
-    midnight by a day whenever the server TZ isn't UTC. So keep naive
-    values as-is; timestamps with an explicit offset are converted to UTC.
-    Invalid input is returned unchanged; falsy input becomes an em-dash.
+    Accepts a real `datetime`/`date` (the converted DB columns) and —
+    transitionally, while the timestamp columns are still being converted
+    slice by slice — a legacy ISO string. Naive datetimes are treated as
+    UTC (that is the DB convention now); aware ones are converted to UTC
+    before formatting so the displayed day can't shift with the session
+    timezone. Falsy input becomes an em-dash; an unparseable string is
+    returned unchanged.
     """
-    if not iso:
+    if not value:
         return "—"
-    try:
-        dt = datetime.fromisoformat(iso)  # accepts trailing "Z" on 3.11+
-    except ValueError:
-        return iso
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, date):
+        # A plain date (e.g. collection_pages.page_last_updated) has no
+        # time or zone to resolve.
+        return f"{value.day:02d}/{value.month:02d}/{value.year}"
+    elif isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value)  # accepts trailing "Z" on 3.11+
+        except ValueError:
+            return value
+    else:
+        return str(value)
     if dt.tzinfo is not None:
         dt = dt.astimezone(UTC)
     # Manual zero-padding — strftime would resolve the timezone on every

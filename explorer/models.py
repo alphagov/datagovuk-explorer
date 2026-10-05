@@ -1,9 +1,11 @@
 """Django models — the tables the migrations own.
 
 Schema notes:
-- Timestamps are TEXT in the DB (format_date exists for a reason) — TextField,
-  not DateTimeField. The one exception is LinkCheckResult.checked_at
-  (DateTimeField, converted in migration history).
+- Dataset timestamps (metadata_created/metadata_modified) are real
+  timestamptz instants (migration 0007). The remaining timestamp columns
+  are still TEXT, converted one slice at a time; format_date bridges both
+  forms while that is in progress. LinkCheckResult.checked_at is already a
+  DateTimeField.
 - links.id / series.id are SERIAL -> AutoField.
 - embedding_map.rowid / dataset_embeddings.rowid are plain INTEGER PRIMARY KEY
   (embed_batch assigns dense rowids from 1) -> IntegerField(primary_key=True),
@@ -78,8 +80,8 @@ class Dataset(models.Model):
     title = models.TextField(blank=True, null=True)
     name = models.TextField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
-    metadata_created = models.TextField(blank=True, null=True)
-    metadata_modified = models.TextField(blank=True, null=True)
+    metadata_created = models.DateTimeField(blank=True, null=True)
+    metadata_modified = models.DateTimeField(blank=True, null=True)
     resource_count = models.IntegerField(blank=True, null=True)
     theme_primary = models.TextField(blank=True, null=True)
     harvested = models.IntegerField(db_default=0)

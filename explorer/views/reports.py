@@ -18,6 +18,7 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.queries.core import Query
 from explorer.queries.reports import (
+    DATASET_REPORT_NULLS_LAST,
     DATASET_REPORT_SORT,
     DATASET_REPORT_SORT_DEFAULT,
     DUPLICATE_CONTENT_SORT,
@@ -150,7 +151,13 @@ def _duplicate_content_report(request, report, content_hash):
     """Duplicate-content detail mode (?hash=<md5>) — every dataset that
     shares one identical title/notes/resource-URL-set hash."""
     sort, dir_ = parse_sort(request, DATASET_REPORT_SORT, *_DUPLICATE_CONTENT_DETAIL_SORT_DEFAULT)
-    order_sql = _order_by_sql(DATASET_REPORT_SORT, sort, dir_, "LOWER(title), id")
+    order_sql = _order_by_sql(
+        DATASET_REPORT_SORT,
+        sort,
+        dir_,
+        "LOWER(title), id",
+        nulls_last=DATASET_REPORT_NULLS_LAST,
+    )
     list_stmt = Query(report["detail_sql"].replace("{order_by}", order_sql))
 
     count_stmt = Query(report["detail_count_sql"])

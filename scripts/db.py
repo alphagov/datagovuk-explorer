@@ -24,6 +24,12 @@ Design consequences of one sync connection:
   no-param statements use plain execute (no placeholder parsing), and any
   literal `%` added to a parameterized statement must be doubled (%%), as
   in explorer/queries.
+- The session timezone is pinned to UTC on connect. The pipeline passes
+  naive ISO timestamp strings straight through, and Postgres interprets a
+  naive string inserted into a `timestamptz` column in the session
+  timezone. Under the server default (Europe/London) that would silently
+  shift every summer timestamp by an hour; UTC matches the DB convention
+  (and Django's own connection).
 """
 
 import os
@@ -121,7 +127,9 @@ class Db:
 
 
 def connect(url: str | None = None) -> Db:
-    """Open a sync psycopg3 connection and return a Db handle."""
-    return Db(
-        psycopg.connect(url or database_url(), row_factory=dict_row, autocommit=True),
-    )
+    """Open a sync psycopg3 connection and return a Db handle (session
+    timezone pinned to UTC — see the module docstring)."""
+    conn = psycopg.connect(url or database_url(), row_factory=dict_row, autocommit=True)
+    with conn.cursor() as cur:
+        cur.execute("SET TIME ZONE 'UTC'")
+    return Db(conn)

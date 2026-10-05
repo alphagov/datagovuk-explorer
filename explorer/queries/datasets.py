@@ -29,12 +29,15 @@ TEMPORAL_MAX_YEAR = datetime.now(UTC).year
 DATASETS_SORT = {
     "title": "LOWER(COALESCE(d.title, ''))",
     "organisation": "LOWER(COALESCE(d.org_display_name, ''))",
-    "metadata_created": "COALESCE(d.metadata_created, '')",
-    "metadata_modified": "COALESCE(d.metadata_modified, '')",
+    "metadata_created": "d.metadata_created",
+    "metadata_modified": "d.metadata_modified",
     "resources": "COALESCE(d.resource_count, 0)",
     "views": "d.views",
     "harvested": "COALESCE(d.harvested, 0)",
 }
+
+# Nullable date columns — order_by adds NULLS LAST for these.
+DATASETS_NULLS_LAST = frozenset({"metadata_created", "metadata_modified"})
 
 # The order /datasets starts in before the user picks a column — one source
 # for both parse_sort (the fallback) and preserve_params (whether to encode
@@ -132,7 +135,7 @@ def _created_year_clause(filters: dict, exclude: str | None) -> tuple[list, list
         return [], []
     year = filters.get("created_year")
     if year:
-        return ["substr(d.metadata_created, 1, 4) = %s"], [year]
+        return ["EXTRACT(YEAR FROM d.metadata_created)::text = %s"], [year]
     return [], []
 
 
@@ -253,7 +256,7 @@ def datasets_stmts(filters: dict, sort: str, dir_: str) -> dict:
         clause, meta_params = _metadata_clause(filters)
         where = f"{where} AND {clause}" if where else f" WHERE {clause}"
         params = [*params, *meta_params]
-    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id")
+    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id", nulls_last=DATASETS_NULLS_LAST)
 
     entry = {
         "params": params,
@@ -279,7 +282,7 @@ def org_datasets_stmts(org_slug: str, sort: str, dir_: str) -> dict:
     param, the DATASETS_SORT ORDER BY, and a LIMIT/OFFSET page the view
     drives with core.paginate().
     """
-    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id")
+    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id", nulls_last=DATASETS_NULLS_LAST)
     return {
         "params": [org_slug],
         "count": Query("SELECT COUNT(*) AS n FROM datasets d WHERE d.org_slug = %s"),
@@ -302,7 +305,7 @@ def source_datasets_stmts(source_id: str, sort: str, dir_: str) -> dict:
     harvest_source_id. All these datasets are harvested, so there's no
     harvested column.
     """
-    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id")
+    order_sql = order_by(DATASETS_SORT, sort, dir_, "d.id", nulls_last=DATASETS_NULLS_LAST)
     return {
         "params": [source_id],
         "count": Query("SELECT COUNT(*) AS n FROM datasets d WHERE d.harvest_source_id = %s"),
@@ -375,9 +378,9 @@ def _facet_counts(filters: dict) -> dict:
             f"SELECT {_LINK_BUCKET_CASE} AS bucket, COUNT(*) AS count FROM datasets d{links_where} GROUP BY 1",
         ),
         "created_years": Query(
-            "SELECT substr(metadata_created, 1, 4) AS created_year, COUNT(*) AS count"
+            "SELECT EXTRACT(YEAR FROM metadata_created)::text AS created_year, COUNT(*) AS count"
             f" FROM datasets d{year_where}"
-            " GROUP BY substr(metadata_created, 1, 4)",
+            " GROUP BY EXTRACT(YEAR FROM metadata_created)::text",
         ),
         # Per-year counts: a dataset covering 1981-2009 counts for every
         # dataset_years has one row per (dataset_id, year) pre-expanded at
@@ -465,16 +468,16 @@ DATASET_TOTAL = Query("SELECT COUNT(*) AS n FROM datasets")
 
 # Datasets created per year
 YEARLY_DATASETS = Query(
-    """SELECT substr(metadata_created, 1, 4) AS year, COUNT(*) AS count
+    """SELECT EXTRACT(YEAR FROM metadata_created)::text AS year, COUNT(*) AS count
        FROM datasets WHERE metadata_created IS NOT NULL
-       GROUP BY substr(metadata_created, 1, 4)""",
+       GROUP BY EXTRACT(YEAR FROM metadata_created)::text""",
 )
 
 # Datasets created per year for one org
 YEARLY_BY_ORG = Query(
-    """SELECT substr(metadata_created, 1, 4) AS year, COUNT(*) AS count
+    """SELECT EXTRACT(YEAR FROM metadata_created)::text AS year, COUNT(*) AS count
        FROM datasets WHERE org_slug = %s AND metadata_created IS NOT NULL
-       GROUP BY substr(metadata_created, 1, 4)""",
+       GROUP BY EXTRACT(YEAR FROM metadata_created)::text""",
 )
 
 # Datasets per primary theme

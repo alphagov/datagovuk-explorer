@@ -19,10 +19,18 @@ def parse_sort(request, columns, default, default_dir="asc"):
     return sort, dir_
 
 
-def order_by(exprs, sort, dir_, tiebreak):
-    """ORDER BY fragment: the column expression, direction, tie-breaker."""
+def order_by(exprs, sort, dir_, tiebreak, nulls_last=()):
+    """ORDER BY fragment: the column expression, direction, tie-breaker.
+
+    `nulls_last` names the sort keys that are nullable date columns. Postgres
+    defaults to NULLS FIRST for DESC and NULLS LAST only for ASC, so for a
+    consistent "missing values last" order those columns need an explicit
+    NULLS LAST. Text columns handle their own nulls with COALESCE, so they
+    are left alone.
+    """
     direction = "DESC" if dir_ == "desc" else "ASC"
-    return f"{exprs[sort]} {direction}, {tiebreak}"
+    nulls = " NULLS LAST" if sort in nulls_last else ""
+    return f"{exprs[sort]} {direction}{nulls}, {tiebreak}"
 
 
 # Sortable columns for the resource table on the dataset page — sorted in

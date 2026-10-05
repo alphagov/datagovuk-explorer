@@ -1,5 +1,92 @@
 # Time and dates: replace text timestamps with real types
 
+> **Living document — updated at the end of the first implementation session.**
+> Phase 0+1 are done (uncommitted). See [Status](#status) for what landed,
+> [Corrections to this plan](#corrections-to-this-plan) for what
+> implementation changed, and [Next session](#next-session) to resume.
+
+## Status
+
+**Landed in the working tree (`HEAD` = `eb957aa`, nothing committed yet):**
+
+- **Phase 0 — bridge.** `explorer/helpers.py::format_date` accepts
+  `str | datetime | date`, converting aware values to UTC. The timezone-trap
+  regression test lives in the new `tests/test_migrations.py`.
+- **Phase 1 — datasets.** `metadata_created` / `metadata_modified` →
+  `DateTimeField`; migration `0007_dataset_timestamps` (drops + recreates
+  `mv_org_aggregates`, `AT TIME ZONE 'UTC'` conversion); `EXTRACT(YEAR …)::text`
+  year facets; `order_by(..., nulls_last=…)`; `org_last_published_years` and
+  `dashboard._active_card` read `.year`; the pipeline session is pinned to UTC.
+
+**Local dev DB is migrated** (`0007` applied): both columns are `timestamptz`,
+`mv_org_aggregates.last_published` is `timestamptz`, the date btrees were
+rebuilt by the ALTER, and **year-facet counts are byte-identical to before**.
+
+**Verified:** `tests/test_migrations.py` passes (all input shapes plus a full
+forward→reverse→forward round-trip); full suite **414 passed** (one pre-existing
+failure, below); `just test-live` **3 passed**; live query-layer checks of
+`/datasets` created-year facets, `/organisations` last-published facets, both
+date sorts, the report sort, and the dashboard card; a fresh `migrate` →
+`ingest_ckan` on a throwaway DB produced byte-identical instants.
+
+**Files touched this session:** `explorer/models.py`,
+`explorer/migrations/0007_dataset_timestamps.py` (new), `explorer/helpers.py`,
+`explorer/sort.py`, `explorer/queries/datasets.py`, `organisations.py`,
+`reports.py`, `dashboard.py`, `explorer/views/reports.py`, `scripts/db.py`,
+`conftest.py`, `tests/conftest.py`, `tests/test_migrations.py` (new),
+`explorer/tests/test_unit_helpers.py`, `explorer/tests/test_unit_sort.py`.
+
+**Known pre-existing problems (not caused by this work):**
+
+- `tests/test_get_harvest_sources.py::test_error_paths` fails on `main`
+  (expects `RuntimeError`, script raises `httpx.HTTPError`).
+- `just lint` is already red locally (gunicorn imports, a stale noqa, formatter
+  drift) — likely a newer ruff than the code was last formatted with. This work
+  adds **no new** lint/format findings.
+- Local `pg_dump` is 17.4 against a 18.6 server, so `just dump-db` can't run
+  until the client is upgraded.
+
+**Next:** Phase 2 (Organisations) — see [Next session](#next-session).
+
+## Corrections to this plan
+
+Implementation found the following. Where the plan text below still says
+otherwise, **this section wins**.
+
+1. **Django's own connections already run in UTC.** `settings.TIME_ZONE` is
+   `"UTC"`, and Django's Postgres backend pins the session
+   (`_configure_timezone` → `SET TIME ZONE`) for ORM *and* migration
+   connections. The plan's `Europe/London` premise is the *server default*,
+   which **raw psql/psycopg** connections inherit. Consequences:
+   - The migration's `AT TIME ZONE 'UTC'` is still right (keeps the migration
+     independent of `settings.TIME_ZONE`) but is belt-and-braces, not the only
+     thing preventing a shift.
+   - The **actual** one-hour-shift risk is the **raw-psycopg pipeline**, which
+     the plan listed under "no changes required".
+2. **The pipeline did need a change.** `scripts/db.py::connect()` now runs
+   `SET TIME ZONE 'UTC'`, so every script writes naive ISO strings as UTC.
+   Proved on a throwaway DB: without it, summer timestamps land an hour early
+   (438 live rows are the visible class — a BST date at 00:00–00:59 UTC). No
+   script uses SQL date functions (`now()`, `::date`), so the pin is safe.
+3. **`AlterField`'s generated SQL (checked in installed Django 6.1).**
+   `_using_sql()` hardcodes `USING %(column)s::%(type)s` with no hook to
+   customise it. `SeparateDatabaseAndState` is still required — because the
+   hand-written `mv_org_aggregates` is in the way, and to keep the cast
+   independent of session settings — but not because Django would implicitly
+   cast under `Europe/London`.
+4. **Forward-only migrations from here.** Decision: no `reverse_sql` for
+   phases 2+, and the project will squash migrations when done. An
+   irreversible `RunSQL` fails loudly on `migrate explorer <prev>`; a *failed*
+   forward migration still rolls back atomically. Phase 1's reverse is left in
+   place (already written/tested) but is **not** a template for later phases.
+5. **`dashboard._active_card` needed more than `.year`.** The last-published
+   card builds a `?last_published_year=` URL, so the years must stay strings:
+   `str(d.year)` / `str(lp.year)`, not raw ints.
+6. **Fixture seed must pass aware datetimes.** `conftest.py::_model_fields`
+   now converts the fixture's date-only/naive strings to aware UTC (`_utc`),
+   because a naive datetime handed to the ORM would be interpreted in the
+   session timezone.
+
 ## Summary
 
 Every timestamp in the database except `link_check_results.checked_at` is
@@ -86,14 +173,14 @@ ambiguity that `format_date` currently guesses at.
 
 ## Migration (data conversion)
 
-Add a new migration (next available number; the tree currently stops at
-`0006_harvest_sources_stats_columns`, though a stale
-`0007_harvest_sources.pyc` exists in `__pycache__` with no source — confirm
-the number before naming the file). Because the column is `text`,
-`USING` needs a normalisation expression. The critical subtlety: casting a
-naive string straight to `timestamptz` uses the **server session timezone**
-(`Europe/London` here), silently shifting values by an hour. Naive values must
-be pinned to UTC explicitly.
+The migration number is **`0007`** (`0007_dataset_timestamps` — used). The
+stale `0007_harvest_sources.pyc` in `__pycache__` is not importable. Because
+the column is `text`, `USING` needs a normalisation expression. Naive values
+must be pinned to UTC explicitly: a naive string cast to `timestamptz` is
+interpreted in the **session timezone**. That session is `Europe/London` for
+raw psql/psycopg connections (the server default — the real pipeline risk),
+while Django's own connections are already pinned to `TIME_ZONE=UTC`. Pin
+anyway so the migration can't depend on a session setting.
 
 ```sql
 -- shared conversion for a text column named <col>
@@ -107,12 +194,15 @@ END
 
 ### Expressing the conversion in Django
 
-`AlterField` **cannot** carry the custom `USING`. Django's Postgres schema
+`AlterField` **cannot** carry a custom `USING`. Django's Postgres schema
 editor hardcodes `USING %(column)s::%(type)s`
-(`django/db/backends/postgresql/schema.py:125`), which is exactly the unsafe
-naive cast this plan exists to avoid. The conversion must be `RunSQL`, wrapped
-in `SeparateDatabaseAndState` so Django's migration state still records the
-typed field:
+(`django/db/backends/postgresql/schema.py`, `_using_sql`) and offers no hook
+to change it. The conversion must be `RunSQL`, wrapped in
+`SeparateDatabaseAndState` so Django's migration state still records the
+typed field — the state half is exactly the `AlterField` that `makemigrations`
+would generate. The generated cast isn't wrong *per se* (Django runs the
+migration under `TIME_ZONE=UTC`), but `RunSQL` also lets us drop/recreate the
+view and pin UTC independently of settings:
 
 ```python
 migrations.SeparateDatabaseAndState(
@@ -171,20 +261,25 @@ beyond the recreate.
 - `idx_datasets_created` / `idx_datasets_modified` are text btrees; the
   `ALTER TYPE` rebuilds them as timestamp indexes automatically — no action.
 
-### Reverse migrations
+### Reverse migrations (superseded)
 
-Provide `RunSQL` in the other direction so `migrate explorer <prev>` still
-works:
+The project will **squash migrations** once this work lands, so reverse
+migrations aren't worth maintaining. From Phase 2 on, migrations are
+forward-only: `RunSQL` omits `reverse_sql`, so `migrate explorer <prev>` fails
+loudly with `IrreversibleError` rather than doing something partial. A failed
+forward migration still rolls back atomically (Postgres DDL is transactional).
 
-- `timestamptz` → text:
-  `to_char(col, 'YYYY-MM-DD"T"HH24:MI:SS.US')`
-- `date` (`collection_pages`) → text: `to_char(col, 'YYYY-MM-DD')`
-- Recreate `mv_org_aggregates` around the reverse `ALTER` the same way as
-  forward.
+Phase 1 (`0007`) kept its reverse because it was already written and tested —
+it is not a template for later phases. Two notes for the record:
 
-The reverse is not byte-identical for the `Z`/space-separated rows; they come
-back in `T` form. That's acceptable — the instant is preserved — but call it
-out in the migration.
+- `timestamptz` → text: `to_char(col AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')`.
+  The original plan omitted `AT TIME ZONE 'UTC'`; without it the reverse shifts
+  instants whenever the session isn't UTC.
+- `date` (`collection_pages`) → text: `to_char(col, 'YYYY-MM-DD')`.
+- Recreate `mv_org_aggregates` around the reverse `ALTER` the same way.
+
+The reverse is not byte-identical for `Z`/space-separated rows (they come back
+in `T` form); the instant is preserved.
 
 ## Data preservation
 
@@ -227,9 +322,9 @@ Two semantic caveats — changes in *representation*, not row loss:
    and NULL are both handled by `COALESCE(h.last_run, '')` in the sort, so
    nothing observable changes. If a future feature distinguishes "never run"
    from "not recorded", that distinction is gone (there is no such read now).
-2. **Reverse migration is lossy in format, not value.** `to_char(…)` restores
-   the instant but not the original separator/`Z` style; space-separated and
-   `Z` rows come back in `T` form.
+2. **Reverse is gone from Phase 2 on** (forward-only; see
+   [Corrections](#corrections-to-this-plan) #4). Phase 1's reverse would have
+   been lossy in format only — now academic.
 
 And one deliberate behaviour change to note: moving sort expressions from
 `COALESCE(col, '')` to `NULLS LAST` puts NULL/empty rows **last** ascending,
@@ -238,7 +333,13 @@ such rows (4 NULL + 25 empty), so the effect is limited to that page — flag it
 rather than let it surprise a reviewer.
 
 The real safety net remains a `db/backups` dump taken before the first
-deploy; everything above explains why it shouldn't be needed.
+deploy; everything above explains why it shouldn't be needed. **Note:** the
+local `pg_dump` (17.4) can't talk to the 18.6 server, so upgrade the client
+before relying on `just dump-db`/`restore-db`.
+
+Phase 1 verified the `migrate` → `ingest_ckan` half of `fresh-db` on a
+throwaway database (byte-identical instants); the full `just fresh-db`
+(including the derived-table builds) is still worth running before deploy.
 
 ## Code changes
 
@@ -335,13 +436,16 @@ Phasing #6).
 
 ### Ingest scripts (`scripts/`)
 
-psycopg sends parameters as `unknown` and Postgres parses ISO text into
-`timestamptz` on insert, so **no changes are required** for the CKAN path —
-`ds.get("metadata_created")` still works. Verify each writer:
+psycopg still passes the JSON strings straight through, but Postgres parses a
+naive string into `timestamptz` in the **session timezone** — so the pipeline
+does need one change, done in Phase 0/1: `scripts/db.py::connect()` pins the
+session to `UTC`. With that, `ds.get("metadata_created")` works unchanged.
+Verify each writer:
 
+- `scripts/db.py` — ✅ session pinned to UTC on connect.
 - `scripts/ingest_ckan.py` — datasets/organisations/links inserts pass strings
-  straight through. Drop the `year_created` derivation (`:635`) and its column
-  from `_link_rows` (`:579-599`) and the `INSERT` (`:503`).
+  straight through. Phase 3: drop the `year_created` derivation (`:635`) and
+  its column from `_link_rows` (`:579-599`) and the `INSERT` (`:503`).
 - `scripts/llm/ingest_reviews.py`, `ingest_suggestions.py` — `created_at`
   values end in `Z`; `::timestamptz` accepts them (verified).
 - `scripts/ingest_collections.py` — date-only string → `date`.
@@ -352,18 +456,27 @@ psycopg sends parameters as `unknown` and Postgres parses ISO text into
 
 ### Tests
 
-- `tests/conftest.py::migrated_db_url` already runs `manage.py migrate`, so
-  script tests get the new schema automatically.
-- Update assertions that compare strings: `tests/test_scripts_db.py`,
-  `tests/test_ingest_collections.py`, `tests/test_llm_ingest_*_db.py`,
-  `tests/test_check_links.py`.
-- Update `explorer/tests/test_unit_sort.py` (resource sorting) if it builds
-  rows with string dates.
-- Update `explorer/tests/test_integration_queries.py` /
-  `test_unit_facet_where.py` where they assert `substr` behaviour.
-- Add a migration test that inserts a naive `T`, a space-separated, a `Z`, and
-  a date-only sample and asserts the resulting instants are correct (this is
-  the regression guard for the timezone trap).
+Done in Phase 0/1:
+
+- ✅ `tests/test_migrations.py` (new) — inserts a naive `T`, a space-separated,
+  a `Z`, a date-only, an offset, an empty and a NULL sample, asserts the
+  instants, and does a full forward→reverse→forward round-trip. Uses the new
+  `tests/conftest.py::migration_db_url` (a **separate** scratch DB, so
+  rewinding can't disturb the shared `migrated_db_url`).
+- ✅ `tests/conftest.py::_model_fields` converts fixture date/naive strings to
+  aware UTC before the ORM insert.
+- ✅ `explorer/tests/test_unit_sort.py` covers `order_by(..., nulls_last=)`;
+  `test_unit_helpers.py` covers the `datetime`/`date` path.
+- ✅ `tests/conftest.py::migrated_db_url` runs `manage.py migrate`, so script
+  tests get the typed schema automatically.
+
+No changes needed for Phase 1: `explorer/tests/test_integration_queries.py`
+and `test_unit_facet_where.py` (the latter uses its own generic `substr`
+builder, not the real SQL).
+
+Later phases, as their columns convert: update `tests/test_scripts_db.py`,
+`tests/test_ingest_collections.py`, `tests/test_llm_ingest_*_db.py`,
+`tests/test_check_links.py` where they compare strings.
 
 ## Rollout
 
@@ -387,31 +500,40 @@ rewrite is short. Take a `db/backups` dump first via the existing backup path.
 
 ## Verification
 
-- Spot-check instants against the source: a dataset whose
-  `metadata_created` was `2010-02-09T16:02:42.310217` must read back as the
-  same wall clock in UTC, `+00`, not `+01`.
-- Confirm year facet counts are byte-identical before/after (they should be —
-  `substr` and `EXTRACT` agree when every value is ISO).
-- Confirm `links` year facet counts match the old `year_created`-based counts
-  for the same dataset. If they differ, the derivation assumption was wrong —
-  stop and reconcile.
-- Browser-check `/datasets`, `/organisations?last_published_year=…`,
-  `/links`, `/collections`, `/harvesters`, and a report page for sortable date
-  columns.
+Phase 1 results:
+
+- ✅ Spot-check instants against the source: `2010-02-09T16:02:42.310217` and
+  `2010-07-09T16:02:42.310217` (a BST date) both read back as the same wall
+  clock in UTC, not shifted.
+- ✅ Year facet counts byte-identical before/after (`substr` and `EXTRACT`
+  agree when every value is ISO) — 17 buckets, 58,751 datasets.
+- Concrete in-app check (the visible DST case):
+  `/dataset/cabinet-office/68addaac-59ae-4230-bb67-c5a8f6a76285` renders
+  **Created 01/06/2010** from `2010-06-01T00:02:04.938631`; a shifted value
+  would read `31/05/2010` (438 live rows are in this class).
+- ✅ Browser-check `/datasets`, `/organisations?last_published_year=…`,
+  `/organisation/:slug`, a report page — all 200.
+- Still to do in Phase 3: confirm `links` year facet counts match the old
+  `year_created`-based counts for the same dataset. If they differ, the
+  derivation assumption was wrong — stop and reconcile.
 
 ## Risks and non-goals
 
 - **Timezone trap (highest risk).** Casting naive text directly to
-  `timestamptz` under `TimeZone=Europe/London` shifts every naive value by an
-  hour. The `AT TIME ZONE 'UTC'` expression above is mandatory; the migration
-  test is the guard.
+  `timestamptz` uses the session timezone. For Django's own connections that
+  is `TIME_ZONE=UTC` (safe); for raw psql/psycopg (the pipeline) it is the
+  server default, `Europe/London`, which shifts every summer value by an hour.
+  Pin explicitly in both places: `AT TIME ZONE 'UTC'` in the migration and
+  `SET TIME ZONE 'UTC'` in `scripts/db.py`. The migration test is the guard.
 - **`Z` vs naive mixed in one column.** Only `reviews`/`suggestions` use `Z`;
   the regex branch handles both, but a hand-written `CASE` is required — a
   plain `USING col::timestamptz` is *not* safe.
 - **`AlterField` silently reintroduces the timezone bug.** Django generates
   `USING col::timestamptz` itself; the conversion must go through `RunSQL` +
   `SeparateDatabaseAndState` (see *Expressing the conversion in Django*).
-- **Reverse migration is lossy** for separator/offset style.
+- **Reverse migrations dropped.** Forward-only from Phase 2 (the project will
+  squash). `migrate explorer <prev>` fails loudly; a failed forward migration
+  still rolls back atomically.
 - **Non-goals:** changing the pipeline's data flow (still text in JSON, still
   passthrough inserts), introducing timezone-aware display beyond UTC,
   touching `link_check_results.checked_at`, or adding new date filters. Those
@@ -437,16 +559,38 @@ that constrains the order:
 - `reviews` / `suggestions` are unread by the app (written only), so they are
   optional and lowest priority.
 
-| # | Slice | Columns | Owns these pages | Notes |
-|---|---|---|---|---|
-| 0 | Bridge | — | all | Make `format_date` accept `str` *and* `datetime`; add the timezone-trap migration test. Unblocks everything else. |
-| 1 | Datasets | `datasets.metadata_created`, `metadata_modified` | `/datasets`, reports, series, org last-published, dashboard | Drop+recreate `mv_org_aggregates` *around* the ALTER (drop first — Postgres blocks the alter otherwise); `::text` year facets; `order_by()` NULLS rule; fix `org_last_published_years`, `dashboard.cards()`, and the org last-published facet SQL (`organisations.py:143-156,221-226`). |
-| 2 | Organisations | `organisations.created` | `/organisations`, `/organisation/:slug` | Org-created facet (`organisations.py:77,217-219`); drop `_YEAR_CREATED_GUARD`. |
-| 3 | Links | `links.created`; **drop** `year_created` | `/links`, `/links/errors` | Must follow #1. Add the `datasets` join to the year-facet query; `links.created` is never read in-app — convert for consistency only. |
-| 4 | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Fully self-contained; space-separated values. |
-| 5 | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. |
-| 6 | LLM ingest | `reviews.created_at`, `suggestions.created_at` | none | Optional. `Z`-suffixed; never read by the app. |
-| 7 | Cleanup | — | all | Drop the `format_date` `isinstance` bridge; rewrite the `models.py` schema note; remove the text-timestamp section from this doc. |
+| # | Status | Slice | Columns | Owns these pages | Notes |
+|---|---|---|---|---|---|
+| 0 | ✅ done | Bridge | — | all | `format_date` accepts `str`/`datetime`/`date`; timezone-trap migration test added. |
+| 1 | ✅ done | Datasets | `datasets.metadata_created`, `metadata_modified` | `/datasets`, reports, series, org last-published, dashboard | Drop+recreate `mv_org_aggregates` *around* the ALTER (drop first — Postgres blocks the alter otherwise); `::text` year facets; `order_by()` NULLS rule; fix `org_last_published_years`, `dashboard.cards()`, and the org last-published facet SQL (`organisations.py:143-156,221-226`). |
+| 2 | ⬜ next | Organisations | `organisations.created` | `/organisations`, `/organisation/:slug` | Org-created facet (`organisations.py:77,217-219`); drop `_YEAR_CREATED_GUARD` (`:128`); `YEARLY_ORGS`. `ORG_SORT` already plain + `nulls_last`. Forward-only migration. |
+| 3 | ⬜ | Links | `links.created`; **drop** `year_created` | `/links`, `/links/errors` | Must follow #1. Add the `datasets` join to the year-facet query; `links.created` is never read in-app — convert for consistency only. Re-assert the `year_created` derivation before dropping. |
+| 4 | ⬜ | Harvest sources | `harvest_sources.created`, `last_run` | `/harvesters`, `/harvester` | Fully self-contained; space-separated values; null/empty sort order change visible here. |
+| 5 | ⬜ | Collection pages | `collection_pages.page_last_updated` | `/collections`, `/collection/:slug` | `date`, not `timestamptz` — no tz risk. |
+| 6 | ⬜ | LLM ingest | `reviews.created_at`, `suggestions.created_at` | none | Optional. `Z`-suffixed; never read by the app. |
+| 7 | ⬜ | Cleanup | — | all | Drop the `format_date` `isinstance` bridge; rewrite the `models.py` schema note; remove the text-timestamp sections from this doc; then squash migrations. |
 
 Sequencing is additive: phases 1–6 have no order dependency on each other
 except the `datasets` → `links` and `datasets` → `organisations` edges above.
+
+## Next session
+
+Resume at **Phase 2 — Organisations** (`organisations.created`).
+
+- Forward-only migration (no `reverse_sql`) — see
+  [Corrections](#corrections-to-this-plan) #4.
+- `organisations.py:77` `YEARLY_ORGS`, `:128` `_YEAR_CREATED_GUARD` (delete),
+  `:217-219` facet counts: `substr` → `EXTRACT(YEAR FROM o.created)::text`.
+- `ORG_SORT` already uses plain `o.created` with `nulls_last` (done in Phase 1)
+  — no sort change needed there.
+- `format_date` bridge already handles `organisations.created` becoming
+  `timestamptz`; `organisation.html:46` needs no change.
+- `conftest.py::_model_fields` will need the same UTC conversion for
+  `organisations.created` (the fixture currently writes it via the ORM).
+- Re-run `just migrate`, `just test`, `just test-live`; browser-check
+  `/organisations` and `/organisation/:slug`.
+- Consider combining phases 4–6 (self-contained, mechanical) if fewer PRs are
+  wanted.
+
+**Do not commit Phase 1 until reviewed** — `HEAD` is still `eb957aa` and the
+local dev DB already has `0007` applied.

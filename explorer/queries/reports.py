@@ -38,11 +38,14 @@ LINK_REPORT_ORDER = "LOWER(org_display_name), LOWER(dataset_title), id"
 DATASET_REPORT_SORT = {
     "org": "LOWER(org_display_name)",
     "title": "LOWER(COALESCE(title, ''))",
-    "metadata_created": "COALESCE(metadata_created, '')",
-    "metadata_modified": "COALESCE(metadata_modified, '')",
+    "metadata_created": "metadata_created",
+    "metadata_modified": "metadata_modified",
     "views": "COALESCE(views, 0)",
 }
 DATASET_REPORT_SORT_DEFAULT = ("org", "asc")
+
+# Nullable date columns — order_by adds NULLS LAST for these.
+DATASET_REPORT_NULLS_LAST = frozenset({"metadata_created", "metadata_modified"})
 
 LINK_REPORT_SORT = {
     "org": "LOWER(org_display_name)",
@@ -532,7 +535,10 @@ def report_stmts(  # noqa: C901
         if kind == "datasets":
             s = sort if sort in DATASET_REPORT_SORT else DATASET_REPORT_SORT_DEFAULT[0]
             d = dir_ if dir_ in ("asc", "desc") else DATASET_REPORT_SORT_DEFAULT[1]
-            list_sql = list_sql.replace("{order_by}", _order_by_sql(DATASET_REPORT_SORT, s, d, "LOWER(title), id"))
+            list_sql = list_sql.replace(
+                "{order_by}",
+                _order_by_sql(DATASET_REPORT_SORT, s, d, "LOWER(title), id", nulls_last=DATASET_REPORT_NULLS_LAST),
+            )
         elif kind == "links":
             s = sort if sort in LINK_REPORT_SORT else LINK_REPORT_SORT_DEFAULT[0]
             d = dir_ if dir_ in ("asc", "desc") else LINK_REPORT_SORT_DEFAULT[1]

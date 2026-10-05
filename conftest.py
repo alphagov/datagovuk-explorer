@@ -380,9 +380,23 @@ _SUGGESTIONS = [
 _JSON_ONLY = ("extras", "resources", "temporal_from", "temporal_to", "temporal_granularity", "theme_secondary")
 
 
+def _utc(value):
+    """A date/naive-ISO string as a UTC-aware datetime, for the ORM insert
+    into the now-`timestamptz` dataset columns (naive input = UTC by the
+    DB convention, never the session timezone)."""
+    if value is None or value == "":
+        return None
+    dt = datetime.fromisoformat(value)
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
+
+
 def _model_fields(row):
-    """A dataset row's model columns (tags serialised, JSON-only keys dropped)."""
-    return {**{k: v for k, v in row.items() if k not in _JSON_ONLY}, "tags": json.dumps(row.get("tags", []))}
+    """A dataset row's model columns (tags serialised, JSON-only keys dropped,
+    the timestamptz columns made aware-UTC for the ORM)."""
+    fields = {**{k: v for k, v in row.items() if k not in _JSON_ONLY}, "tags": json.dumps(row.get("tags", []))}
+    for key in ("metadata_created", "metadata_modified"):
+        fields[key] = _utc(fields.get(key))
+    return fields
 
 
 def make_fixtures():

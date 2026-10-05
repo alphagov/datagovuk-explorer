@@ -22,6 +22,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 @pytest.fixture(scope="session")
 def scratch_db_url():
     """A throwaway postgres database, or pytest.skip if it can't be created."""
+    yield from _scratch_database()
+
+
+def _scratch_database():
+    """Create a uniquely-named throwaway database and drop it afterwards."""
     maintenance = os.getenv(
         "TEST_POSTGRES_MAINTENANCE_URL",
         "postgresql://localhost:5432/postgres",
@@ -49,6 +54,16 @@ def scratch_db_url():
         admin.close()
     except psycopg.Error:
         pass  # best-effort cleanup — the name is unique per run
+
+
+@pytest.fixture(scope="session")
+def migration_db_url():
+    """A separate throwaway DB for migration tests to migrate up/down in.
+
+    Kept apart from ``scratch_db_url`` so a test that rewinds the schema
+    can't disturb ``migrated_db_url``'s fully-migrated database.
+    """
+    yield from _scratch_database()
 
 
 @pytest.fixture(scope="session")
