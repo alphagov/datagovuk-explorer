@@ -1,15 +1,16 @@
 """Django models — the tables the migrations own.
 
 Schema notes:
-- Timestamps are real instants. dataset metadata_created/
-  metadata_modified, organisation created, harvest_source created/
-  last_run, review/suggestion created_at are timestamptz (migrations 0007,
-  0008, 0009, 0011) and collection_pages.page_last_updated is a date
-  (0010). The one exception is links.created, left TEXT because nothing
-  reads it; links.year_created is a pipeline-owned TEXT facet key, not a
-  timestamp. format_date still accepts ISO strings because some values
-  come from JSON (dataset resource dates, harvest next_run), not columns.
-  LinkCheckResult.checked_at is already a DateTimeField.
+- Timestamps are real instants, built directly by the single initial
+  migration (`0001_initial`, squashed from the 0007-0011 conversions):
+  dataset metadata_created/metadata_modified, organisation created,
+  harvest_source created/last_run and review/suggestion created_at are
+  timestamptz; collection_pages.page_last_updated is a date. The one
+  exception is links.created, left TEXT because nothing reads it;
+  links.year_created is a pipeline-owned TEXT facet key, not a timestamp.
+  `format_date` still accepts ISO strings because some values come from JSON
+  (dataset resource dates, harvest next_run), not columns.
+  LinkCheckResult.checked_at is a DateTimeField.
 - links.id / series.id are SERIAL -> AutoField.
 - embedding_map.rowid / dataset_embeddings.rowid are plain INTEGER PRIMARY KEY
   (embed_batch assigns dense rowids from 1) -> IntegerField(primary_key=True),
