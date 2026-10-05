@@ -103,7 +103,7 @@ build-dataset-content-hash:
 # Rebuild just the dataset_years table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Expands temporal_periods into one row per (dataset, year).
 build-dataset-years:
-    uv run --env-file .env python -m scripts.ingest_ckan dataset-years
+    uv run --env-file .env python -m scripts.build_dataset_years
 
 # One-shot fresh local database: create it if missing, apply the schema,
 # then populate it. The path for a fresh checkout. db_name must be the
