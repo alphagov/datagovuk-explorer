@@ -817,6 +817,8 @@ def build() -> None:
         # creates. On the baseline DB they pre-exist.
         print("  indexes: migration-owned (0001)", file=sys.stderr)
 
+        db.exec("REFRESH MATERIALIZED VIEW mv_org_aggregates")
+
         link_row = db.prepare("SELECT COUNT(*) AS n FROM links").get()
         link_count = link_row["n"]
         print(

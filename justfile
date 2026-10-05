@@ -88,7 +88,6 @@ build-db: migrate
     uv run --env-file .env python -m scripts.build_metadata
     uv run --env-file .env python -m scripts.build_dataset_api
     uv run --env-file .env python -m scripts.build_dataset_content_hash
-    psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
     uv run --env-file .env python -m scripts.build_harvester_stats
 
 # Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
@@ -136,7 +135,6 @@ fresh-db db_name="datagovuk_explorer":
     uv run --env-file .env python -m scripts.build_metadata
     uv run --env-file .env python -m scripts.build_dataset_api
     uv run --env-file .env python -m scripts.build_dataset_content_hash
-    psql $DATABASE_URL -c "REFRESH MATERIALIZED VIEW mv_org_aggregates"
     uv run --env-file .env python -m scripts.build_harvester_stats
 
 # Populate denormalised stats columns on harvest_sources (dataset_count,
