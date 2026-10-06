@@ -54,6 +54,7 @@ urlpatterns += [
 # --- home (dashboard), dashboard reports, dataset detail -----------
 urlpatterns += [
     path("", views.dashboard, name="home"),
+    path("report/<str:key>/download.csv", views.report_download, name="report-download"),
     path("report/<str:key>", views.report, name="report"),
     path(
         "dataset/<str:org_slug>/<str:dataset_id>",

@@ -1,8 +1,12 @@
 """Integration tests for the data-quality reports against the seeded fixture.
 
-Every report's count/list compiles and agrees, ordering is deterministic, and
-the facet counts wire up to the right (sql, params).
+Every report's count/list compiles and agrees, ordering is deterministic, the
+facet counts wire up to the right (sql, params), and every report offers its
+filtered, unpaginated rows as a CSV download.
 """
+
+import csv
+import io
 
 import pytest
 
@@ -10,6 +14,24 @@ from explorer.queries.core import Query
 from explorer.queries.reports import REPORTS, report_facet_counts, report_stmts
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
+
+_DOWNLOAD = "/report/{key}/download.csv"
+
+
+def _report(key):
+    return next(r for r in REPORTS if r["key"] == key)
+
+
+def _count(report, filters=None):
+    out = report_stmts(report, filters)
+    return out["count"].get(*out["params"])["n"]
+
+
+def _csv_rows(response):
+    """A download response's rows as lists, header included."""
+    assert response.status_code == 200
+    assert response["Content-Type"].startswith("text/csv")
+    return list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
 
 
 def test_every_report_count_matches_list():
@@ -68,3 +90,72 @@ def test_report_facet_filter_narrows_to_pool():
             assert out["count"].get(*out["params"])["n"] == top["count"], (
                 f"{report['key']}.{facet['key']}={top['slug']}"
             )
+
+
+# ── CSV download (views/reports.py's report_download) ─────────────────────
+
+
+@pytest.mark.parametrize("report", REPORTS, ids=[r["key"] for r in REPORTS])
+def test_every_report_download_is_unpaginated_csv(client, report):
+    """The download is the report's full filtered row set (no pager) plus a
+    header, with an attachment filename named after the report."""
+    response = client.get(_DOWNLOAD.format(key=report["key"]))
+    assert response["Content-Disposition"] == f'attachment; filename="{report["key"]}.csv"'
+    rows = _csv_rows(response)
+    assert len(rows) == _count(report) + 1, f"{report['key']}: wrong row count"
+
+
+@pytest.mark.parametrize("report", REPORTS, ids=[r["key"] for r in REPORTS])
+def test_every_report_page_offers_the_download(client, report):
+    html = client.get(f"/report/{report['key']}").content.decode()
+    assert f"/report/{report['key']}/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_report_download_applies_facet_filter(client):
+    report = _report("datasets-no-description")
+    sql, params = report_facet_counts(report, {})["org"]
+    top = Query(sql).all(*params)[0]
+    rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"org": top["slug"]}))
+    assert len(rows) == _count(report, {"org": top["slug"]}) + 1
+
+
+def test_report_download_url_carries_the_active_filters(client):
+    report = _report("datasets-no-description")
+    sql, params = report_facet_counts(report, {})["org"]
+    top = Query(sql).all(*params)[0]
+    html = client.get(f"/report/{report['key']}", {"org": top["slug"], "sort": "title", "dir": "asc"}).content.decode()
+    assert f"/report/{report['key']}/download.csv?sort=title&amp;dir=asc&amp;org={top['slug']}" in html
+
+
+def test_report_download_ignores_page(client):
+    """?page= must not shrink the export — the pager is a page concern."""
+    report = _report("datasets-no-description")
+    rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"page": "999"}))
+    assert len(rows) == _count(report) + 1
+
+
+def test_report_download_order_matches_the_sorted_query(client):
+    report = _report("datasets-no-description")
+    out = report_stmts(report, {}, sort="title", dir_="asc")
+    expected = [r["title"] or r["name"] for r in out["list"].all(*out["params"], 1_000_000, 0)]
+    rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"sort": "title", "dir": "asc"}))
+    assert [row[0] for row in rows[1:]] == expected
+
+
+def test_duplicate_content_detail_download(client):
+    """Detail mode exports its members as the datasets shape (the three
+    fixture datasets sharing the content hash)."""
+    rows = _csv_rows(
+        client.get(_DOWNLOAD.format(key="datasets-duplicate-content"), {"hash": "hash-shared-d01-d05-d09"}),
+    )
+    assert len(rows) == 4  # header + the three members
+    assert rows[0] == ["Dataset", "Publisher", "Created", "Modified", "Views"]
+
+
+def test_duplicate_url_detail_download(client):
+    report = _report("links-duplicate-urls")
+    listing = report_stmts(report)
+    url = listing["list"].all(*listing["params"], 1, 0)[0]["url"]
+    rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"url": url}))
+    assert len(rows) == Query(report["detail_count_sql"]).get(url)["n"] + 1

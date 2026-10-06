@@ -5,6 +5,10 @@
   <link rel="stylesheet" href="{{ static('css/pages/report.css') }}" />
 {% endblock styles %}
 
+{% block scripts %}
+  <script src="{{ static('page-menu.js') }}"></script>
+{% endblock scripts %}
+
 {% block header_left %}
   {% if detail_url and current.key == "links-suspicious-redirects" %}
     {{ back_link('/report/links-suspicious-redirects', 'Suspicious redirects') }}
@@ -39,7 +43,7 @@
   {% else %}
     {% set count_label, count_label_singular = 'datasets', 'dataset' %}
   {% endif %}
-  {{ pagination(start_index, end_index, current.count, page, total_pages, pager_base, label=count_label, label_singular=count_label_singular) }}
+  {{ pagination(start_index, end_index, current.count, page, total_pages, pager_base, label=count_label, label_singular=count_label_singular, download_url=download_url) }}
 {% endblock header_right %}
 
 {% block facets %}

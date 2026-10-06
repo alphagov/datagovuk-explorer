@@ -97,6 +97,27 @@ def test_pagination_jump_form_rebuilds_query_params():
     assert "of 3" in " ".join(html.split())
 
 
+def test_pagination_download_menu_is_opt_in():
+    """Passing download_url adds the 3-dots menu; without it no menu renders.
+    The menu shows even on a single page, when there is no pager at all."""
+    with_menu = _pagination(
+        start=1,
+        end=1,
+        total=1,
+        page=1,
+        total_pages=1,
+        label="datasets",
+        download_url="/report/datasets-no-description/download.csv?sort=title&dir=asc",
+    )
+    assert 'class="page-menu"' in with_menu
+    assert "Download CSV" in with_menu
+    assert "/report/datasets-no-description/download.csv?sort=title&amp;dir=asc" in with_menu
+    assert 'class="pagination"' not in with_menu  # single page → no pager
+
+    without = _pagination(start=1, end=1, total=1, page=1, total_pages=1, label="datasets")
+    assert "page-menu" not in without
+
+
 # --- sub-nav ---------------------------------------------------------------
 def test_subnav_active_heading_and_sibling_links():
     html = _render(

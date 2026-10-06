@@ -18,7 +18,7 @@ from .metadata import metadata_detail, metadata_overview
 from .organisation import organisation
 from .organisations import organisations
 from .publisher_reviews import publisher_reviews
-from .reports import report
+from .reports import report, report_download
 from .reviews import reviews
 from .search import publisher_suggest, search, search_datasets, search_publishers
 from .series import series_detail, series_list
@@ -47,6 +47,7 @@ __all__ = [
     "publisher_reviews",
     "publisher_suggest",
     "report",
+    "report_download",
     "reviews",
     "search",
     "search_datasets",
