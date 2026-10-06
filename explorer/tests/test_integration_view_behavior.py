@@ -7,6 +7,8 @@ facet-value validation/fallback, the harvesters facet partition + headline,
 and the dataset detail review.
 """
 
+import csv
+import io
 import re
 
 import pytest
@@ -17,6 +19,7 @@ from explorer.queries.core import Query
 from explorer.queries.dashboard import cards
 from explorer.queries.datasets import datasets_facet_counts, datasets_stmts
 from explorer.queries.harvesters import harvest_source_rows, harvest_sources_stmts, harvested_total
+from explorer.queries.organisations import organisations_facet_counts, organisations_stmts
 from explorer.queries.reports import (
     REPORTS,
     report_dashboard_count,
@@ -231,3 +234,49 @@ def test_collections_bogus_collection_falls_back(client):
     # "environment" has 2 fixture collections; check the filter works.
     filtered = _collections_count({"collection": "environment"})
     assert_count(client.get("/collections?collection=environment"), filtered, "collection pages")
+
+
+# ── /organisations CSV download (views/organisations.py) ──────────────────
+
+
+def _csv_rows(response):
+    assert response.status_code == 200
+    assert response["Content-Type"].startswith("text/csv")
+    return list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
+
+
+def test_organisations_download_is_unpaginated_csv(client):
+    stmts = organisations_stmts({}, "views", "desc")
+    n = stmts["count"].get(*stmts["params"])["n"]
+    response = client.get("/organisations/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="publishers.csv"'
+    rows = _csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == ["Publisher", "Datasets", "Links", "Health", "Views", "Created", "Last published"]
+
+
+def test_organisations_page_offers_the_download(client):
+    html = client.get("/organisations").content.decode()
+    assert "/organisations/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_organisations_download_applies_facet_filter(client):
+    bucket = organisations_facet_counts({})["datasets"][0]["bucket"]
+    stmts = organisations_stmts({"datasets": bucket}, "views", "desc")
+    n = stmts["count"].get(*stmts["params"])["n"]
+    rows = _csv_rows(client.get("/organisations/download.csv", {"datasets": bucket}))
+    assert len(rows) == n + 1
+
+
+def test_organisations_download_url_carries_the_active_filters(client):
+    bucket = organisations_facet_counts({})["datasets"][0]["bucket"]
+    html = client.get("/organisations", {"datasets": bucket, "sort": "name", "dir": "asc"}).content.decode()
+    assert f"/organisations/download.csv?sort=name&amp;dir=asc&amp;datasets={bucket}" in html
+
+
+def test_organisations_download_ignores_page(client):
+    stmts = organisations_stmts({}, "views", "desc")
+    n = stmts["count"].get(*stmts["params"])["n"]
+    rows = _csv_rows(client.get("/organisations/download.csv", {"page": "999"}))
+    assert len(rows) == n + 1

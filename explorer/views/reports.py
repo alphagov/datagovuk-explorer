@@ -13,15 +13,13 @@ The home dashboard (GET /) is views/dashboard.py; its card data is
 assembled in queries/dashboard.py.
 """
 
-import csv
-import io
 import json
-from datetime import date, datetime
 
-from django.http import Http404, HttpResponse
+from django.http import Http404
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import CSV_ROW_LIMIT, csv_response, serialize
 from explorer.queries.core import Query
 from explorer.queries.reports import (
     DATASET_REPORT_NULLS_LAST,
@@ -65,12 +63,6 @@ _REPORT_SORT = {
 _NO_SORT = ({}, ("name", "asc"))
 
 _DUPLICATE_CONTENT_DETAIL_SORT_DEFAULT = ("metadata_created", "asc")
-
-# The CSV export's "no pagination" limit. The list statements all end in
-# LIMIT %s OFFSET %s, so the download runs the same compiled SQL with a
-# limit no report could reach (the largest is well under 100k) and offset 0,
-# keeping the exported column set and the page's in lockstep.
-_DOWNLOAD_ROW_LIMIT = 1_000_000
 
 # CSV export columns per listing shape: (header, row key). The detail modes
 # reuse the "datasets"/"links" shapes and drop columns via hidden_cols, so
@@ -331,39 +323,18 @@ def _csv_columns(report, listing) -> list[tuple[str, str]]:
 
 def _csv_cell(row: dict, key: str):
     """One cell's CSV value. Mirrors the table's own fallbacks ("Dataset"
-    is title or name; "Name" is name or description) and serialises dates
-    to ISO so spreadsheets parse them."""
+    is title or name; "Name" is name or description) and joins the API
+    resources; everything else serialises through the shared helper."""
     if key == "title":
-        value = row.get("title") or row.get("name")
-    elif key == "name":
-        value = row.get("name") or row.get("description")
-    elif key == "api_links":
+        return serialize(row.get("title") or row.get("name"))
+    if key == "name":
+        return serialize(row.get("name") or row.get("description"))
+    if key == "api_links":
         return "; ".join(
             " — ".join(part for part in (link.get("name"), link.get("url")) if part)
             for link in row.get("api_links") or []
         )
-    else:
-        value = row.get(key)
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
-    if value is None:
-        return ""
-    return value
-
-
-def _csv_response(report, listing, rows) -> HttpResponse:
-    """Render one listing as a downloadable CSV attachment (BOM included so
-    Excel reads the UTF-8 names correctly)."""
-    columns = _csv_columns(report, listing)
-    buffer = io.StringIO()
-    buffer.write("\ufeff")
-    writer = csv.writer(buffer)
-    writer.writerow([header for header, _ in columns])
-    for row in rows:
-        writer.writerow([_csv_cell(row, key) for _, key in columns])
-    response = HttpResponse(buffer.getvalue(), content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="{report["key"]}.csv"'
-    return response
+    return serialize(row.get(key))
 
 
 def _report_facets(
@@ -478,7 +449,7 @@ def report_download(request, key):
     """
     report = _report(key)
     listing = _listing(request, report)
-    rows = listing["stmt"]["list"].all(*listing["stmt"]["params"], _DOWNLOAD_ROW_LIMIT, 0)
+    rows = listing["stmt"]["list"].all(*listing["stmt"]["params"], CSV_ROW_LIMIT, 0)
     if report.get("show_api_links"):
         rows = _parse_api_links(rows)
-    return _csv_response(report, listing, rows)
+    return csv_response(f"{report['key']}.csv", _csv_columns(report, listing), rows, cell=_csv_cell)

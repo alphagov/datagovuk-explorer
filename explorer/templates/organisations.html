@@ -1,7 +1,11 @@
 {% extends "_app_layout.html" %}
 
+{% block scripts %}
+  <script src="{{ static('page-menu.js') }}"></script>
+{% endblock scripts %}
+
 {% block header_right %}
-  {{ pagination(start_index, end_index, shown_orgs, page, total_pages, pager_base, label="publishers", label_singular="publisher") }}
+  {{ pagination(start_index, end_index, shown_orgs, page, total_pages, pager_base, label="publishers", label_singular="publisher", download_url=download_url) }}
 {% endblock header_right %}
 
 {% block facets %}

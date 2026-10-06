@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import CSV_ROW_LIMIT, csv_response
 from explorer.helpers import format_date
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
@@ -77,24 +78,67 @@ def _parse_filters(request, valid_created_years, valid_pub_years) -> OrgFilters:
     )
 
 
-def organisations(request):
+def _listing(request) -> dict:
+    """Resolve one /organisations request into its filter/sort state and the
+    compiled count+list statements — shared by the page and the CSV download,
+    so the exported rows can't drift from the table."""
     sort, dir_ = parse_sort(request, ORG_SORT, *ORG_SORT_DEFAULT)
-
     created_years = org_created_years()
     last_published_years = org_last_published_years()
-
     filters = _parse_filters(request, set(created_years), set(last_published_years))
+    filter_dict = {
+        "created_year": filters.created_year,
+        "last_published_year": filters.last_published_years,
+        "datasets": filters.datasets,
+    }
+    stmts = organisations_stmts(filter_dict, sort, dir_)
+    return {
+        "sort": sort,
+        "dir": dir_,
+        "filters": filters,
+        "filter_dict": filter_dict,
+        "stmts": stmts,
+        "total": stmts["count"].get(*stmts["params"])["n"],
+        "created_years": created_years,
+        "last_published_years": last_published_years,
+    }
 
-    stmts = organisations_stmts(
-        {
-            "created_year": filters.created_year,
-            "last_published_year": filters.last_published_years,
-            "datasets": filters.datasets,
-        },
-        sort,
-        dir_,
-    )
-    shown_orgs = stmts["count"].get(*stmts["params"])["n"]
+
+# CSV export columns — the table's own columns, from the raw list rows. The
+# shared csv helper serialises the dates to ISO (the page formats them).
+_ORG_CSV_COLUMNS = [
+    ("Publisher", "name"),
+    ("Datasets", "dataset_count"),
+    ("Links", "resource_count"),
+    ("Health", "link_health"),
+    ("Views", "views"),
+    ("Created", "created"),
+    ("Last published", "last_published"),
+]
+
+
+def _csv_row(r: dict, link_health: dict) -> dict:
+    """One SQL page row → its export shape (same derivations as _page_row,
+    but the dates are left raw for the CSV to serialise)."""
+    return {
+        "name": r["display_name"] or r["title"] or r["name"],
+        "dataset_count": r["package_count"] or 0,
+        "resource_count": r["total_resources"] or 0,
+        "link_health": link_health.get(r["slug"]),
+        "views": r["total_views"] or 0,
+        "created": r["created"],
+        "last_published": r["last_published"],
+    }
+
+
+def organisations(request):
+    listing = _listing(request)
+    sort, dir_, filters = listing["sort"], listing["dir"], listing["filters"]
+    stmts = listing["stmts"]
+    created_years = listing["created_years"]
+    last_published_years = listing["last_published_years"]
+
+    shown_orgs = listing["total"]
     pagination = paginate(request, shown_orgs)
     link_health = {r["org_slug"]: r["link_health"] for r in org_link_health_rows()}
     page_rows = [
@@ -132,13 +176,7 @@ def organisations(request):
     facet_qs = facets.facet_qs(base_params, include_sort=False)
     pager_base = facets.pager_base(base_params)
 
-    facet_counts = organisations_facet_counts(
-        {
-            "created_year": filters.created_year,
-            "last_published_year": filters.last_published_years,
-            "datasets": filters.datasets,
-        },
-    )
+    facet_counts = organisations_facet_counts(listing["filter_dict"])
     bucket_counts = {r["bucket"]: r["count"] for r in facet_counts["datasets"]}
     year_pool_counts = {r["created_year"]: r["count"] for r in facet_counts["created_years"]}
     pub_year_pool_counts = {r["last_published_year"]: r["count"] for r in facet_counts["last_published_years"]}
@@ -234,6 +272,17 @@ def organisations(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
+            "download_url": f"/organisations/download.csv{pager_base}",
             **pagination,
         },
     )
+
+
+def organisations_download(request):
+    """GET /organisations/download.csv — the same filtered, sorted
+    publishers as the table, unpaginated and as a CSV attachment."""
+    listing = _listing(request)
+    stmts = listing["stmts"]
+    link_health = {r["org_slug"]: r["link_health"] for r in org_link_health_rows()}
+    rows = [_csv_row(r, link_health) for r in stmts["list"].all(*stmts["params"], CSV_ROW_LIMIT, 0)]
+    return csv_response("publishers.csv", _ORG_CSV_COLUMNS, rows)

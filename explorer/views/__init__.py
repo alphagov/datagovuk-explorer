@@ -16,7 +16,7 @@ from .links import links
 from .links_errors import link_errors
 from .metadata import metadata_detail, metadata_overview
 from .organisation import organisation
-from .organisations import organisations
+from .organisations import organisations, organisations_download
 from .publisher_reviews import publisher_reviews
 from .reports import report, report_download
 from .reviews import reviews
@@ -43,6 +43,7 @@ __all__ = [
     "not_found",
     "organisation",
     "organisations",
+    "organisations_download",
     "paginate",
     "publisher_reviews",
     "publisher_suggest",
