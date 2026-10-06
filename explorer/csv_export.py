@@ -1,10 +1,10 @@
-"""CSV export plumbing shared by the report and publisher downloads.
+"""CSV export plumbing shared by the page downloads.
 
 Every export is the page's own filtered, sorted query run without its
-LIMIT/OFFSET — the view rebuilds the same statement and passes
-CSV_ROW_LIMIT, so the file can't drift from the table it came from. Dates
-serialise to ISO, None to an empty cell, and a UTF-8 BOM is written so
-Excel reads non-ASCII names correctly.
+LIMIT/OFFSET (see queries/core.py's all_rows) — the view builds the same
+statement for the page and the export, so the file can't drift from the
+table it came from. Dates serialise to ISO, None to an empty cell, and a
+UTF-8 BOM is written so Excel reads non-ASCII names correctly.
 """
 
 import csv
@@ -13,11 +13,6 @@ from collections.abc import Callable, Iterable
 from datetime import date, datetime
 
 from django.http import HttpResponse
-
-# Effectively "all rows": the list statements all end in LIMIT %s OFFSET %s,
-# so an export passes this limit and offset 0. The largest table here is well
-# under it.
-CSV_ROW_LIMIT = 1_000_000
 
 
 def serialize(value):

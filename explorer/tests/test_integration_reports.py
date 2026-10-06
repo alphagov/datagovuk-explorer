@@ -5,13 +5,11 @@ facet counts wire up to the right (sql, params), and every report offers its
 filtered, unpaginated rows as a CSV download.
 """
 
-import csv
-import io
-
 import pytest
 
 from explorer.queries.core import Query
 from explorer.queries.reports import REPORTS, report_facet_counts, report_stmts
+from explorer.tests.csv_helpers import csv_rows
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
@@ -25,13 +23,6 @@ def _report(key):
 def _count(report, filters=None):
     out = report_stmts(report, filters)
     return out["count"].get(*out["params"])["n"]
-
-
-def _csv_rows(response):
-    """A download response's rows as lists, header included."""
-    assert response.status_code == 200
-    assert response["Content-Type"].startswith("text/csv")
-    return list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
 
 
 def test_every_report_count_matches_list():
@@ -101,7 +92,7 @@ def test_every_report_download_is_unpaginated_csv(client, report):
     header, with an attachment filename named after the report."""
     response = client.get(_DOWNLOAD.format(key=report["key"]))
     assert response["Content-Disposition"] == f'attachment; filename="{report["key"]}.csv"'
-    rows = _csv_rows(response)
+    rows = csv_rows(response)
     assert len(rows) == _count(report) + 1, f"{report['key']}: wrong row count"
 
 
@@ -116,7 +107,7 @@ def test_report_download_applies_facet_filter(client):
     report = _report("datasets-no-description")
     sql, params = report_facet_counts(report, {})["org"]
     top = Query(sql).all(*params)[0]
-    rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"org": top["slug"]}))
+    rows = csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"org": top["slug"]}))
     assert len(rows) == _count(report, {"org": top["slug"]}) + 1
 
 
@@ -131,7 +122,7 @@ def test_report_download_url_carries_the_active_filters(client):
 def test_report_download_ignores_page(client):
     """?page= must not shrink the export — the pager is a page concern."""
     report = _report("datasets-no-description")
-    rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"page": "999"}))
+    rows = csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"page": "999"}))
     assert len(rows) == _count(report) + 1
 
 
@@ -139,14 +130,14 @@ def test_report_download_order_matches_the_sorted_query(client):
     report = _report("datasets-no-description")
     out = report_stmts(report, {}, sort="title", dir_="asc")
     expected = [r["title"] or r["name"] for r in out["list"].all(*out["params"], 1_000_000, 0)]
-    rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"sort": "title", "dir": "asc"}))
+    rows = csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"sort": "title", "dir": "asc"}))
     assert [row[0] for row in rows[1:]] == expected
 
 
 def test_duplicate_content_detail_download(client):
     """Detail mode exports its members as the datasets shape (the three
     fixture datasets sharing the content hash)."""
-    rows = _csv_rows(
+    rows = csv_rows(
         client.get(_DOWNLOAD.format(key="datasets-duplicate-content"), {"hash": "hash-shared-d01-d05-d09"}),
     )
     assert len(rows) == 4  # header + the three members
@@ -158,7 +149,7 @@ def test_duplicate_url_detail_download(client):
     report = _report("links-duplicate-urls")
     listing = report_stmts(report)
     url = listing["list"].all(*listing["params"], 1, 0)[0]["url"]
-    rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"url": url}))
+    rows = csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"url": url}))
     assert len(rows) == Query(report["detail_count_sql"]).get(url)["n"] + 1
     # Detail is the links shape; the shared URL is dropped but both GUIDs ride along.
     assert rows[0] == ["Name", "Format", "Dataset", "Publisher", "Dataset ID", "Resource ID"]

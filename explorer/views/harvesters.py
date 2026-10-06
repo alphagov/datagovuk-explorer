@@ -25,8 +25,9 @@ from django.http import Http404
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import CSV_ROW_LIMIT, csv_response
+from explorer.csv_export import csv_response
 from explorer.helpers import format_date
+from explorer.queries.core import all_rows
 from explorer.queries.datasets import DATASETS_SORT, source_datasets_stmts
 from explorer.queries.harvesters import (
     HARVEST_SOURCE,
@@ -175,16 +176,19 @@ def _listing(request) -> dict:
 
 # CSV export columns — the table's own columns. Type/Status/Frequency use the
 # table's display labels; the date stays raw for the CSV to serialise to ISO.
+# CSV export columns — the table's own columns, then the two GUIDs (harvest
+# source id and owning publisher id) last, per the shared convention. The
+# date stays raw for the CSV to serialise to ISO.
 _HARVESTER_CSV_COLUMNS = [
     ("Source", "source"),
-    ("Harvest source ID", "id"),
     ("Publisher", "org_name"),
-    ("Publisher ID", "organization_id"),
     ("Type", "type"),
     ("Status", "active"),
     ("Frequency", "frequency"),
     ("Datasets", "dataset_count"),
     ("Last run", "last_run"),
+    ("Harvest source ID", "id"),
+    ("Publisher ID", "organization_id"),
 ]
 
 
@@ -355,7 +359,7 @@ def harvesters_download(request):
     stmts = listing["stmts"]
     type_labels = dict(listing["type_master"])
     frequency_labels = dict(listing["frequency_master"])
-    rows = [_csv_row(r, type_labels, frequency_labels) for r in stmts["list"].all(*stmts["params"], CSV_ROW_LIMIT, 0)]
+    rows = [_csv_row(r, type_labels, frequency_labels) for r in all_rows(stmts)]
     return csv_response("harvesters.csv", _HARVESTER_CSV_COLUMNS, rows)
 
 

@@ -1,9 +1,5 @@
 {% extends "_app_layout.html" %}
 
-{% block scripts %}
-  <script src="{{ static('page-menu.js') }}"></script>
-{% endblock scripts %}
-
 {% block facets %}
   {{ facet_group("datasets") }}
 {% endblock facets %}

@@ -19,8 +19,8 @@ from django.http import Http404
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import CSV_ROW_LIMIT, csv_response, serialize
-from explorer.queries.core import Query
+from explorer.csv_export import csv_response, serialize
+from explorer.queries.core import Query, all_rows
 from explorer.queries.reports import (
     DATASET_REPORT_NULLS_LAST,
     DATASET_REPORT_SORT,
@@ -155,7 +155,7 @@ def _main_listing(request, report):
     return {
         "sort": sort,
         "dir": dir_,
-        "stmt": stmt,
+        "stmts": stmt,
         "total": total,
         "base_params": base_params,
         "facet_groups": facet_groups,
@@ -179,7 +179,7 @@ def _duplicate_url_listing(request, report, url):
         "detail_url": url,
         "sort": sort,
         "dir": dir_,
-        "stmt": stmt,
+        "stmts": stmt,
         "total": total,
         "base_params": base_params,
     }
@@ -200,7 +200,7 @@ def _suspicious_redirect_listing(request, report, url):
         "detail_url": url,
         "sort": sort,
         "dir": dir_,
-        "stmt": stmt,
+        "stmts": stmt,
         "total": total,
         "base_params": base_params,
     }
@@ -232,7 +232,7 @@ def _duplicate_content_listing(request, report, content_hash):
         "detail_hash": content_hash,
         "sort": sort,
         "dir": dir_,
-        "stmt": stmt,
+        "stmts": stmt,
         "total": total,
         "base_params": base_params,
     }
@@ -435,8 +435,8 @@ def report(request, key):
     report = _report(key)
     listing = _listing(request, report)
     pagination = paginate(request, listing["total"])
-    rows = listing["stmt"]["list"].all(
-        *listing["stmt"]["params"],
+    rows = listing["stmts"]["list"].all(
+        *listing["stmts"]["params"],
         pagination["page_size"],
         pagination["offset"],
     )
@@ -454,7 +454,7 @@ def report_download(request, key):
     """
     report = _report(key)
     listing = _listing(request, report)
-    rows = listing["stmt"]["list"].all(*listing["stmt"]["params"], CSV_ROW_LIMIT, 0)
+    rows = all_rows(listing["stmts"])
     if report.get("show_api_links"):
         rows = _parse_api_links(rows)
     return csv_response(f"{report['key']}.csv", _csv_columns(report, listing), rows, cell=_csv_cell)

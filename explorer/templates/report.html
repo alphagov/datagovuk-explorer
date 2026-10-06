@@ -5,10 +5,6 @@
   <link rel="stylesheet" href="{{ static('css/pages/report.css') }}" />
 {% endblock styles %}
 
-{% block scripts %}
-  <script src="{{ static('page-menu.js') }}"></script>
-{% endblock scripts %}
-
 {% block header_left %}
   {% if detail_url and current.key == "links-suspicious-redirects" %}
     {{ back_link('/report/links-suspicious-redirects', 'Suspicious redirects') }}

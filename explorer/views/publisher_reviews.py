@@ -3,7 +3,8 @@
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import CSV_ROW_LIMIT, csv_response
+from explorer.csv_export import csv_response
+from explorer.queries.core import all_rows
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
     DATASET_BUCKETS,
@@ -18,14 +19,14 @@ from explorer.sort import parse_sort
 from .core import paginate, pill
 
 # CSV export columns — the table's own columns (the table's "Description"/
-# "Links" headers are the avg_findability/avg_resources scores), plus the
-# publisher's CKAN org UUID for joining.
+# "Links" headers are the avg_findability/avg_resources scores), then the
+# publisher's CKAN org UUID last.
 _PUBLISHER_REVIEWS_CSV_COLUMNS = [
     ("Publisher", "name"),
-    ("Publisher ID", "ckan_id"),
     ("Datasets", "reviewed_datasets"),
     ("Description", "avg_findability"),
     ("Links", "avg_resources"),
+    ("Publisher ID", "ckan_id"),
 ]
 
 
@@ -116,5 +117,5 @@ def publisher_reviews_download(request):
     publishers as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     stmts = listing["stmts"]
-    rows = stmts["list"].all(*stmts["params"], CSV_ROW_LIMIT, 0)
+    rows = all_rows(stmts)
     return csv_response("publisher-reviews.csv", _PUBLISHER_REVIEWS_CSV_COLUMNS, rows)

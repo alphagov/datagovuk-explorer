@@ -57,6 +57,20 @@ class Query:
         return _fetch_all(self._sql, params)
 
 
+# Export downloads run a compiled listing without its LIMIT/OFFSET: the list
+# statements all end in LIMIT %s OFFSET %s, so an export passes this limit
+# and offset 0. Effectively "all rows" — the largest table here is well under
+# it (see explorer/csv_export.py).
+EXPORT_ROW_LIMIT = 1_000_000
+
+
+def all_rows(stmt: dict) -> list[dict]:
+    """Every row of a compiled {params, count, list} statement, unpaginated —
+    the read behind a page's CSV download. The view builds the same statement
+    for the page and the export, so the file can't drift from the table."""
+    return stmt["list"].all(*stmt["params"], EXPORT_ROW_LIMIT, 0)
+
+
 # ── Shared self-excluding-facet-counts helper ─────────────────────────────
 # Every facet page's sidebar counts come from this one primitive: each facet
 # group counts over the pool filtered by every *other* active facet, omitting

@@ -7,8 +7,6 @@ facet-value validation/fallback, the harvesters facet partition + headline,
 and the dataset detail review.
 """
 
-import csv
-import io
 import re
 
 import pytest
@@ -32,6 +30,7 @@ from explorer.queries.reports import (
     report_stmts,
     report_unfiltered_count,
 )
+from explorer.tests.csv_helpers import csv_rows
 from explorer.views.harvesters import HarvesterFilters, _matches
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
@@ -244,30 +243,24 @@ def test_collections_bogus_collection_falls_back(client):
 # ── /organisations CSV download (views/organisations.py) ──────────────────
 
 
-def _csv_rows(response):
-    assert response.status_code == 200
-    assert response["Content-Type"].startswith("text/csv")
-    return list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
-
-
 def test_organisations_download_is_unpaginated_csv(client):
     stmts = organisations_stmts({}, "views", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/organisations/download.csv")
     assert response["Content-Disposition"] == 'attachment; filename="publishers.csv"'
-    rows = _csv_rows(response)
+    rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == [
         "Publisher",
-        "Publisher ID",
         "Datasets",
         "Links",
         "Health",
         "Views",
         "Created",
         "Last published",
+        "Publisher ID",
     ]
-    assert all(row[1].startswith("uuid-") for row in rows[1:])  # CKAN org UUID from json
+    assert all(row[-1].startswith("uuid-") for row in rows[1:])  # CKAN org UUID from json
 
 
 def test_organisations_page_offers_the_download(client):
@@ -280,7 +273,7 @@ def test_organisations_download_applies_facet_filter(client):
     bucket = organisations_facet_counts({})["datasets"][0]["bucket"]
     stmts = organisations_stmts({"datasets": bucket}, "views", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = _csv_rows(client.get("/organisations/download.csv", {"datasets": bucket}))
+    rows = csv_rows(client.get("/organisations/download.csv", {"datasets": bucket}))
     assert len(rows) == n + 1
 
 
@@ -293,7 +286,7 @@ def test_organisations_download_url_carries_the_active_filters(client):
 def test_organisations_download_ignores_page(client):
     stmts = organisations_stmts({}, "views", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = _csv_rows(client.get("/organisations/download.csv", {"page": "999"}))
+    rows = csv_rows(client.get("/organisations/download.csv", {"page": "999"}))
     assert len(rows) == n + 1
 
 
@@ -305,20 +298,20 @@ def test_harvesters_download_is_unpaginated_csv(client):
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/harvesters/download.csv")
     assert response["Content-Disposition"] == 'attachment; filename="harvesters.csv"'
-    rows = _csv_rows(response)
+    rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == [
         "Source",
-        "Harvest source ID",
         "Publisher",
-        "Publisher ID",
         "Type",
         "Status",
         "Frequency",
         "Datasets",
         "Last run",
+        "Harvest source ID",
+        "Publisher ID",
     ]
-    assert all(row[1] and row[3] for row in rows[1:])  # harvest-source + publisher UUIDs
+    assert all(row[-2] and row[-1] for row in rows[1:])  # harvest-source + publisher UUIDs
 
 
 def test_harvesters_page_offers_the_download(client):
@@ -330,7 +323,7 @@ def test_harvesters_page_offers_the_download(client):
 def test_harvesters_download_applies_facet_filter(client):
     stmts = harvest_sources_stmts({"active": "true"}, "dataset_count", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = _csv_rows(client.get("/harvesters/download.csv", {"active": "true"}))
+    rows = csv_rows(client.get("/harvesters/download.csv", {"active": "true"}))
     assert len(rows) == n + 1
 
 
@@ -347,10 +340,10 @@ def test_publisher_reviews_download_is_unpaginated_csv(client):
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/organisations/reviews/download.csv")
     assert response["Content-Disposition"] == 'attachment; filename="publisher-reviews.csv"'
-    rows = _csv_rows(response)
+    rows = csv_rows(response)
     assert len(rows) == n + 1
-    assert rows[0] == ["Publisher", "Publisher ID", "Datasets", "Description", "Links"]
-    assert all(row[1].startswith("uuid-") for row in rows[1:])  # CKAN org UUID from json
+    assert rows[0] == ["Publisher", "Datasets", "Description", "Links", "Publisher ID"]
+    assert all(row[-1].startswith("uuid-") for row in rows[1:])  # CKAN org UUID from json
 
 
 def test_publisher_reviews_page_offers_the_download(client):

@@ -1,9 +1,5 @@
 {% extends "_app_layout.html" %}
 
-{% block scripts %}
-  <script src="{{ static('page-menu.js') }}"></script>
-{% endblock scripts %}
-
 {% block header_right %}
   {{ pagination(start_index, end_index, shown_sources, page, total_pages, pager_base, label="harvesters", label_singular="harvester", download_url=download_url) }}
 {% endblock header_right %}
