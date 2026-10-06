@@ -4,7 +4,7 @@ scripts/llm/ingest_suggestions.py from downloads/suggestions/). Sorted by
 confidence so low-confidence (ambiguous) datasets surface first. Only the
 latest classification per dataset is shown.
 
-GET /suggestions/download.csv — the same filtered, sorted rows unpaginated,
+GET /suggestions.csv — the same filtered, sorted rows unpaginated,
 with the current and suggested value of each field split into its own
 column (see _SUGGESTIONS_CSV_COLUMNS).
 
@@ -215,13 +215,13 @@ def suggestions(request):
             "pills": pills,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
-            "download_url": f"/suggestions/download.csv{pager_base}",
+            "download_url": f"/suggestions.csv{pager_base}",
         },
     )
 
 
 def suggestions_download(request):
-    """GET /suggestions/download.csv — the same filtered, sorted suggestions
+    """GET /suggestions.csv — the same filtered, sorted suggestions
     as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))

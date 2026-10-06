@@ -206,13 +206,13 @@ def reviews(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
-            "download_url": f"/reviews/download.csv{pager_base}",
+            "download_url": f"/reviews.csv{pager_base}",
         },
     )
 
 
 def reviews_download(request):
-    """GET /reviews/download.csv — the same filtered, sorted reviews as the
+    """GET /reviews.csv — the same filtered, sorted reviews as the
     table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     return csv_response(csv_filename("reviews", listing["filters"]), _REVIEWS_CSV_COLUMNS, iter_rows(listing["stmts"]))

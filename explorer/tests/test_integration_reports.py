@@ -13,7 +13,7 @@ from explorer.tests.csv_helpers import csv_rows, today_iso
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
-_DOWNLOAD = "/report/{key}/download.csv"
+_DOWNLOAD = "/report/{key}.csv"
 
 
 def _report(key):
@@ -99,7 +99,7 @@ def test_every_report_download_is_unpaginated_csv(client, report):
 @pytest.mark.parametrize("report", REPORTS, ids=[r["key"] for r in REPORTS])
 def test_every_report_page_offers_the_download(client, report):
     html = client.get(f"/report/{report['key']}").content.decode()
-    assert f"/report/{report['key']}/download.csv" in html
+    assert f"/report/{report['key']}.csv" in html
     assert "Download CSV" in html
 
 
@@ -116,7 +116,7 @@ def test_report_download_url_carries_the_active_filters(client):
     sql, params = report_facet_counts(report, {})["org"]
     top = Query(sql).all(*params)[0]
     html = client.get(f"/report/{report['key']}", {"org": top["slug"], "sort": "title", "dir": "asc"}).content.decode()
-    assert f"/report/{report['key']}/download.csv?sort=title&amp;dir=asc&amp;org={top['slug']}" in html
+    assert f"/report/{report['key']}.csv?sort=title&amp;dir=asc&amp;org={top['slug']}" in html
 
 
 def test_report_download_ignores_page(client):

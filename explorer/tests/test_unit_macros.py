@@ -112,10 +112,10 @@ def test_pagination_has_no_page_menu():
 def test_page_menu_download_url_renders_download_csv():
     """Passing download_url renders the 3-dots menu with a Download CSV item,
     with no pager required."""
-    html = _page_menu(download_url="/report/datasets-no-description/download.csv?sort=title&dir=asc")
+    html = _page_menu(download_url="/report/datasets-no-description.csv?sort=title&dir=asc")
     assert 'class="page-menu"' in html
     assert "Download CSV" in html
-    assert "/report/datasets-no-description/download.csv?sort=title&amp;dir=asc" in html
+    assert "/report/datasets-no-description.csv?sort=title&amp;dir=asc" in html
 
 
 def test_page_menu_renders_nothing_without_actions():

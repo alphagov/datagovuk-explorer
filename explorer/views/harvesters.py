@@ -347,13 +347,13 @@ def harvesters(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
-            "download_url": f"/harvesters/download.csv{pager_base}",
+            "download_url": f"/harvesters.csv{pager_base}",
         },
     )
 
 
 def harvesters_download(request):
-    """GET /harvesters/download.csv — the same filtered, sorted harvest
+    """GET /harvesters.csv — the same filtered, sorted harvest
     sources as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     stmts = listing["stmts"]

@@ -96,7 +96,7 @@ def series_list(request):
             "total": total,
             **pagination,
             "pager_base": pager_base,
-            "download_url": f"/series/download.csv{pager_base}",
+            "download_url": f"/series.csv{pager_base}",
             "sort": sort,
             "dir": dir_,
         },
@@ -104,7 +104,7 @@ def series_list(request):
 
 
 def series_download(request):
-    """GET /series/download.csv — the same sorted series as the table,
+    """GET /series.csv — the same sorted series as the table,
     unpaginated and as a CSV attachment."""
     if not series_built():
         return _not_built(request)

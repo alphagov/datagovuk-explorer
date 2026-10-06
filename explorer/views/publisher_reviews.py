@@ -106,14 +106,14 @@ def publisher_reviews(request):
             "pills": pills,
             "facet_qs": facet_qs,
             "pager_base": pager_base,
-            "download_url": f"/organisations/reviews/download.csv{pager_base}",
+            "download_url": f"/organisations/reviews.csv{pager_base}",
             **pagination,
         },
     )
 
 
 def publisher_reviews_download(request):
-    """GET /organisations/reviews/download.csv — the same filtered, sorted
+    """GET /organisations/reviews.csv — the same filtered, sorted
     publishers as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     stmts = listing["stmts"]

@@ -309,7 +309,7 @@ def link_errors(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
-            "download_url": f"/links/status/download.csv{pager_base}",
+            "download_url": f"/links/status.csv{pager_base}",
             **pagination,
             "sort": sort,
             "dir": dir_,
@@ -318,7 +318,7 @@ def link_errors(request):
 
 
 def link_errors_download(request):
-    """GET /links/status/download.csv — the same filtered, sorted link
+    """GET /links/status.csv — the same filtered, sorted link
     checks as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))

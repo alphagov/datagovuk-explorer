@@ -164,7 +164,7 @@ def _datasets_count(filters):
 
 def test_datasets_download_is_unpaginated_csv(client):
     n = _datasets_count({})
-    response = client.get("/datasets/download.csv")
+    response = client.get("/datasets.csv")
     assert response["Content-Disposition"] == f'attachment; filename="datasets-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -183,21 +183,21 @@ def test_datasets_download_is_unpaginated_csv(client):
 
 def test_datasets_page_offers_the_download(client):
     html = client.get("/datasets").content.decode()
-    assert "/datasets/download.csv" in html
+    assert "/datasets.csv" in html
     assert "Download CSV" in html
 
 
 def test_datasets_download_applies_facet_filter(client):
     publisher = datasets_facet_counts({})["publishers"][0]["value"]
     n = _datasets_count({"publisher": publisher})
-    rows = csv_rows(client.get("/datasets/download.csv", {"publisher": publisher}))
+    rows = csv_rows(client.get("/datasets.csv", {"publisher": publisher}))
     assert len(rows) == n + 1
 
 
 def test_datasets_download_url_carries_the_active_filters(client):
     publisher = datasets_facet_counts({})["publishers"][0]["value"]
     html = client.get("/datasets", {"publisher": publisher, "sort": "title", "dir": "asc"}).content.decode()
-    assert f"/datasets/download.csv?sort=title&amp;dir=asc&amp;publisher={publisher}" in html
+    assert f"/datasets.csv?sort=title&amp;dir=asc&amp;publisher={publisher}" in html
 
 
 def test_harvester_facet_pools_partition_cleared_list():
@@ -294,7 +294,7 @@ def test_collections_bogus_collection_falls_back(client):
 def test_organisations_download_is_unpaginated_csv(client):
     stmts = organisations_stmts({}, "views", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    response = client.get("/organisations/download.csv")
+    response = client.get("/organisations.csv")
     assert response["Content-Disposition"] == f'attachment; filename="publishers-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -313,7 +313,7 @@ def test_organisations_download_is_unpaginated_csv(client):
 
 def test_organisations_page_offers_the_download(client):
     html = client.get("/organisations").content.decode()
-    assert "/organisations/download.csv" in html
+    assert "/organisations.csv" in html
     assert "Download CSV" in html
 
 
@@ -321,20 +321,20 @@ def test_organisations_download_applies_facet_filter(client):
     bucket = organisations_facet_counts({})["datasets"][0]["bucket"]
     stmts = organisations_stmts({"datasets": bucket}, "views", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = csv_rows(client.get("/organisations/download.csv", {"datasets": bucket}))
+    rows = csv_rows(client.get("/organisations.csv", {"datasets": bucket}))
     assert len(rows) == n + 1
 
 
 def test_organisations_download_url_carries_the_active_filters(client):
     bucket = organisations_facet_counts({})["datasets"][0]["bucket"]
     html = client.get("/organisations", {"datasets": bucket, "sort": "name", "dir": "asc"}).content.decode()
-    assert f"/organisations/download.csv?sort=name&amp;dir=asc&amp;datasets={bucket}" in html
+    assert f"/organisations.csv?sort=name&amp;dir=asc&amp;datasets={bucket}" in html
 
 
 def test_organisations_download_ignores_page(client):
     stmts = organisations_stmts({}, "views", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = csv_rows(client.get("/organisations/download.csv", {"page": "999"}))
+    rows = csv_rows(client.get("/organisations.csv", {"page": "999"}))
     assert len(rows) == n + 1
 
 
@@ -344,7 +344,7 @@ def test_organisations_download_ignores_page(client):
 def test_harvesters_download_is_unpaginated_csv(client):
     stmts = harvest_sources_stmts({}, "dataset_count", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    response = client.get("/harvesters/download.csv")
+    response = client.get("/harvesters.csv")
     assert response["Content-Disposition"] == f'attachment; filename="harvesters-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -364,20 +364,20 @@ def test_harvesters_download_is_unpaginated_csv(client):
 
 def test_harvesters_page_offers_the_download(client):
     html = client.get("/harvesters").content.decode()
-    assert "/harvesters/download.csv" in html
+    assert "/harvesters.csv" in html
     assert "Download CSV" in html
 
 
 def test_harvesters_download_applies_facet_filter(client):
     stmts = harvest_sources_stmts({"active": "true"}, "dataset_count", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = csv_rows(client.get("/harvesters/download.csv", {"active": "true"}))
+    rows = csv_rows(client.get("/harvesters.csv", {"active": "true"}))
     assert len(rows) == n + 1
 
 
 def test_harvesters_download_url_carries_the_active_filters(client):
     html = client.get("/harvesters", {"active": "true", "sort": "title", "dir": "asc"}).content.decode()
-    assert "/harvesters/download.csv?sort=title&amp;dir=asc&amp;active=true" in html
+    assert "/harvesters.csv?sort=title&amp;dir=asc&amp;active=true" in html
 
 
 # ── /organisations/reviews CSV download (views/publisher_reviews.py) ──────
@@ -386,7 +386,7 @@ def test_harvesters_download_url_carries_the_active_filters(client):
 def test_publisher_reviews_download_is_unpaginated_csv(client):
     stmts = publisher_reviews_stmts({}, "avg_findability", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    response = client.get("/organisations/reviews/download.csv")
+    response = client.get("/organisations/reviews.csv")
     assert response["Content-Disposition"] == f'attachment; filename="publisher-reviews-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -396,14 +396,14 @@ def test_publisher_reviews_download_is_unpaginated_csv(client):
 
 def test_publisher_reviews_page_offers_the_download(client):
     html = client.get("/organisations/reviews").content.decode()
-    assert "/organisations/reviews/download.csv" in html
+    assert "/organisations/reviews.csv" in html
     assert "Download CSV" in html
 
 
 def test_publisher_reviews_download_url_carries_the_active_filters(client):
     bucket = publisher_reviews_facet_counts({})["datasets"][0]["bucket"]
     html = client.get("/organisations/reviews", {"datasets": bucket, "sort": "name", "dir": "asc"}).content.decode()
-    assert f"/organisations/reviews/download.csv?sort=name&amp;dir=asc&amp;datasets={bucket}" in html
+    assert f"/organisations/reviews.csv?sort=name&amp;dir=asc&amp;datasets={bucket}" in html
 
 
 # ── /series CSV download (views/series.py) ────────────────────────────────
@@ -411,7 +411,7 @@ def test_publisher_reviews_download_url_carries_the_active_filters(client):
 
 def test_series_download_is_unpaginated_csv(client):
     n = SERIES_COUNT.get()["n"]
-    response = client.get("/series/download.csv")
+    response = client.get("/series.csv")
     assert response["Content-Disposition"] == f'attachment; filename="series-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -421,13 +421,13 @@ def test_series_download_is_unpaginated_csv(client):
 
 def test_series_page_offers_the_download(client):
     html = client.get("/series").content.decode()
-    assert "/series/download.csv" in html
+    assert "/series.csv" in html
     assert "Download CSV" in html
 
 
 def test_series_download_url_carries_the_sort(client):
     html = client.get("/series", {"sort": "root_title", "dir": "asc"}).content.decode()
-    assert "/series/download.csv?sort=root_title&amp;dir=asc" in html
+    assert "/series.csv?sort=root_title&amp;dir=asc" in html
 
 
 # ── /reviews CSV download (views/reviews.py) ──────────────────────────────
@@ -436,7 +436,7 @@ def test_series_download_url_carries_the_sort(client):
 def test_reviews_download_is_unpaginated_csv(client):
     stmts = reviews_stmts({}, "findability", "asc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    response = client.get("/reviews/download.csv")
+    response = client.get("/reviews.csv")
     assert response["Content-Disposition"] == f'attachment; filename="reviews-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -446,20 +446,20 @@ def test_reviews_download_is_unpaginated_csv(client):
 
 def test_reviews_page_offers_the_download(client):
     html = client.get("/reviews").content.decode()
-    assert "/reviews/download.csv" in html
+    assert "/reviews.csv" in html
     assert "Download CSV" in html
 
 
 def test_reviews_download_applies_score_filter(client):
     stmts = reviews_stmts({"findability": "5"}, "findability", "asc")
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = csv_rows(client.get("/reviews/download.csv", {"findability": "5"}))
+    rows = csv_rows(client.get("/reviews.csv", {"findability": "5"}))
     assert len(rows) == n + 1
 
 
 def test_reviews_download_url_carries_the_active_filters(client):
     html = client.get("/reviews", {"findability": "5", "sort": "title", "dir": "asc"}).content.decode()
-    assert "/reviews/download.csv?sort=title&amp;dir=asc&amp;findability=5" in html
+    assert "/reviews.csv?sort=title&amp;dir=asc&amp;findability=5" in html
 
 
 # ── /suggestions CSV download (views/suggestions.py) ──────────────────────
@@ -468,7 +468,7 @@ def test_reviews_download_url_carries_the_active_filters(client):
 def test_suggestions_download_is_unpaginated_csv(client):
     stmts = suggestions_stmts({}, *SUGGESTIONS_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
-    response = client.get("/suggestions/download.csv")
+    response = client.get("/suggestions.csv")
     assert response["Content-Disposition"] == f'attachment; filename="suggestions-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -506,20 +506,20 @@ def test_suggestions_csv_row_normalises_tags_to_semicolons():
 
 def test_suggestions_page_offers_the_download(client):
     html = client.get("/suggestions").content.decode()
-    assert "/suggestions/download.csv" in html
+    assert "/suggestions.csv" in html
     assert "Download CSV" in html
 
 
 def test_suggestions_download_applies_theme_filter(client):
     stmts = suggestions_stmts({"theme": "none"}, *SUGGESTIONS_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = csv_rows(client.get("/suggestions/download.csv", {"theme": "none"}))
+    rows = csv_rows(client.get("/suggestions.csv", {"theme": "none"}))
     assert len(rows) == n + 1
 
 
 def test_suggestions_download_url_carries_the_active_filters(client):
     html = client.get("/suggestions", {"theme": "none", "sort": "title", "dir": "asc"}).content.decode()
-    assert "/suggestions/download.csv?sort=title&amp;dir=asc&amp;theme=none" in html
+    assert "/suggestions.csv?sort=title&amp;dir=asc&amp;theme=none" in html
 
 
 # ── /links CSV download (views/links.py) ─────────────────────────────────
@@ -528,7 +528,7 @@ def test_suggestions_download_url_carries_the_active_filters(client):
 def test_links_download_is_unpaginated_csv(client):
     stmts = links_stmts({}, *LINK_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
-    response = client.get("/links/download.csv")
+    response = client.get("/links.csv")
     assert response["Content-Disposition"] == f'attachment; filename="links-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -539,7 +539,7 @@ def test_links_download_is_unpaginated_csv(client):
 
 def test_links_page_offers_the_download(client):
     html = client.get("/links").content.decode()
-    assert "/links/download.csv" in html
+    assert "/links.csv" in html
     assert "Download CSV" in html
 
 
@@ -548,14 +548,14 @@ def test_links_download_applies_facet_filter(client):
     filters = {"domain": None, "format": fmt, "created_year": None, "publisher": None}
     stmts = links_stmts(filters, *LINK_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = csv_rows(client.get("/links/download.csv", {"format": fmt}))
+    rows = csv_rows(client.get("/links.csv", {"format": fmt}))
     assert len(rows) == n + 1
 
 
 def test_links_download_url_carries_the_active_filters(client):
     pub = links_facet_counts({})["publishers"][0]["value"]
     html = client.get("/links", {"publisher": pub, "sort": "name", "dir": "asc"}).content.decode()
-    assert f"/links/download.csv?sort=name&amp;dir=asc&amp;publisher={pub}" in html
+    assert f"/links.csv?sort=name&amp;dir=asc&amp;publisher={pub}" in html
 
 
 # ── /links/status CSV download (views/links_errors.py) ────────────────────
@@ -564,7 +564,7 @@ def test_links_download_url_carries_the_active_filters(client):
 def test_link_errors_download_is_unpaginated_csv(client):
     stmts = link_errors_stmts({}, *LINK_ERRORS_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
-    response = client.get("/links/status/download.csv")
+    response = client.get("/links/status.csv")
     assert response["Content-Disposition"] == f'attachment; filename="link-status-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -583,7 +583,7 @@ def test_link_errors_download_is_unpaginated_csv(client):
 
 def test_link_errors_page_offers_the_download(client):
     html = client.get("/links/status").content.decode()
-    assert "/links/status/download.csv" in html
+    assert "/links/status.csv" in html
     assert "Download CSV" in html
 
 
@@ -592,12 +592,12 @@ def test_link_errors_download_applies_category_filter(client):
     filters = {"category": cat, "status": None, "domain": None, "harvested": None, "publisher": None}
     stmts = link_errors_stmts(filters, *LINK_ERRORS_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
-    rows = csv_rows(client.get("/links/status/download.csv", {"category": cat}))
+    rows = csv_rows(client.get("/links/status.csv", {"category": cat}))
     assert len(rows) == n + 1
 
 
 def test_link_errors_download_filename_reflects_the_filter(client):
-    response = client.get("/links/status/download.csv", {"category": "NOT_FOUND"})
+    response = client.get("/links/status.csv", {"category": "NOT_FOUND"})
     assert response["Content-Disposition"] == (
         f'attachment; filename="link-status-category-not-found-{today_iso()}.csv"'
     )
@@ -606,7 +606,7 @@ def test_link_errors_download_filename_reflects_the_filter(client):
 def test_link_errors_download_url_carries_the_active_filters(client):
     cat = link_errors_facet_counts({})["categories"][0]["value"]
     html = client.get("/links/status", {"category": cat, "sort": "url", "dir": "desc"}).content.decode()
-    assert f"/links/status/download.csv?sort=url&amp;dir=desc&amp;category={cat}" in html
+    assert f"/links/status.csv?sort=url&amp;dir=desc&amp;category={cat}" in html
 
 
 # ── /metadata CSV download (views/metadata.py) ────────────────────────────
@@ -614,7 +614,7 @@ def test_link_errors_download_url_carries_the_active_filters(client):
 
 def test_metadata_download_is_unpaginated_csv(client):
     n = len(METADATA_KEYS.all())
-    response = client.get("/metadata/download.csv")
+    response = client.get("/metadata.csv")
     assert response["Content-Disposition"] == f'attachment; filename="metadata-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
@@ -628,6 +628,6 @@ def test_metadata_download_is_unpaginated_csv(client):
 def test_metadata_page_offers_the_download_without_a_pager(client):
     """The overview has no pager, so the menu must render on its own."""
     html = client.get("/metadata").content.decode()
-    assert "/metadata/download.csv" in html
+    assert "/metadata.csv" in html
     assert "Download CSV" in html
     assert 'class="pagination"' not in html

@@ -507,13 +507,13 @@ def datasets(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
-            "download_url": f"/datasets/download.csv{pager_base}",
+            "download_url": f"/datasets.csv{pager_base}",
         },
     )
 
 
 def datasets_download(request):
-    """GET /datasets/download.csv — the same filtered, sorted datasets as
+    """GET /datasets.csv — the same filtered, sorted datasets as
     the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))

@@ -2,7 +2,7 @@
 
 Server-side sortable via ?sort= & ?dir=, filterable by domain, format
 and created year via single-select facet links, paginated (100/page).
-GET /links/download.csv — the same filtered, sorted rows as a CSV
+GET /links.csv — the same filtered, sorted rows as a CSV
 attachment, unpaginated.
 
 Facet sidebar counts are self-excluding SQL aggregates from
@@ -288,7 +288,7 @@ def links(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
-            "download_url": f"/links/download.csv{pager_base}",
+            "download_url": f"/links.csv{pager_base}",
             "total_links": stats.get("total") or 0,
             "filtered_links": total,
             "no_url_links": no_url_links,
@@ -303,7 +303,7 @@ def links(request):
 
 
 def links_download(request):
-    """GET /links/download.csv — the same filtered, sorted links as the
+    """GET /links.csv — the same filtered, sorted links as the
     table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))

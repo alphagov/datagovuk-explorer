@@ -25,40 +25,40 @@ urlpatterns = [
 urlpatterns += [
     path("organisation/<slug:slug>", views.organisation, name="organisation"),
     path("metadata", views.metadata_overview, name="metadata"),
-    path("metadata/download.csv", views.metadata_download, name="metadata-download"),
+    path("metadata.csv", views.metadata_download, name="metadata-download"),
     path(
         "metadata/<str:section>/<str:name>",
         views.metadata_detail,
         name="metadata-detail",
     ),
     path("series", views.series_list, name="series"),
-    path("series/download.csv", views.series_download, name="series-download"),
+    path("series.csv", views.series_download, name="series-download"),
     path("series/<str:series_id>", views.series_detail, name="series-detail"),
 ]
 
 # --- organisations, links (facet pages) ---------------------------
 urlpatterns += [
     path("organisations", views.organisations, name="organisations"),
-    path("organisations/download.csv", views.organisations_download, name="organisations-download"),
+    path("organisations.csv", views.organisations_download, name="organisations-download"),
     path("organisations/reviews", views.publisher_reviews, name="publisher-reviews"),
     path(
-        "organisations/reviews/download.csv",
+        "organisations/reviews.csv",
         views.publisher_reviews_download,
         name="publisher-reviews-download",
     ),
     path("harvesters", views.harvesters, name="harvesters"),
-    path("harvesters/download.csv", views.harvesters_download, name="harvesters-download"),
+    path("harvesters.csv", views.harvesters_download, name="harvesters-download"),
     path("harvester/<str:source_id>", views.harvester, name="harvester"),
     path("links", views.links, name="links"),
-    path("links/download.csv", views.links_download, name="links-download"),
+    path("links.csv", views.links_download, name="links-download"),
     path("links/status", views.link_errors, name="link-errors"),
-    path("links/status/download.csv", views.link_errors_download, name="link-errors-download"),
+    path("links/status.csv", views.link_errors_download, name="link-errors-download"),
 ]
 
 # --- datasets, collections (facet pages) ------------------------------
 urlpatterns += [
     path("datasets", views.datasets, name="datasets"),
-    path("datasets/download.csv", views.datasets_download, name="datasets-download"),
+    path("datasets.csv", views.datasets_download, name="datasets-download"),
     path("collections", views.collections, name="collections"),
     path("collections/<path:slug>", views.collection_detail, name="collection-detail"),
 ]
@@ -66,7 +66,9 @@ urlpatterns += [
 # --- home (dashboard), dashboard reports, dataset detail -----------
 urlpatterns += [
     path("", views.dashboard, name="home"),
-    path("report/<str:key>/download.csv", views.report_download, name="report-download"),
+    # The .csv download must precede the page route: <str:key> also matches
+    # "<key>.csv", so an earlier page pattern would swallow the download.
+    path("report/<str:key>.csv", views.report_download, name="report-download"),
     path("report/<str:key>", views.report, name="report"),
     path(
         "dataset/<str:org_slug>/<str:dataset_id>",
@@ -78,9 +80,9 @@ urlpatterns += [
 # --- reviews + suggestions ----------------------------------------
 urlpatterns += [
     path("reviews", views.reviews, name="reviews"),
-    path("reviews/download.csv", views.reviews_download, name="reviews-download"),
+    path("reviews.csv", views.reviews_download, name="reviews-download"),
     path("suggestions", views.suggestions, name="suggestions"),
-    path("suggestions/download.csv", views.suggestions_download, name="suggestions-download"),
+    path("suggestions.csv", views.suggestions_download, name="suggestions-download"),
 ]
 
 # --- check-progress -----------------------------------------------

@@ -1,6 +1,6 @@
 """GET /metadata — field-adoption overview across the catalogue (top-level
 fields and extras keys, sorted by how many datasets use them).
-GET /metadata/download.csv — the same overview as a CSV attachment.
+GET /metadata.csv — the same overview as a CSV attachment.
 GET /metadata/{section}/{name} — value distribution for one field, paginated.
 """
 
@@ -59,7 +59,7 @@ def metadata_overview(request):
             "title": "Metadata — data.gov.uk Explorer",
             "nav_key": "metadata",
             "fields": _listing(request),
-            "download_url": "/metadata/download.csv",
+            "download_url": "/metadata.csv",
         },
     )
 
@@ -87,7 +87,7 @@ def _csv_cell(row: dict, key: str):
 
 
 def metadata_download(request):
-    """GET /metadata/download.csv — the same ranked field list as the table,
+    """GET /metadata.csv — the same ranked field list as the table,
     unpaginated and as a CSV attachment."""
     rows = _listing(request)
     return csv_response(csv_filename("metadata"), _METADATA_CSV_COLUMNS, rows, cell=_csv_cell)

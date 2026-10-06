@@ -277,14 +277,14 @@ def organisations(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
-            "download_url": f"/organisations/download.csv{pager_base}",
+            "download_url": f"/organisations.csv{pager_base}",
             **pagination,
         },
     )
 
 
 def organisations_download(request):
-    """GET /organisations/download.csv — the same filtered, sorted
+    """GET /organisations.csv — the same filtered, sorted
     publishers as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     stmts = listing["stmts"]

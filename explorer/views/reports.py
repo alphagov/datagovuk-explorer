@@ -6,7 +6,7 @@ GET /report/{key}?url=...         — duplicate-URL detail mode
                                      (links-duplicate-urls)
 GET /report/{key}?hash=...        — duplicate-content detail mode
                                      (datasets-duplicate-content)
-GET /report/{key}/download.csv    — the same filtered, sorted rows as CSV,
+GET /report/{key}.csv    — the same filtered, sorted rows as CSV,
                                      unpaginated (?page= is ignored)
 
 The home dashboard (GET /) is views/dashboard.py; its card data is
@@ -296,7 +296,7 @@ def _page_context(report, listing, rows, pagination) -> dict:
         "facet_url": listing.get("facet_url"),
         "facet_qs": facets.facet_qs(base_params, include_sort=False),
         "pager_base": pager_base,
-        "download_url": f"/report/{report['key']}/download.csv{pager_base}",
+        "download_url": f"/report/{report['key']}.csv{pager_base}",
         "detail_url": listing.get("detail_url"),
         "detail_hash": listing.get("detail_hash"),
         "sort": listing["sort"],
@@ -451,7 +451,7 @@ def report(request, key):
 
 
 def report_download(request, key):
-    """GET /report/{key}/download.csv — the same filtered, sorted rows as
+    """GET /report/{key}.csv — the same filtered, sorted rows as
     the page, but unpaginated (?page= is ignored) and as a CSV attachment.
 
     Mirrors report()'s listing exactly (same query base), so the file can't
