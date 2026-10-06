@@ -17,6 +17,7 @@ from explorer.queries.core import Query
 from explorer.queries.dashboard import cards
 from explorer.queries.datasets import datasets_facet_counts, datasets_stmts
 from explorer.queries.harvesters import harvest_source_rows, harvest_sources_stmts, harvested_total
+from explorer.queries.link_errors import LINK_ERRORS_SORT_DEFAULT, link_errors_facet_counts, link_errors_stmts
 from explorer.queries.links import LINK_SORT_DEFAULT, links_facet_counts, links_stmts
 from explorer.queries.metadata import METADATA_KEYS
 from explorer.queries.organisations import (
@@ -531,7 +532,7 @@ def test_links_download_is_unpaginated_csv(client):
     assert response["Content-Disposition"] == 'attachment; filename="links.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
-    assert rows[0] == ["Name", "URL", "Domain", "Format", "Dataset", "Publisher", "Dataset ID", "Resource ID"]
+    assert rows[0] == ["Name", "URL", "Format", "Dataset", "Publisher", "Dataset ID", "Resource ID"]
     assert all(row[-1] for row in rows[1:])  # link resource GUID
     assert all(row[-2] for row in rows[1:])  # dataset CKAN GUID
 
@@ -555,6 +556,50 @@ def test_links_download_url_carries_the_active_filters(client):
     pub = links_facet_counts({})["publishers"][0]["value"]
     html = client.get("/links", {"publisher": pub, "sort": "name", "dir": "asc"}).content.decode()
     assert f"/links/download.csv?sort=name&amp;dir=asc&amp;publisher={pub}" in html
+
+
+# ── /links/status CSV download (views/links_errors.py) ────────────────────
+
+
+def test_link_errors_download_is_unpaginated_csv(client):
+    stmts = link_errors_stmts({}, *LINK_ERRORS_SORT_DEFAULT)
+    n = stmts["count"].get(*stmts["params"])["n"]
+    response = client.get("/links/status/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="link-status.csv"'
+    rows = csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == [
+        "URL",
+        "Status",
+        "HTTP Status",
+        "Dataset",
+        "Publisher",
+        "Harvested",
+        "Dataset ID",
+        "Resource ID",
+    ]
+    assert all(row[-1] for row in rows[1:])  # link resource GUID
+
+
+def test_link_errors_page_offers_the_download(client):
+    html = client.get("/links/status").content.decode()
+    assert "/links/status/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_link_errors_download_applies_category_filter(client):
+    cat = link_errors_facet_counts({})["categories"][0]["value"]
+    filters = {"category": cat, "status": None, "domain": None, "harvested": None, "publisher": None}
+    stmts = link_errors_stmts(filters, *LINK_ERRORS_SORT_DEFAULT)
+    n = stmts["count"].get(*stmts["params"])["n"]
+    rows = csv_rows(client.get("/links/status/download.csv", {"category": cat}))
+    assert len(rows) == n + 1
+
+
+def test_link_errors_download_url_carries_the_active_filters(client):
+    cat = link_errors_facet_counts({})["categories"][0]["value"]
+    html = client.get("/links/status", {"category": cat, "sort": "url", "dir": "desc"}).content.decode()
+    assert f"/links/status/download.csv?sort=url&amp;dir=desc&amp;category={cat}" in html
 
 
 # ── /metadata CSV download (views/metadata.py) ────────────────────────────

@@ -10,6 +10,8 @@ URL (host) first.
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import csv_response
+from explorer.queries.core import iter_rows
 from explorer.queries.link_errors import (
     CATEGORY_LABELS,
     HARVEST_STATES,
@@ -38,10 +40,10 @@ def _count_desc_values(counts: dict) -> list:
     return sorted(counts, key=lambda value: (-counts[value], value))
 
 
-def link_errors(request):
-    """GET /links/status — the link-check report with sidebar facets."""
-    stats = link_errors_stats()
-
+def _listing(request) -> dict:
+    """Resolve one /links/status request into its validated filters, sort
+    state and compiled count+list statements — shared by the page and the CSV
+    download so the exported rows can't drift from the table."""
     # Filter-independent base pools (the validation whitelists) — the
     # no-filter facet counts, memoised. Only value validity is decided
     # here: the sidebar *order* is the filtered pool's count order below,
@@ -71,10 +73,7 @@ def link_errors(request):
     publisher = request.GET.get("publisher")
     current_publisher = publisher if publisher in valid_publishers else None
 
-    # Domain/publisher facet state — every host and publisher is a facet;
-    # the long lists collapse past their cutoffs behind the More toggles.
-    domain_expanded = request.GET.get("domains") == "all"
-    publisher_expanded = request.GET.get("publishers") == "all"
+    sort, dir_ = parse_sort(request, LINK_ERRORS_SORT, *LINK_ERRORS_SORT_DEFAULT)
 
     filters = {
         "category": current_category,
@@ -83,16 +82,86 @@ def link_errors(request):
         "harvested": current_harvested,
         "publisher": current_publisher,
     }
+    stmts = link_errors_stmts(filters, sort, dir_)
+    return {
+        "filters": filters,
+        "publisher_names": publisher_names,
+        "sort": sort,
+        "dir": dir_,
+        "stmts": stmts,
+        "total": stmts["count"].get(*stmts["params"])["n"],
+    }
 
-    sort, dir_ = parse_sort(request, LINK_ERRORS_SORT, *LINK_ERRORS_SORT_DEFAULT)
+
+def _decorate(r: dict) -> dict:
+    """The table's derived cells for one row: the Status text (code + the
+    category's display name, or the name alone for code-less DNS/timeout
+    rows) and the OK-row style flag."""
+    label = _category_name(r["category"])
+    r["category_label"] = label
+    r["ok"] = r["category"] == "OK"
+    r["status_text"] = f"{r['status']} {label}" if r["status"] is not None else label
+    return r
+
+
+# CSV export columns — the table's own columns (Harvested is the derived
+# label the table renders), with the friendly category label as the Status
+# column and the raw HTTP status code as HTTP Status, in place of the table's
+# combined Status cell, then the dataset/link GUIDs last so every export is
+# joinable to the source records.
+_LINK_ERRORS_CSV_COLUMNS = [
+    ("URL", "resource_url"),
+    ("Status", "category_label"),
+    ("HTTP Status", "status"),
+    ("Dataset", "package_name"),
+    ("Publisher", "publisher_name"),
+    ("Harvested", "harvested_label"),
+    ("Dataset ID", "ckan_id"),
+    ("Resource ID", "resource_id"),
+]
+
+
+def _csv_row(r: dict) -> dict:
+    """One SQL row → its export shape: the friendly category label (the
+    table's error text) and raw HTTP status code instead of the combined
+    Status cell, the Harvested label, the publisher fallback, and the entity
+    GUIDs."""
+    _decorate(r)
+    return {
+        "resource_url": r["resource_url"],
+        "category_label": r["category_label"],
+        "status": r["status"],
+        "package_name": r["package_name"],
+        "publisher_name": r["org_display_name"] or r["org_name"],
+        "harvested_label": HARVEST_LABELS.get(r["harvest_state"], "Unknown"),
+        "ckan_id": r["ckan_id"],
+        "resource_id": r["resource_id"],
+    }
+
+
+def link_errors(request):
+    """GET /links/status — the link-check report with sidebar facets."""
+    stats = link_errors_stats()
+
+    # Domain/publisher facet state — every host and publisher is a facet;
+    # the long lists collapse past their cutoffs behind the More toggles.
+    domain_expanded = request.GET.get("domains") == "all"
+    publisher_expanded = request.GET.get("publishers") == "all"
+
+    listing = _listing(request)
+    filters = listing["filters"]
+    sort, dir_ = listing["sort"], listing["dir"]
+    current_category = filters["category"]
+    current_status = filters["status"]
+    current_domain = filters["domain"]
+    current_harvested = filters["harvested"]
+    current_publisher = filters["publisher"]
 
     # Count + page in SQL — only the page's rows are fetched (the LEFT
     # JOIN supplies org slug / harvest state / harvest source per row).
-    stmts_out = link_errors_stmts(filters, sort, dir_)
-    shown_count = stmts_out["count"].get(*stmts_out["params"])["n"]
-
+    shown_count = listing["total"]
     pagination = paginate(request, shown_count)
-    page_rows = stmts_out["list"].all(*stmts_out["params"], pagination["page_size"], pagination["offset"])
+    page_rows = listing["stmts"]["list"].all(*listing["stmts"]["params"], pagination["page_size"], pagination["offset"])
 
     # Shared query-string machinery — ordered base (sort, dir, then each
     # active facet in a fixed order); facet_qs drops sort/dir for the
@@ -206,14 +275,10 @@ def link_errors(request):
         if g is not None
     }
 
-    # Decorate only the page's rows: the status cell text (code + category
-    # name, or the category name alone for the code-less DNS/timeout rows).
-    for r in page_rows:
-        label = _category_name(r["category"])
-        r["category_label"] = label
-        r["ok"] = r["category"] == "OK"
-        r["status_text"] = f"{r['status']} {label}" if r["status"] is not None else label
+    # Decorate only the page's rows with the table's derived cells.
+    page_rows = [_decorate(r) for r in page_rows]
 
+    publisher_names = listing["publisher_names"]
     pills = [
         pill("Errors", _category_name(current_category), facet_url("category", "")) if current_category else None,
         pill("Domain", "No URL" if current_domain == "__none__" else current_domain, facet_url("domain", ""))
@@ -244,8 +309,17 @@ def link_errors(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
+            "download_url": f"/links/status/download.csv{pager_base}",
             **pagination,
             "sort": sort,
             "dir": dir_,
         },
     )
+
+
+def link_errors_download(request):
+    """GET /links/status/download.csv — the same filtered, sorted link
+    checks as the table, unpaginated and as a CSV attachment."""
+    listing = _listing(request)
+    rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))
+    return csv_response("link-status.csv", _LINK_ERRORS_CSV_COLUMNS, rows)

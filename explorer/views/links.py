@@ -81,13 +81,13 @@ def _listing(request) -> dict:
 
 
 # CSV export columns — the table's own columns (Name uses the resource_name
-# macro's fallback: name or description), then the two entity GUIDs last so
-# every export is joinable to the source records. URL is kept beside Name
-# because it is the row's real identity, matching the /report/links export.
+# macro's fallback: name or description; Domain dropped — the host is
+# recoverable from URL), then the two entity GUIDs last so every export is
+# joinable to the source records. URL is kept beside Name because it is the
+# row's real identity, matching the /report/links export.
 _LINKS_CSV_COLUMNS = [
     ("Name", "name"),
     ("URL", "url"),
-    ("Domain", "host"),
     ("Format", "format"),
     ("Dataset", "dataset_title"),
     ("Publisher", "org_display_name"),
@@ -102,7 +102,6 @@ def _csv_row(r: dict) -> dict:
     return {
         "name": r["name"] or r["description"],
         "url": r["url"],
-        "host": r["host"],
         "format": r["format"],
         "dataset_title": r["dataset_title"],
         "org_display_name": r["org_display_name"],

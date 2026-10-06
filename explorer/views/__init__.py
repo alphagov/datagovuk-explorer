@@ -13,7 +13,7 @@ from .dataset import dataset
 from .datasets import datasets, datasets_download
 from .harvesters import harvester, harvesters, harvesters_download
 from .links import links, links_download
-from .links_errors import link_errors
+from .links_errors import link_errors, link_errors_download
 from .metadata import metadata_detail, metadata_download, metadata_overview
 from .organisation import organisation
 from .organisations import organisations, organisations_download
@@ -39,6 +39,7 @@ __all__ = [
     "harvesters_download",
     "health",
     "link_errors",
+    "link_errors_download",
     "links",
     "links_download",
     "metadata_detail",

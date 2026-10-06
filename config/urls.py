@@ -52,6 +52,7 @@ urlpatterns += [
     path("links", views.links, name="links"),
     path("links/download.csv", views.links_download, name="links-download"),
     path("links/status", views.link_errors, name="link-errors"),
+    path("links/status/download.csv", views.link_errors_download, name="link-errors-download"),
 ]
 
 # --- datasets, collections (facet pages) ------------------------------
