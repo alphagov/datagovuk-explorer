@@ -14,6 +14,8 @@ join, not review-time values from the JSON.
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import csv_response
+from explorer.queries.core import all_rows
 from explorer.queries.reviews import (
     FACET_KEYS,
     REVIEWS_SORT,
@@ -66,11 +68,13 @@ def _score_facet_group(key: str, label: str, counts: dict, current: str | None) 
     )
 
 
-def reviews(request):
-    """GET /reviews — the LLM review table with per-score facets."""
+def _listing(request) -> dict:
+    """Resolve one /reviews request into its validated filters, sort state
+    and compiled count+list statements — shared by the page and the CSV
+    download so the exported rows match the table."""
     # Current facet selections — single-select per group, combinable across
     # groups. Score values must be a valid score or "none"; publisher is an
-    # org slug validated against the facet pool below.
+    # org slug validated against the unfiltered facet pool.
     filters: dict[str, str] = {}
     for key in SCORE_KEYS:
         v = request.GET.get(key)
@@ -78,14 +82,38 @@ def reviews(request):
             filters[key] = v
 
     # Publisher validation: the unfiltered pool (cached after first call)
-    # supplies the whitelist of valid org slugs — add publisher to filters
-    # before computing the filtered facet counts so the score pools reflect it.
+    # supplies the whitelist of valid org slugs.
     valid_publishers = {p["value"] for p in reviews_facet_counts({})["publishers"]}
     publisher = request.GET.get("publisher")
     if publisher in valid_publishers:
         filters["publisher"] = publisher
 
     sort, dir_ = parse_sort(request, REVIEWS_SORT, *REVIEWS_SORT_DEFAULT)
+    stmts = reviews_stmts(filters, sort, dir_)
+    return {
+        "filters": filters,
+        "sort": sort,
+        "dir": dir_,
+        "stmts": stmts,
+        "total": stmts["count"].get(*stmts["params"])["n"],
+    }
+
+
+# CSV export columns — the table's own columns then the dataset GUID last.
+# Scores export as raw numbers (the table renders them as "n/5").
+_REVIEWS_CSV_COLUMNS = [
+    ("Dataset", "title"),
+    ("Publisher", "org_display_name"),
+    ("Description", "findability"),
+    ("Links", "resources"),
+    ("Dataset ID", "ckan_id"),
+]
+
+
+def reviews(request):
+    """GET /reviews — the LLM review table with per-score facets."""
+    listing = _listing(request)
+    filters, sort, dir_ = listing["filters"], listing["sort"], listing["dir"]
 
     facet_counts = reviews_facet_counts(filters)
     publisher_pool = facet_counts["publishers"]
@@ -112,8 +140,8 @@ def reviews(request):
 
     # Reviews matching all active filters — count + page in SQL (only the
     # page's rows are fetched).
-    stmts = reviews_stmts(filters, sort, dir_)
-    shown_count = stmts["count"].get(*stmts["params"])["n"]
+    stmts = listing["stmts"]
+    shown_count = listing["total"]
 
     pagination = paginate(request, shown_count)
     page_reviews = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
@@ -178,5 +206,13 @@ def reviews(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
+            "download_url": f"/reviews/download.csv{pager_base}",
         },
     )
+
+
+def reviews_download(request):
+    """GET /reviews/download.csv — the same filtered, sorted reviews as the
+    table, unpaginated and as a CSV attachment."""
+    listing = _listing(request)
+    return csv_response("reviews.csv", _REVIEWS_CSV_COLUMNS, all_rows(listing["stmts"]))

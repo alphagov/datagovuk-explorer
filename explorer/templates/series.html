@@ -1,7 +1,7 @@
 {% extends "_app_layout.html" %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, total, page, total_pages, pager_base, label="series", label_singular="series") }}
+  {{ pagination(start_index, end_index, total, page, total_pages, pager_base, label="series", label_singular="series", download_url=download_url) }}
 {% endblock header_right %}
 
 {% block table %}

@@ -1,7 +1,7 @@
 {% extends "_app_layout.html" %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, shown, page, total_pages, pager_base, label="reviews", label_singular="review") }}
+  {{ pagination(start_index, end_index, shown, page, total_pages, pager_base, label="reviews", label_singular="review", download_url=download_url) }}
 {% endblock header_right %}
 
 {% block facets %}

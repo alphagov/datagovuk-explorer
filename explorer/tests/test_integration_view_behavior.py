@@ -30,8 +30,12 @@ from explorer.queries.reports import (
     report_stmts,
     report_unfiltered_count,
 )
+from explorer.queries.reviews import reviews_stmts
+from explorer.queries.series import SERIES_COUNT
+from explorer.queries.suggestions import SUGGESTIONS_SORT_DEFAULT, suggestions_stmts
 from explorer.tests.csv_helpers import csv_rows
 from explorer.views.harvesters import HarvesterFilters, _matches
+from explorer.views.suggestions import _csv_row
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
@@ -397,3 +401,119 @@ def test_publisher_reviews_download_url_carries_the_active_filters(client):
     bucket = publisher_reviews_facet_counts({})["datasets"][0]["bucket"]
     html = client.get("/organisations/reviews", {"datasets": bucket, "sort": "name", "dir": "asc"}).content.decode()
     assert f"/organisations/reviews/download.csv?sort=name&amp;dir=asc&amp;datasets={bucket}" in html
+
+
+# ── /series CSV download (views/series.py) ────────────────────────────────
+
+
+def test_series_download_is_unpaginated_csv(client):
+    n = SERIES_COUNT.get()["n"]
+    response = client.get("/series/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="series.csv"'
+    rows = csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == ["Title", "Type", "Datasets", "Orgs", "Series ID"]
+    assert all(row[-1] for row in rows[1:])  # series id (the /series/{id} link key)
+
+
+def test_series_page_offers_the_download(client):
+    html = client.get("/series").content.decode()
+    assert "/series/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_series_download_url_carries_the_sort(client):
+    html = client.get("/series", {"sort": "root_title", "dir": "asc"}).content.decode()
+    assert "/series/download.csv?sort=root_title&amp;dir=asc" in html
+
+
+# ── /reviews CSV download (views/reviews.py) ──────────────────────────────
+
+
+def test_reviews_download_is_unpaginated_csv(client):
+    stmts = reviews_stmts({}, "findability", "asc")
+    n = stmts["count"].get(*stmts["params"])["n"]
+    response = client.get("/reviews/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="reviews.csv"'
+    rows = csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == ["Dataset", "Publisher", "Description", "Links", "Dataset ID"]
+    assert all(row[-1] for row in rows[1:])  # dataset CKAN GUID
+
+
+def test_reviews_page_offers_the_download(client):
+    html = client.get("/reviews").content.decode()
+    assert "/reviews/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_reviews_download_applies_score_filter(client):
+    stmts = reviews_stmts({"findability": "5"}, "findability", "asc")
+    n = stmts["count"].get(*stmts["params"])["n"]
+    rows = csv_rows(client.get("/reviews/download.csv", {"findability": "5"}))
+    assert len(rows) == n + 1
+
+
+def test_reviews_download_url_carries_the_active_filters(client):
+    html = client.get("/reviews", {"findability": "5", "sort": "title", "dir": "asc"}).content.decode()
+    assert "/reviews/download.csv?sort=title&amp;dir=asc&amp;findability=5" in html
+
+
+# ── /suggestions CSV download (views/suggestions.py) ──────────────────────
+
+
+def test_suggestions_download_is_unpaginated_csv(client):
+    stmts = suggestions_stmts({}, *SUGGESTIONS_SORT_DEFAULT)
+    n = stmts["count"].get(*stmts["params"])["n"]
+    response = client.get("/suggestions/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="suggestions.csv"'
+    rows = csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == [
+        "Current title",
+        "Suggested title",
+        "Publisher",
+        "Current theme",
+        "Suggested theme",
+        "Current tags",
+        "Suggested tags",
+        "Confidence",
+        "Dataset ID",
+    ]
+    assert all(row[-1] for row in rows[1:])  # dataset CKAN GUID
+
+
+def test_suggestions_csv_row_normalises_tags_to_semicolons():
+    row = _csv_row(
+        {
+            "title": "T",
+            "suggested_title": "S",
+            "org_display_name": "O",
+            "current_theme": "x",
+            "theme": "y",
+            "theme_confidence": "high",
+            "current_tags": "alpha  beta gamma",
+            "tags": '["one", "two"]',
+            "ckan_id": "g",
+        },
+    )
+    assert row["current_tags"] == "alpha; beta; gamma"
+    assert row["tags"] == "one; two"
+
+
+def test_suggestions_page_offers_the_download(client):
+    html = client.get("/suggestions").content.decode()
+    assert "/suggestions/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_suggestions_download_applies_theme_filter(client):
+    stmts = suggestions_stmts({"theme": "none"}, *SUGGESTIONS_SORT_DEFAULT)
+    n = stmts["count"].get(*stmts["params"])["n"]
+    rows = csv_rows(client.get("/suggestions/download.csv", {"theme": "none"}))
+    assert len(rows) == n + 1
+
+
+def test_suggestions_download_url_carries_the_active_filters(client):
+    html = client.get("/suggestions", {"theme": "none", "sort": "title", "dir": "asc"}).content.decode()
+    assert "/suggestions/download.csv?sort=title&amp;dir=asc&amp;theme=none" in html

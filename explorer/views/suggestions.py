@@ -4,6 +4,10 @@ scripts/llm/ingest_suggestions.py from downloads/suggestions/). Sorted by
 confidence so low-confidence (ambiguous) datasets surface first. Only the
 latest classification per dataset is shown.
 
+GET /suggestions/download.csv — the same filtered, sorted rows unpaginated,
+with the current and suggested value of each field split into its own
+column (see _SUGGESTIONS_CSV_COLUMNS).
+
 The page list, count and sort all run in SQL (the shared
 suggestions_stmts builder in explorer/queries/suggestions.py — the /datasets
 pattern), so only the page's rows are fetched, not the whole suggestions
@@ -19,7 +23,9 @@ import json
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import csv_response
 from explorer.helpers import theme_label
+from explorer.queries.core import all_rows
 from explorer.queries.suggestions import (
     SUGGESTIONS_SORT,
     SUGGESTIONS_SORT_DEFAULT,
@@ -31,8 +37,10 @@ from explorer.sort import parse_sort
 from .core import paginate, pill
 
 
-def suggestions(request):
-    """GET /suggestions — the LLM classification table with suggested themes."""
+def _listing(request) -> dict:
+    """Resolve one /suggestions request into its filters, sort state and
+    compiled count+list statements — shared by the page and the CSV download
+    so the exported rows can't drift from the table."""
     # Facet selections.
     filters: dict[str, str] = {}
     theme_val = request.GET.get("theme")
@@ -43,6 +51,48 @@ def suggestions(request):
         filters["tag"] = tag_val
 
     sort, dir_ = parse_sort(request, SUGGESTIONS_SORT, *SUGGESTIONS_SORT_DEFAULT)
+    stmts = suggestions_stmts(filters, sort, dir_)
+    return {
+        "filters": filters,
+        "sort": sort,
+        "dir": dir_,
+        "stmts": stmts,
+        "total": stmts["count"].get(*stmts["params"])["n"],
+    }
+
+
+# CSV export columns — the table's own fields with the current and suggested
+# value of each split out (the description is deliberately omitted: it is too
+# long for a spreadsheet cell), then the dataset GUID last.
+_SUGGESTIONS_CSV_COLUMNS = [
+    ("Current title", "title"),
+    ("Suggested title", "suggested_title"),
+    ("Publisher", "org_display_name"),
+    ("Current theme", "current_theme"),
+    ("Suggested theme", "theme"),
+    ("Current tags", "current_tags"),
+    ("Suggested tags", "tags"),
+    ("Confidence", "theme_confidence"),
+    ("Dataset ID", "ckan_id"),
+]
+
+
+def _csv_row(r: dict) -> dict:
+    """One SQL row → export shape. Both tag columns normalise to a
+    semicolon-separated list: current tags are a space-joined string on the
+    datasets row, suggested tags a JSON array on the suggestion row."""
+    return {
+        **r,
+        "current_tags": "; ".join((r["current_tags"] or "").split()),
+        "tags": "; ".join(json.loads(r["tags"]) if r["tags"] else []),
+    }
+
+
+def suggestions(request):
+    """GET /suggestions — the LLM classification table with suggested themes."""
+    listing = _listing(request)
+    filters = listing["filters"]
+    sort, dir_ = listing["sort"], listing["dir"]
 
     base_params = facets.preserve_params(sort, dir_, list(filters.items()), defaults=SUGGESTIONS_SORT_DEFAULT)
     facet_url = facets.facet_url_for(base_params)
@@ -50,8 +100,8 @@ def suggestions(request):
     pager_base = facets.pager_base(base_params)
 
     # Count + page in SQL (only the page's rows are fetched).
-    stmts = suggestions_stmts(filters, sort, dir_)
-    total = stmts["count"].get(*stmts["params"])["n"]
+    stmts = listing["stmts"]
+    total = listing["total"]
 
     pagination = paginate(request, total)
     rows = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
@@ -165,5 +215,14 @@ def suggestions(request):
             "pills": pills,
             "facet_qs": facet_qs,
             "facet_url": facet_url,
+            "download_url": f"/suggestions/download.csv{pager_base}",
         },
     )
+
+
+def suggestions_download(request):
+    """GET /suggestions/download.csv — the same filtered, sorted suggestions
+    as the table, unpaginated and as a CSV attachment."""
+    listing = _listing(request)
+    rows = [_csv_row(r) for r in all_rows(listing["stmts"])]
+    return csv_response("suggestions.csv", _SUGGESTIONS_CSV_COLUMNS, rows)

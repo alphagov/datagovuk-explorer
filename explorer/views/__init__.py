@@ -19,10 +19,10 @@ from .organisation import organisation
 from .organisations import organisations, organisations_download
 from .publisher_reviews import publisher_reviews, publisher_reviews_download
 from .reports import report, report_download
-from .reviews import reviews
+from .reviews import reviews, reviews_download
 from .search import publisher_suggest, search, search_datasets, search_publishers
-from .series import series_detail, series_list
-from .suggestions import suggestions
+from .series import series_detail, series_download, series_list
+from .suggestions import suggestions, suggestions_download
 
 __all__ = [
     "_page_param",
@@ -53,10 +53,13 @@ __all__ = [
     "report",
     "report_download",
     "reviews",
+    "reviews_download",
     "search",
     "search_datasets",
     "search_publishers",
     "series_detail",
+    "series_download",
     "series_list",
     "suggestions",
+    "suggestions_download",
 ]

@@ -31,6 +31,7 @@ urlpatterns += [
         name="metadata-detail",
     ),
     path("series", views.series_list, name="series"),
+    path("series/download.csv", views.series_download, name="series-download"),
     path("series/<str:series_id>", views.series_detail, name="series-detail"),
 ]
 
@@ -74,7 +75,9 @@ urlpatterns += [
 # --- reviews + suggestions ----------------------------------------
 urlpatterns += [
     path("reviews", views.reviews, name="reviews"),
+    path("reviews/download.csv", views.reviews_download, name="reviews-download"),
     path("suggestions", views.suggestions, name="suggestions"),
+    path("suggestions/download.csv", views.suggestions_download, name="suggestions-download"),
 ]
 
 # --- check-progress -----------------------------------------------

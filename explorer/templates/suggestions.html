@@ -6,7 +6,7 @@
 {% endblock styles %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, total, page, total_pages, pager_base, label="suggestions", label_singular="suggestion") }}
+  {{ pagination(start_index, end_index, total, page, total_pages, pager_base, label="suggestions", label_singular="suggestion", download_url=download_url) }}
 {% endblock header_right %}
 
 {% macro tag_list(tags, cls, linkable=false) %}
