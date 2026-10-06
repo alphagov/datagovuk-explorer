@@ -54,6 +54,7 @@ urlpatterns += [
 # --- datasets, collections (facet pages) ------------------------------
 urlpatterns += [
     path("datasets", views.datasets, name="datasets"),
+    path("datasets/download.csv", views.datasets_download, name="datasets-download"),
     path("collections", views.collections, name="collections"),
     path("collections/<path:slug>", views.collection_detail, name="collection-detail"),
 ]

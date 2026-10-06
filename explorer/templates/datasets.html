@@ -1,7 +1,7 @@
 {% extends "_app_layout.html" %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, shown_datasets, page, total_pages, pager_base, label="datasets", label_singular="dataset") }}
+  {{ pagination(start_index, end_index, shown_datasets, page, total_pages, pager_base, label="datasets", label_singular="dataset", download_url=download_url) }}
 {% endblock header_right %}
 
 {% block facets %}

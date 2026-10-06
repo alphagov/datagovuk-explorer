@@ -20,7 +20,9 @@ from urllib.parse import urlencode
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import csv_response
 from explorer.helpers import theme_label
+from explorer.queries.core import all_rows
 from explorer.queries.datasets import (
     DATASET_TOTAL,
     DATASETS_SORT,
@@ -192,8 +194,10 @@ def _active_labels(filters: DatasetsFilters) -> dict[str, str | None]:
 _API_NAMES = {"data-apis": "Data API", "map-layers": "Map layers"}
 
 
-def datasets(request):
-    """GET /datasets — the all-datasets report with sidebar facets."""
+def _listing(request) -> dict:
+    """Resolve one /datasets request into its validated filters, sort state
+    and compiled count+list statements — shared by the page and the CSV
+    download so the exported rows can't drift from the table."""
     fetched_slug_rows = fetched_slugs()
 
     # Filter-independent master lists — the validation whitelists and the
@@ -208,6 +212,56 @@ def datasets(request):
         set(created_years),
         {str(y) for y in temporal_years},
     )
+    sort, dir_ = parse_sort(request, DATASETS_SORT, *DATASETS_SORT_DEFAULT)
+    stmts = datasets_stmts(asdict(filters), sort, dir_)
+    return {
+        "fetched_slug_rows": fetched_slug_rows,
+        "themes": themes,
+        "created_years": created_years,
+        "temporal_years": temporal_years,
+        "filters": filters,
+        "sort": sort,
+        "dir": dir_,
+        "stmts": stmts,
+        "total": stmts["count"].get(*stmts["params"])["n"],
+    }
+
+
+# CSV export columns — the table's own columns (Source is the badge's
+# Harvested/Manual label) then the dataset GUID last, per the shared
+# convention.
+_DATASETS_CSV_COLUMNS = [
+    ("Dataset", "title"),
+    ("Publisher", "organisation"),
+    ("Created", "metadata_created"),
+    ("Updated", "metadata_modified"),
+    ("Links", "resource_count"),
+    ("Views", "views"),
+    ("Source", "source"),
+    ("Dataset ID", "ckan_id"),
+]
+
+
+def _csv_row(r: dict) -> dict:
+    """One SQL row → its export shape: the table's columns, the Source label
+    the badge renders, and the dataset GUID."""
+    return {
+        "title": r["title"],
+        "organisation": r["organisation"],
+        "metadata_created": r["metadata_created"],
+        "metadata_modified": r["metadata_modified"],
+        "resource_count": r["resource_count"],
+        "views": r["views"],
+        "source": "Harvested" if r["harvested"] else "Manual",
+        "ckan_id": r["ckan_id"],
+    }
+
+
+def datasets(request):
+    """GET /datasets — the all-datasets report with sidebar facets."""
+    listing = _listing(request)
+    filters = listing["filters"]
+    sort, dir_ = listing["sort"], listing["dir"]
 
     # Sidebar facet counts — each group counts over the pool filtered by
     # every other group (the metadata filter is deliberately excluded).
@@ -222,8 +276,6 @@ def datasets(request):
             "api": filters.api,
         },
     )
-
-    sort, dir_ = parse_sort(request, DATASETS_SORT, *DATASETS_SORT_DEFAULT)
 
     # Query-string base shared by sort links / facet links / pills and the
     # temporal-year / publisher More toggles. preserve_params gives the
@@ -314,7 +366,7 @@ def datasets(request):
                 "theme",
                 "Theme",
                 "Filter by primary theme",
-                [(t["slug"], t["label"]) for t in themes],
+                [(t["slug"], t["label"]) for t in listing["themes"]],
                 theme_pool_counts,
                 filters.theme,
                 proportions=True,
@@ -369,7 +421,7 @@ def datasets(request):
                 "created_year",
                 "Year created",
                 "Filter by year created",
-                [(y, y) for y in created_years],
+                [(y, y) for y in listing["created_years"]],
                 {r["created_year"]: r["count"] for r in facet_counts["created_years"]},
                 filters.created_year,
                 proportions=True,
@@ -381,7 +433,7 @@ def datasets(request):
                 "temporal_year",
                 "Temporal year",
                 "Filter by temporal year",
-                [(str(y), str(y)) for y in temporal_years],
+                [(str(y), str(y)) for y in listing["temporal_years"]],
                 {str(r["year"]): r["count"] for r in facet_counts["temporal_years"]},
                 filters.temporal_year,
                 plural="temporal years",
@@ -395,8 +447,8 @@ def datasets(request):
     }
 
     # Datasets matching all active filters — count + page in SQL
-    stmts_out = datasets_stmts(asdict(filters), sort, dir_)
-    shown_count = stmts_out["count"].get(*stmts_out["params"])["n"]
+    stmts_out = listing["stmts"]
+    shown_count = listing["total"]
 
     pagination = paginate(request, shown_count)
     page_datasets = stmts_out["list"].all(*stmts_out["params"], pagination["page_size"], pagination["offset"])
@@ -447,7 +499,7 @@ def datasets(request):
             **pagination,
             "total_datasets": DATASET_TOTAL.get()["n"],
             "shown_datasets": shown_count,
-            "total_orgs": len(fetched_slug_rows),
+            "total_orgs": len(listing["fetched_slug_rows"]),
             "pills": pills,
             "sort": sort,
             "dir": dir_,
@@ -455,5 +507,14 @@ def datasets(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
+            "download_url": f"/datasets/download.csv{pager_base}",
         },
     )
+
+
+def datasets_download(request):
+    """GET /datasets/download.csv — the same filtered, sorted datasets as
+    the table, unpaginated and as a CSV attachment."""
+    listing = _listing(request)
+    rows = [_csv_row(r) for r in all_rows(listing["stmts"])]
+    return csv_response("datasets.csv", _DATASETS_CSV_COLUMNS, rows)

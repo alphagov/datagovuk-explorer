@@ -10,7 +10,7 @@ from .collections import collection_detail, collections
 from .core import _page_param, health, not_found, paginate
 from .dashboard import dashboard
 from .dataset import dataset
-from .datasets import datasets
+from .datasets import datasets, datasets_download
 from .harvesters import harvester, harvesters, harvesters_download
 from .links import links
 from .links_errors import link_errors
@@ -33,6 +33,7 @@ __all__ = [
     "dashboard",
     "dataset",
     "datasets",
+    "datasets_download",
     "harvester",
     "harvesters",
     "harvesters_download",

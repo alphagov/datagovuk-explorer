@@ -152,6 +152,47 @@ def _datasets_count(filters):
     return stmt["count"].get(*stmt["params"])["n"]
 
 
+# ── /datasets CSV download (views/datasets.py) ───────────────────────────
+
+
+def test_datasets_download_is_unpaginated_csv(client):
+    n = _datasets_count({})
+    response = client.get("/datasets/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="datasets.csv"'
+    rows = csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == [
+        "Dataset",
+        "Publisher",
+        "Created",
+        "Updated",
+        "Links",
+        "Views",
+        "Source",
+        "Dataset ID",
+    ]
+    assert all(row[-1] for row in rows[1:])  # dataset CKAN GUID
+
+
+def test_datasets_page_offers_the_download(client):
+    html = client.get("/datasets").content.decode()
+    assert "/datasets/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_datasets_download_applies_facet_filter(client):
+    publisher = datasets_facet_counts({})["publishers"][0]["value"]
+    n = _datasets_count({"publisher": publisher})
+    rows = csv_rows(client.get("/datasets/download.csv", {"publisher": publisher}))
+    assert len(rows) == n + 1
+
+
+def test_datasets_download_url_carries_the_active_filters(client):
+    publisher = datasets_facet_counts({})["publishers"][0]["value"]
+    html = client.get("/datasets", {"publisher": publisher, "sort": "title", "dir": "asc"}).content.decode()
+    assert f"/datasets/download.csv?sort=title&amp;dir=asc&amp;publisher={publisher}" in html
+
+
 def test_harvester_facet_pools_partition_cleared_list():
     """Each /harvesters facet pool counts exactly the rows the SQL list
     count returns with that group's filter cleared (the view's Python
