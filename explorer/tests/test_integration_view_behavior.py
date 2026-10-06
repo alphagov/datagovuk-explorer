@@ -17,6 +17,8 @@ from explorer.queries.core import Query
 from explorer.queries.dashboard import cards
 from explorer.queries.datasets import datasets_facet_counts, datasets_stmts
 from explorer.queries.harvesters import harvest_source_rows, harvest_sources_stmts, harvested_total
+from explorer.queries.links import LINK_SORT_DEFAULT, links_facet_counts, links_stmts
+from explorer.queries.metadata import METADATA_KEYS
 from explorer.queries.organisations import (
     organisations_facet_counts,
     organisations_stmts,
@@ -517,3 +519,63 @@ def test_suggestions_download_applies_theme_filter(client):
 def test_suggestions_download_url_carries_the_active_filters(client):
     html = client.get("/suggestions", {"theme": "none", "sort": "title", "dir": "asc"}).content.decode()
     assert "/suggestions/download.csv?sort=title&amp;dir=asc&amp;theme=none" in html
+
+
+# ── /links CSV download (views/links.py) ─────────────────────────────────
+
+
+def test_links_download_is_unpaginated_csv(client):
+    stmts = links_stmts({}, *LINK_SORT_DEFAULT)
+    n = stmts["count"].get(*stmts["params"])["n"]
+    response = client.get("/links/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="links.csv"'
+    rows = csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == ["Name", "URL", "Domain", "Format", "Dataset", "Publisher", "Dataset ID", "Resource ID"]
+    assert all(row[-1] for row in rows[1:])  # link resource GUID
+    assert all(row[-2] for row in rows[1:])  # dataset CKAN GUID
+
+
+def test_links_page_offers_the_download(client):
+    html = client.get("/links").content.decode()
+    assert "/links/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_links_download_applies_facet_filter(client):
+    fmt = links_facet_counts({})["formats"][0]["fmt"]
+    filters = {"domain": None, "format": fmt, "created_year": None, "publisher": None}
+    stmts = links_stmts(filters, *LINK_SORT_DEFAULT)
+    n = stmts["count"].get(*stmts["params"])["n"]
+    rows = csv_rows(client.get("/links/download.csv", {"format": fmt}))
+    assert len(rows) == n + 1
+
+
+def test_links_download_url_carries_the_active_filters(client):
+    pub = links_facet_counts({})["publishers"][0]["value"]
+    html = client.get("/links", {"publisher": pub, "sort": "name", "dir": "asc"}).content.decode()
+    assert f"/links/download.csv?sort=name&amp;dir=asc&amp;publisher={pub}" in html
+
+
+# ── /metadata CSV download (views/metadata.py) ────────────────────────────
+
+
+def test_metadata_download_is_unpaginated_csv(client):
+    n = len(METADATA_KEYS.all())
+    response = client.get("/metadata/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="metadata.csv"'
+    rows = csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == ["Field", "Section", "Used by", "Unique values", "% of catalogue"]
+    assert all(row[0] for row in rows[1:])  # field label
+    assert {row[1] for row in rows[1:]} <= {"top", "extras"}
+    used = [int(row[2]) for row in rows[1:]]
+    assert used == sorted(used, reverse=True)  # same usage ranking as the table
+
+
+def test_metadata_page_offers_the_download_without_a_pager(client):
+    """The overview has no pager, so the menu must render on its own."""
+    html = client.get("/metadata").content.decode()
+    assert "/metadata/download.csv" in html
+    assert "Download CSV" in html
+    assert 'class="pagination"' not in html

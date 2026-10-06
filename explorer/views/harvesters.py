@@ -27,7 +27,7 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.csv_export import csv_response
 from explorer.helpers import format_date
-from explorer.queries.core import all_rows
+from explorer.queries.core import iter_rows
 from explorer.queries.datasets import DATASETS_SORT, source_datasets_stmts
 from explorer.queries.harvesters import (
     HARVEST_SOURCE,
@@ -359,7 +359,7 @@ def harvesters_download(request):
     stmts = listing["stmts"]
     type_labels = dict(listing["type_master"])
     frequency_labels = dict(listing["frequency_master"])
-    rows = [_csv_row(r, type_labels, frequency_labels) for r in all_rows(stmts)]
+    rows = (_csv_row(r, type_labels, frequency_labels) for r in iter_rows(stmts))
     return csv_response("harvesters.csv", _HARVESTER_CSV_COLUMNS, rows)
 
 

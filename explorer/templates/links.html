@@ -2,6 +2,7 @@
 
 {% block header_right %}
   {{ pagination(start_index, end_index, filtered_links, page, total_pages, pager_base, label="links", label_singular="link") }}
+  {{ page_menu(download_url) }}
 {% endblock header_right %}
 
 {% block facets %}

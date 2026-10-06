@@ -24,6 +24,11 @@ def _pagination(**kwargs) -> str:
     return _render(_macro("pagination", "macros/_pagination.html") + f"{{{{ pagination({args}) }}}}")
 
 
+def _page_menu(**kwargs) -> str:
+    args = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
+    return _render(_macro("page_menu", "macros/_page_menu.html") + f"{{{{ page_menu({args}) }}}}")
+
+
 def _sort_link(**kwargs) -> str:
     args = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
     return _render(_macro("sort_link", "macros/_sort_link.html") + f"{{{{ sort_link({args}) }}}}")
@@ -97,25 +102,30 @@ def test_pagination_jump_form_rebuilds_query_params():
     assert "of 3" in " ".join(html.split())
 
 
-def test_pagination_download_menu_is_opt_in():
-    """Passing download_url adds the 3-dots menu; without it no menu renders.
-    The menu shows even on a single page, when there is no pager at all."""
-    with_menu = _pagination(
-        start=1,
-        end=1,
-        total=1,
-        page=1,
-        total_pages=1,
-        label="datasets",
-        download_url="/report/datasets-no-description/download.csv?sort=title&dir=asc",
-    )
-    assert 'class="page-menu"' in with_menu
-    assert "Download CSV" in with_menu
-    assert "/report/datasets-no-description/download.csv?sort=title&amp;dir=asc" in with_menu
-    assert 'class="pagination"' not in with_menu  # single page → no pager
+def test_pagination_has_no_page_menu():
+    """Page actions live in the separate page_menu macro, so the pager never
+    emits the 3-dots menu even when there is no pager (single page)."""
+    html = _pagination(start=1, end=1, total=1, page=1, total_pages=1, label="datasets")
+    assert "page-menu" not in html
 
-    without = _pagination(start=1, end=1, total=1, page=1, total_pages=1, label="datasets")
-    assert "page-menu" not in without
+
+def test_page_menu_download_url_renders_download_csv():
+    """Passing download_url renders the 3-dots menu with a Download CSV item,
+    with no pager required."""
+    html = _page_menu(download_url="/report/datasets-no-description/download.csv?sort=title&dir=asc")
+    assert 'class="page-menu"' in html
+    assert "Download CSV" in html
+    assert "/report/datasets-no-description/download.csv?sort=title&amp;dir=asc" in html
+
+
+def test_page_menu_renders_nothing_without_actions():
+    assert "page-menu" not in _page_menu()
+
+
+def test_page_menu_accepts_arbitrary_items():
+    html = _page_menu(items=[{"label": "Download JSON", "url": "/x.json"}])
+    assert "Download JSON" in html
+    assert 'href="/x.json"' in html
 
 
 # --- sub-nav ---------------------------------------------------------------

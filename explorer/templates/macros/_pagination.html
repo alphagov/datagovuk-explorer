@@ -8,11 +8,9 @@
    since a GET form replaces the query string. `label`/`label_singular` name
    the listed items. The pager renders only when total_pages > 1.
 
-   `download_url` (reports only) renders a 3-dots menu to the right of the
-   pager with a "Download CSV" item. It renders whenever a URL is passed —
-   including single-page results, where the pager itself is absent — so every
-   report can be exported. #}
-{% macro pagination(start=None, end=None, total=None, page=1, total_pages=1, base="", label="", label_singular=None, download_url=None) %}
+   Page actions (e.g. Download CSV) live in the separate `page_menu` macro, so
+   pages without a pager can still offer them. #}
+{% macro pagination(start=None, end=None, total=None, page=1, total_pages=1, base="", label="", label_singular=None) %}
   {% if total is not none %}
     {% set noun = (label_singular or label) if total == 1 else label %}
     <p class="count">
@@ -49,19 +47,5 @@
         <span class="page-link page-link--disabled" aria-hidden="true">›</span>
       {% endif %}
     </nav>
-  {% endif %}
-  {% if download_url %}
-    <details class="page-menu">
-      <summary class="page-menu__trigger" aria-label="More options">
-        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-          <circle cx="10" cy="4" r="1.6" fill="currentColor" />
-          <circle cx="10" cy="10" r="1.6" fill="currentColor" />
-          <circle cx="10" cy="16" r="1.6" fill="currentColor" />
-        </svg>
-      </summary>
-      <div class="page-menu__panel">
-        <a class="page-menu__item" href="{{ download_url }}">Download CSV</a>
-      </div>
-    </details>
   {% endif %}
 {% endmacro %}

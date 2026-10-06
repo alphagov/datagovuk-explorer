@@ -25,6 +25,7 @@ urlpatterns = [
 urlpatterns += [
     path("organisation/<slug:slug>", views.organisation, name="organisation"),
     path("metadata", views.metadata_overview, name="metadata"),
+    path("metadata/download.csv", views.metadata_download, name="metadata-download"),
     path(
         "metadata/<str:section>/<str:name>",
         views.metadata_detail,
@@ -49,6 +50,7 @@ urlpatterns += [
     path("harvesters/download.csv", views.harvesters_download, name="harvesters-download"),
     path("harvester/<str:source_id>", views.harvester, name="harvester"),
     path("links", views.links, name="links"),
+    path("links/download.csv", views.links_download, name="links-download"),
     path("links/status", views.link_errors, name="link-errors"),
 ]
 

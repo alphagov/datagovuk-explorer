@@ -14,13 +14,14 @@ assembled in queries/dashboard.py.
 """
 
 import json
+from collections.abc import Iterable, Iterator
 
 from django.http import Http404
 from django.shortcuts import render
 
 from explorer import facets
 from explorer.csv_export import csv_response, serialize
-from explorer.queries.core import Query, all_rows
+from explorer.queries.core import Query, iter_rows
 from explorer.queries.reports import (
     DATASET_REPORT_NULLS_LAST,
     DATASET_REPORT_SORT,
@@ -302,15 +303,16 @@ def _page_context(report, listing, rows, pagination) -> dict:
     }
 
 
-def _parse_api_links(rows: list[dict]) -> list[dict]:
+def _parse_api_links(rows: Iterable[dict]) -> Iterator[dict]:
     """datasets-has-api: api_links arrives as a jsonb string (the query
     layer's psycopg str loader — jsonb comes back as a JSON string here)
     — parse it into a list of {name, format, url} dicts so the template
-    and the CSV can render the matched resources."""
-    rows = [dict(r) for r in rows]
-    for row in rows:
+    and the CSV can render the matched resources. Lazy: yields one parsed
+    row per input row, so a download never materialises the listing."""
+    for r in rows:
+        row = dict(r)
         row["api_links"] = json.loads(row["api_links"]) if row.get("api_links") else []
-    return rows
+        yield row
 
 
 def _csv_columns(report, listing) -> list[tuple[str, str]]:
@@ -441,7 +443,7 @@ def report(request, key):
         pagination["offset"],
     )
     if report.get("show_api_links"):
-        rows = _parse_api_links(rows)
+        rows = list(_parse_api_links(rows))
     return render(request, "report.html", _page_context(report, listing, rows, pagination))
 
 
@@ -454,7 +456,7 @@ def report_download(request, key):
     """
     report = _report(key)
     listing = _listing(request, report)
-    rows = all_rows(listing["stmts"])
+    rows = iter_rows(listing["stmts"])
     if report.get("show_api_links"):
         rows = _parse_api_links(rows)
     return csv_response(f"{report['key']}.csv", _csv_columns(report, listing), rows, cell=_csv_cell)

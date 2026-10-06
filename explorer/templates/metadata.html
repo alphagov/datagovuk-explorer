@@ -1,5 +1,9 @@
 {% extends "_app_layout.html" %}
 
+{% block header_right %}
+  {{ page_menu(download_url) }}
+{% endblock header_right %}
+
 {% block table %}
   <div class="table-wrap">
     <table class="data-table data-table--wide-first">

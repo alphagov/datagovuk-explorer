@@ -2,6 +2,8 @@
 
 Server-side sortable via ?sort= & ?dir=, filterable by domain, format
 and created year via single-select facet links, paginated (100/page).
+GET /links/download.csv — the same filtered, sorted rows as a CSV
+attachment, unpaginated.
 
 Facet sidebar counts are self-excluding SQL aggregates from
 explorer/queries/links.py (links_facet_counts) over the same clause
@@ -14,6 +16,8 @@ fixed whole-table aggregates (LINKS_STATS).
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import csv_response
+from explorer.queries.core import iter_rows
 from explorer.queries.links import (
     LINK_SORT,
     LINK_SORT_DEFAULT,
@@ -29,40 +33,19 @@ from .core import paginate, pill
 MAX_DOMAIN_LENGTH = 253
 
 
-def links(request):
-    """GET /links — the all-links report with sidebar facets."""
-    stats = links_stats()
-    no_url_links = stats.get("no_url") or 0
-
-    # Sidebar facet pools — self-excluding SQL aggregates. The unfiltered
-    # pools drive the format/created_year/publisher validation whitelists;
-    # the filtered pools drive the sidebar counts once the selections are
-    # validated.
+def _listing(request) -> dict:
+    """Resolve one /links request into its validated filters, sort state and
+    compiled count+list statements — shared by the page and the CSV download
+    so the exported rows can't drift from the table."""
+    # Filter-independent pools — the validation whitelists and the
+    # publisher display names (memoised by links_facet_counts' unfiltered
+    # cache, so the page's own base_pool lookup is free).
     base_pool = links_facet_counts({})
     valid_formats = {f["fmt"] for f in base_pool["formats"]}
     valid_created_years = {r["created_year"] for r in base_pool["created_years"]}
     publisher_names = {p["value"]: p["name"] for p in base_pool["publishers"]}
     valid_publishers = set(publisher_names)
 
-    # Format list — collapses past the default cutoff behind its "More
-    # formats" toggle (?formats=all fallback when JS is off).
-    formats_expanded = request.GET.get("formats") == "all"
-
-    # Domain facet state — every host is a facet; the long list collapses
-    # past the default cutoff behind the "More domains" toggle the
-    # /links/errors domain facet uses (?domains=all, JS-free fallback).
-    domain_expanded = request.GET.get("domains") == "all"
-
-    # Created-year list also collapses past the default cutoff behind its
-    # "More created years" toggle (?created_years=all).
-    created_year_expanded = request.GET.get("created_years") == "all"
-
-    # Publisher list collapses past the default cutoff behind its
-    # "More publishers" toggle (?publishers=all).
-    publisher_expanded = request.GET.get("publishers") == "all"
-
-    # Validate against the full list so any format can be filtered even when
-    # it's beyond the top 10 shown by default.
     # Facet values — bound as WHERE parameters, never interpolated.
     domain = request.GET.get("domain")
     current_domain = None
@@ -86,12 +69,82 @@ def links(request):
         "created_year": current_created_year,
         "publisher": current_publisher,
     }
-    pool = links_facet_counts(filters)
-    stmts_out = links_stmts(filters, sort, dir_)
+    stmts = links_stmts(filters, sort, dir_)
+    return {
+        "filters": filters,
+        "publisher_names": publisher_names,
+        "sort": sort,
+        "dir": dir_,
+        "stmts": stmts,
+        "total": stmts["count"].get(*stmts["params"])["n"],
+    }
 
-    total = stmts_out["count"].get(*stmts_out["params"])["n"]
+
+# CSV export columns — the table's own columns (Name uses the resource_name
+# macro's fallback: name or description), then the two entity GUIDs last so
+# every export is joinable to the source records. URL is kept beside Name
+# because it is the row's real identity, matching the /report/links export.
+_LINKS_CSV_COLUMNS = [
+    ("Name", "name"),
+    ("URL", "url"),
+    ("Domain", "host"),
+    ("Format", "format"),
+    ("Dataset", "dataset_title"),
+    ("Publisher", "org_display_name"),
+    ("Dataset ID", "ckan_id"),
+    ("Resource ID", "resource_id"),
+]
+
+
+def _csv_row(r: dict) -> dict:
+    """One SQL row → its export shape: the Name fallback the resource_name
+    macro renders, plus the raw columns."""
+    return {
+        "name": r["name"] or r["description"],
+        "url": r["url"],
+        "host": r["host"],
+        "format": r["format"],
+        "dataset_title": r["dataset_title"],
+        "org_display_name": r["org_display_name"],
+        "ckan_id": r["ckan_id"],
+        "resource_id": r["resource_id"],
+    }
+
+
+def links(request):
+    """GET /links — the all-links report with sidebar facets."""
+    stats = links_stats()
+    no_url_links = stats.get("no_url") or 0
+
+    # Format list — collapses past the default cutoff behind its "More
+    # formats" toggle (?formats=all fallback when JS is off).
+    formats_expanded = request.GET.get("formats") == "all"
+
+    # Domain facet state — every host is a facet; the long list collapses
+    # past the default cutoff behind the "More domains" toggle the
+    # /links/errors domain facet uses (?domains=all, JS-free fallback).
+    domain_expanded = request.GET.get("domains") == "all"
+
+    # Created-year list also collapses past the default cutoff behind its
+    # "More created years" toggle (?created_years=all).
+    created_year_expanded = request.GET.get("created_years") == "all"
+
+    # Publisher list collapses past the default cutoff behind its
+    # "More publishers" toggle (?publishers=all).
+    publisher_expanded = request.GET.get("publishers") == "all"
+
+    listing = _listing(request)
+    filters = listing["filters"]
+    sort, dir_ = listing["sort"], listing["dir"]
+    current_domain = filters["domain"]
+    current_format = filters["format"]
+    current_created_year = filters["created_year"]
+    current_publisher = filters["publisher"]
+
+    pool = links_facet_counts(filters)
+    total = listing["total"]
     pagination = paginate(request, total)
-    link_rows = stmts_out["list"].all(*stmts_out["params"], pagination["page_size"], pagination["offset"])
+    link_rows = listing["stmts"]["list"].all(*listing["stmts"]["params"], pagination["page_size"], pagination["offset"])
 
     # Query-string fragments shared by sort links / facet links / pills.
     # Dicts preserve insertion order, so urlencode emits the fixed parameter
@@ -215,6 +268,7 @@ def links(request):
 
     domain_name = "No URL" if current_domain == "__none__" else current_domain
     format_name = "No format" if current_format == "__none__" else current_format
+    publisher_names = listing["publisher_names"]
     publisher_label = publisher_names.get(current_publisher, current_publisher) if current_publisher else None
     pills = [
         pill("Domain", domain_name, facet_url("domain", "")) if current_domain else None,
@@ -235,6 +289,7 @@ def links(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
+            "download_url": f"/links/download.csv{pager_base}",
             "total_links": stats.get("total") or 0,
             "filtered_links": total,
             "no_url_links": no_url_links,
@@ -246,3 +301,11 @@ def links(request):
             "dir": dir_,
         },
     )
+
+
+def links_download(request):
+    """GET /links/download.csv — the same filtered, sorted links as the
+    table, unpaginated and as a CSV attachment."""
+    listing = _listing(request)
+    rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))
+    return csv_response("links.csv", _LINKS_CSV_COLUMNS, rows)

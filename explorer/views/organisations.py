@@ -12,7 +12,7 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.csv_export import csv_response
 from explorer.helpers import format_date
-from explorer.queries.core import all_rows
+from explorer.queries.core import iter_rows
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
     DATASET_BUCKETS,
@@ -289,5 +289,5 @@ def organisations_download(request):
     listing = _listing(request)
     stmts = listing["stmts"]
     link_health = {r["org_slug"]: r["link_health"] for r in org_link_health_rows()}
-    rows = [_csv_row(r, link_health) for r in all_rows(stmts)]
+    rows = (_csv_row(r, link_health) for r in iter_rows(stmts))
     return csv_response("publishers.csv", _ORG_CSV_COLUMNS, rows)

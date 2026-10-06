@@ -1,21 +1,29 @@
 """GET /metadata — field-adoption overview across the catalogue (top-level
 fields and extras keys, sorted by how many datasets use them).
+GET /metadata/download.csv — the same overview as a CSV attachment.
 GET /metadata/{section}/{name} — value distribution for one field, paginated.
 """
+
+import math
 
 from django.http import Http404
 from django.shortcuts import render
 
+from explorer.csv_export import csv_response, serialize
 from explorer.queries.datasets import DATASET_TOTAL
 from explorer.queries.metadata import METADATA_KEYS, METADATA_VALUE_COUNT, METADATA_VALUES
 
 from .core import paginate
 
 
-def metadata_overview(request):
-    """GET /metadata — list of field keys with dataset counts, one table
-    ranked by usage; extras fields carry a badge."""
-    # Small list (185 field keys) — renders fully, no pager.
+def _listing(request) -> list[dict]:
+    """The field-adoption rows the /metadata table renders — shared by the
+    page and the CSV download, so the export can't drift from the table.
+
+    Not a SQL list statement: the catalogue is small (~185 field keys), so
+    the two queries are merged and ranked in Python rather than re-sorted
+    per request.
+    """
     keys = METADATA_KEYS.all()
     total_datasets = DATASET_TOTAL.get()["n"]
 
@@ -37,16 +45,52 @@ def metadata_overview(request):
                 "pct": (k["non_empty"] / total_datasets) * 100,
             },
         )
+    return fields
 
+
+def metadata_overview(request):
+    """GET /metadata — list of field keys with dataset counts, one table
+    ranked by usage; extras fields carry a badge."""
+    # Small list (185 field keys) — renders fully, no pager.
     return render(
         request,
         "metadata.html",
         {
             "title": "Metadata — data.gov.uk Explorer",
             "nav_key": "metadata",
-            "fields": fields,
+            "fields": _listing(request),
+            "download_url": "/metadata/download.csv",
         },
     )
+
+
+# CSV export columns — the table's own columns, with the "extras" badge's
+# section made explicit. A metadata field has no entity GUID; it is
+# identified by its (section, label) pair.
+_METADATA_CSV_COLUMNS = [
+    ("Field", "label"),
+    ("Section", "section"),
+    ("Used by", "count"),
+    ("Unique values", "distinct"),
+    ("% of catalogue", "pct"),
+]
+
+
+def _csv_cell(row: dict, key: str):
+    """One cell's CSV value. "% of catalogue" mirrors the table's own
+    `| round1` rendering (explorer/jinja2.py) so the file matches the page;
+    everything else serialises through the shared helper."""
+    if key == "pct":
+        rounded = math.floor(row["pct"] * 10 + 0.5) / 10
+        return str(int(rounded)) if rounded.is_integer() else str(rounded)
+    return serialize(row.get(key))
+
+
+def metadata_download(request):
+    """GET /metadata/download.csv — the same ranked field list as the table,
+    unpaginated and as a CSV attachment."""
+    rows = _listing(request)
+    return csv_response("metadata.csv", _METADATA_CSV_COLUMNS, rows, cell=_csv_cell)
 
 
 def metadata_detail(request, section, name):

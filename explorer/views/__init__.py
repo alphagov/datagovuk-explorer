@@ -12,9 +12,9 @@ from .dashboard import dashboard
 from .dataset import dataset
 from .datasets import datasets, datasets_download
 from .harvesters import harvester, harvesters, harvesters_download
-from .links import links
+from .links import links, links_download
 from .links_errors import link_errors
-from .metadata import metadata_detail, metadata_overview
+from .metadata import metadata_detail, metadata_download, metadata_overview
 from .organisation import organisation
 from .organisations import organisations, organisations_download
 from .publisher_reviews import publisher_reviews, publisher_reviews_download
@@ -40,7 +40,9 @@ __all__ = [
     "health",
     "link_errors",
     "links",
+    "links_download",
     "metadata_detail",
+    "metadata_download",
     "metadata_overview",
     "not_found",
     "organisation",

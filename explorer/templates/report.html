@@ -39,7 +39,8 @@
   {% else %}
     {% set count_label, count_label_singular = 'datasets', 'dataset' %}
   {% endif %}
-  {{ pagination(start_index, end_index, current.count, page, total_pages, pager_base, label=count_label, label_singular=count_label_singular, download_url=download_url) }}
+  {{ pagination(start_index, end_index, current.count, page, total_pages, pager_base, label=count_label, label_singular=count_label_singular) }}
+  {{ page_menu(download_url) }}
 {% endblock header_right %}
 
 {% block facets %}

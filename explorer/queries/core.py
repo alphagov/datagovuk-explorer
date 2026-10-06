@@ -10,7 +10,7 @@ patterns in links.py/metadata.py are the easiest thing to corrupt when
 moving statements, so keep them verbatim.
 """
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from functools import cache, wraps
 from typing import Any
@@ -59,16 +59,25 @@ class Query:
 
 # Export downloads run a compiled listing without its LIMIT/OFFSET: the list
 # statements all end in LIMIT %s OFFSET %s, so an export passes this limit
-# and offset 0. Effectively "all rows" — the largest table here is well under
-# it (see explorer/csv_export.py).
+# and offset 0 — "all rows", capped well above the largest table.
 EXPORT_ROW_LIMIT = 1_000_000
 
 
-def all_rows(stmt: dict) -> list[dict]:
-    """Every row of a compiled {params, count, list} statement, unpaginated —
-    the read behind a page's CSV download. The view builds the same statement
-    for the page and the export, so the file can't drift from the table."""
-    return stmt["list"].all(*stmt["params"], EXPORT_ROW_LIMIT, 0)
+def iter_rows(stmt: dict) -> Iterator[dict]:
+    """Yield every row of a compiled {params, count, list} statement,
+    unpaginated — the read behind a page's CSV download. The view builds the
+    same statement for the page and the export, so the file can't drift from
+    the table.
+
+    Iterates a server-side (named) cursor, so a 200k-row export never
+    materialises the row dicts: psycopg fetches in batches as the response
+    streams. The cursor lives only as long as the generator.
+    """
+    with connection.chunked_cursor() as cur:
+        cur.execute(stmt["list"].sql, (*stmt["params"], EXPORT_ROW_LIMIT, 0))
+        cols = [d[0] for d in cur.description]
+        for row in cur:
+            yield dict(zip(cols, row, strict=False))
 
 
 # ── Shared self-excluding-facet-counts helper ─────────────────────────────

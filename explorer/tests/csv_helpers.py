@@ -8,7 +8,15 @@ import io
 
 
 def csv_rows(response) -> list[list[str]]:
-    """A download response's rows as lists, header row included."""
+    """A download response's rows as lists, header row included.
+
+    Exports are streamed (StreamingHttpResponse), so the body is consumed
+    from streaming_content; a plain HttpResponse's .content is used as-is.
+    """
     assert response.status_code == 200
     assert response["Content-Type"].startswith("text/csv")
-    return list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
+    if getattr(response, "streaming", False):
+        body = b"".join(response.streaming_content).decode("utf-8-sig")
+    else:
+        body = response.content.decode("utf-8-sig")
+    return list(csv.reader(io.StringIO(body)))

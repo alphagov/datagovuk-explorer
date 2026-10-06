@@ -22,7 +22,7 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.csv_export import csv_response
 from explorer.helpers import theme_label
-from explorer.queries.core import all_rows
+from explorer.queries.core import iter_rows
 from explorer.queries.datasets import (
     DATASET_TOTAL,
     DATASETS_SORT,
@@ -516,5 +516,5 @@ def datasets_download(request):
     """GET /datasets/download.csv — the same filtered, sorted datasets as
     the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
-    rows = [_csv_row(r) for r in all_rows(listing["stmts"])]
+    rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))
     return csv_response("datasets.csv", _DATASETS_CSV_COLUMNS, rows)

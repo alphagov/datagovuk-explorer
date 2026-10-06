@@ -1,0 +1,29 @@
+{# Page-actions 3-dots menu for the header-right pane. Separate from the pager:
+   pages without pagination (index/detail pages) can still offer actions.
+
+   A native <details> disclosure, so it works without JS; page-menu.js only
+   adds close-on-outside-click / Escape. Pass `download_url` for the standard
+   single "Download CSV" item, or `items` for a list of `{"label", "url"}`
+   dicts. Renders nothing when there is no action, so pages can call it
+   unconditionally. #}
+{% macro page_menu(download_url=None, items=None) %}
+  {% if items is none and download_url %}
+    {% set items = [{"label": "Download CSV", "url": download_url}] %}
+  {% endif %}
+  {% if items %}
+    <details class="page-menu">
+      <summary class="page-menu__trigger" aria-label="More options">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+          <circle cx="10" cy="4" r="1.6" fill="currentColor" />
+          <circle cx="10" cy="10" r="1.6" fill="currentColor" />
+          <circle cx="10" cy="16" r="1.6" fill="currentColor" />
+        </svg>
+      </summary>
+      <div class="page-menu__panel">
+        {% for item in items %}
+          <a class="page-menu__item" href="{{ item.url }}">{{ item.label }}</a>
+        {% endfor %}
+      </div>
+    </details>
+  {% endif %}
+{% endmacro %}

@@ -4,7 +4,7 @@ from django.shortcuts import render
 
 from explorer import facets
 from explorer.csv_export import csv_response
-from explorer.queries.core import all_rows
+from explorer.queries.core import iter_rows
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
     DATASET_BUCKETS,
@@ -117,5 +117,5 @@ def publisher_reviews_download(request):
     publishers as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     stmts = listing["stmts"]
-    rows = all_rows(stmts)
+    rows = iter_rows(stmts)
     return csv_response("publisher-reviews.csv", _PUBLISHER_REVIEWS_CSV_COLUMNS, rows)

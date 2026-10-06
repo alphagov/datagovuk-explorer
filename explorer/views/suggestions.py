@@ -25,7 +25,7 @@ from django.shortcuts import render
 from explorer import facets
 from explorer.csv_export import csv_response
 from explorer.helpers import theme_label
-from explorer.queries.core import all_rows
+from explorer.queries.core import iter_rows
 from explorer.queries.suggestions import (
     SUGGESTIONS_SORT,
     SUGGESTIONS_SORT_DEFAULT,
@@ -224,5 +224,5 @@ def suggestions_download(request):
     """GET /suggestions/download.csv — the same filtered, sorted suggestions
     as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
-    rows = [_csv_row(r) for r in all_rows(listing["stmts"])]
+    rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))
     return csv_response("suggestions.csv", _SUGGESTIONS_CSV_COLUMNS, rows)

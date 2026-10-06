@@ -1,7 +1,8 @@
 {% extends "_app_layout.html" %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, shown_sources, page, total_pages, pager_base, label="harvesters", label_singular="harvester", download_url=download_url) }}
+  {{ pagination(start_index, end_index, shown_sources, page, total_pages, pager_base, label="harvesters", label_singular="harvester") }}
+  {{ page_menu(download_url) }}
 {% endblock header_right %}
 
 {% block facets %}

@@ -6,18 +6,18 @@
    and a main table. The panes are defined here; each page fills the blocks:
 
      header-left   pane → header_left   (subnav / page heading)
-     header-right  pane → header_right  (count + pager)
+     header-right  pane → header_right  (count + pager + page-actions menu)
      header-pills  pane → header_pills  (active-filter pills — the layout
                                         renders them from `pills` by default)
      facets        pane → facets        (facet groups — default provided)
-     content-main  pane → table         (table only — pagination lives in the
-                                         header right)
+     content-main  pane → table         (table only — the count/pager/actions
+                                         live in the header right)
 
    The header is a single bar: the subnav (or a detail page's heading) on the
-   left, the count + pager on the right, vertically centred against each
-   other. Active-filter pills render on their own full-width row just beneath
-   that bar straight from the `pills` view context; pages only override the
-   block to change that.
+   left, the count + pager (and any page-actions menu) on the right,
+   vertically centred against each other. Active-filter pills render on their
+   own full-width row just beneath that bar straight from the `pills` view
+   context; pages only override the block to change that.
 
    Report pages without any facet groups get the single-column
    (content-layout--full) layout.
