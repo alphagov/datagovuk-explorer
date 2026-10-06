@@ -14,7 +14,7 @@ join, not review-time values from the JSON.
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import csv_response
+from explorer.csv_export import csv_filename, csv_response
 from explorer.queries.core import iter_rows
 from explorer.queries.reviews import (
     FACET_KEYS,
@@ -215,4 +215,4 @@ def reviews_download(request):
     """GET /reviews/download.csv — the same filtered, sorted reviews as the
     table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
-    return csv_response("reviews.csv", _REVIEWS_CSV_COLUMNS, iter_rows(listing["stmts"]))
+    return csv_response(csv_filename("reviews", listing["filters"]), _REVIEWS_CSV_COLUMNS, iter_rows(listing["stmts"]))

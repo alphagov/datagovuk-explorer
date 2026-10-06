@@ -10,7 +10,7 @@ import re
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import csv_response
+from explorer.csv_export import csv_filename, csv_response
 from explorer.queries.core import iter_rows
 from explorer.queries.series import (
     SERIES_BY_ID,
@@ -110,7 +110,7 @@ def series_download(request):
         return _not_built(request)
     listing = _listing(request)
     rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))
-    return csv_response("series.csv", _SERIES_CSV_COLUMNS, rows)
+    return csv_response(csv_filename("series"), _SERIES_CSV_COLUMNS, rows)
 
 
 def series_detail(request, series_id):

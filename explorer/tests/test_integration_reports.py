@@ -9,7 +9,7 @@ import pytest
 
 from explorer.queries.core import Query
 from explorer.queries.reports import REPORTS, report_facet_counts, report_stmts
-from explorer.tests.csv_helpers import csv_rows
+from explorer.tests.csv_helpers import csv_rows, today_iso
 
 pytestmark = [pytest.mark.django_db, pytest.mark.integration]
 
@@ -91,7 +91,7 @@ def test_every_report_download_is_unpaginated_csv(client, report):
     """The download is the report's full filtered row set (no pager) plus a
     header, with an attachment filename named after the report."""
     response = client.get(_DOWNLOAD.format(key=report["key"]))
-    assert response["Content-Disposition"] == f'attachment; filename="{report["key"]}.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="{report["key"]}-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == _count(report) + 1, f"{report['key']}: wrong row count"
 

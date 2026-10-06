@@ -20,7 +20,7 @@ from django.http import Http404
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import csv_response, serialize
+from explorer.csv_export import csv_filename, csv_response, serialize
 from explorer.queries.core import Query, iter_rows
 from explorer.queries.reports import (
     DATASET_REPORT_NULLS_LAST,
@@ -162,6 +162,9 @@ def _main_listing(request, report):
         "facet_groups": facet_groups,
         "facet_url": facet_url,
         "pills": pills,
+        # The validated facet filters — carried so the CSV filename can name
+        # them (the page ignores it).
+        "filters": active_filters,
     }
 
 
@@ -459,4 +462,6 @@ def report_download(request, key):
     rows = iter_rows(listing["stmts"])
     if report.get("show_api_links"):
         rows = _parse_api_links(rows)
-    return csv_response(f"{report['key']}.csv", _csv_columns(report, listing), rows, cell=_csv_cell)
+    return csv_response(
+        csv_filename(report["key"], listing.get("filters")), _csv_columns(report, listing), rows, cell=_csv_cell
+    )

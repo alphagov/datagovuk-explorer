@@ -19,13 +19,13 @@ unknown keys fall back to the default (dataset_count desc).
 
 import json
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from django.http import Http404
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import csv_response
+from explorer.csv_export import csv_filename, csv_response
 from explorer.helpers import format_date
 from explorer.queries.core import iter_rows
 from explorer.queries.datasets import DATASETS_SORT, source_datasets_stmts
@@ -360,7 +360,7 @@ def harvesters_download(request):
     type_labels = dict(listing["type_master"])
     frequency_labels = dict(listing["frequency_master"])
     rows = (_csv_row(r, type_labels, frequency_labels) for r in iter_rows(stmts))
-    return csv_response("harvesters.csv", _HARVESTER_CSV_COLUMNS, rows)
+    return csv_response(csv_filename("harvesters", asdict(listing["filters"])), _HARVESTER_CSV_COLUMNS, rows)
 
 
 def harvester(request, source_id):

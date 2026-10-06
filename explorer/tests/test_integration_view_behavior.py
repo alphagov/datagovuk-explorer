@@ -36,7 +36,7 @@ from explorer.queries.reports import (
 from explorer.queries.reviews import reviews_stmts
 from explorer.queries.series import SERIES_COUNT
 from explorer.queries.suggestions import SUGGESTIONS_SORT_DEFAULT, suggestions_stmts
-from explorer.tests.csv_helpers import csv_rows
+from explorer.tests.csv_helpers import csv_rows, today_iso
 from explorer.views.harvesters import HarvesterFilters, _matches
 from explorer.views.suggestions import _csv_row
 
@@ -165,7 +165,7 @@ def _datasets_count(filters):
 def test_datasets_download_is_unpaginated_csv(client):
     n = _datasets_count({})
     response = client.get("/datasets/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="datasets.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="datasets-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == [
@@ -295,7 +295,7 @@ def test_organisations_download_is_unpaginated_csv(client):
     stmts = organisations_stmts({}, "views", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/organisations/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="publishers.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="publishers-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == [
@@ -345,7 +345,7 @@ def test_harvesters_download_is_unpaginated_csv(client):
     stmts = harvest_sources_stmts({}, "dataset_count", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/harvesters/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="harvesters.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="harvesters-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == [
@@ -387,7 +387,7 @@ def test_publisher_reviews_download_is_unpaginated_csv(client):
     stmts = publisher_reviews_stmts({}, "avg_findability", "desc")
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/organisations/reviews/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="publisher-reviews.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="publisher-reviews-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == ["Publisher", "Datasets", "Description", "Links", "Publisher ID"]
@@ -412,7 +412,7 @@ def test_publisher_reviews_download_url_carries_the_active_filters(client):
 def test_series_download_is_unpaginated_csv(client):
     n = SERIES_COUNT.get()["n"]
     response = client.get("/series/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="series.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="series-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == ["Title", "Type", "Datasets", "Orgs", "Series ID"]
@@ -437,7 +437,7 @@ def test_reviews_download_is_unpaginated_csv(client):
     stmts = reviews_stmts({}, "findability", "asc")
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/reviews/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="reviews.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="reviews-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == ["Dataset", "Publisher", "Description", "Links", "Dataset ID"]
@@ -469,7 +469,7 @@ def test_suggestions_download_is_unpaginated_csv(client):
     stmts = suggestions_stmts({}, *SUGGESTIONS_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/suggestions/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="suggestions.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="suggestions-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == [
@@ -529,7 +529,7 @@ def test_links_download_is_unpaginated_csv(client):
     stmts = links_stmts({}, *LINK_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/links/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="links.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="links-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == ["Name", "URL", "Format", "Dataset", "Publisher", "Dataset ID", "Resource ID"]
@@ -565,7 +565,7 @@ def test_link_errors_download_is_unpaginated_csv(client):
     stmts = link_errors_stmts({}, *LINK_ERRORS_SORT_DEFAULT)
     n = stmts["count"].get(*stmts["params"])["n"]
     response = client.get("/links/status/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="link-status.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="link-status-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == [
@@ -596,6 +596,13 @@ def test_link_errors_download_applies_category_filter(client):
     assert len(rows) == n + 1
 
 
+def test_link_errors_download_filename_reflects_the_filter(client):
+    response = client.get("/links/status/download.csv", {"category": "NOT_FOUND"})
+    assert response["Content-Disposition"] == (
+        f'attachment; filename="link-status-category-not-found-{today_iso()}.csv"'
+    )
+
+
 def test_link_errors_download_url_carries_the_active_filters(client):
     cat = link_errors_facet_counts({})["categories"][0]["value"]
     html = client.get("/links/status", {"category": cat, "sort": "url", "dir": "desc"}).content.decode()
@@ -608,7 +615,7 @@ def test_link_errors_download_url_carries_the_active_filters(client):
 def test_metadata_download_is_unpaginated_csv(client):
     n = len(METADATA_KEYS.all())
     response = client.get("/metadata/download.csv")
-    assert response["Content-Disposition"] == 'attachment; filename="metadata.csv"'
+    assert response["Content-Disposition"] == f'attachment; filename="metadata-{today_iso()}.csv"'
     rows = csv_rows(response)
     assert len(rows) == n + 1
     assert rows[0] == ["Field", "Section", "Used by", "Unique values", "% of catalogue"]

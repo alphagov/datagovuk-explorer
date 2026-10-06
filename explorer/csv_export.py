@@ -13,14 +13,52 @@ whole file (or its rows) in memory.
 
 import csv
 import io
-from collections.abc import Callable, Iterable, Iterator
-from datetime import date, datetime
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from datetime import UTC, date, datetime
 
 from django.http import StreamingHttpResponse
+from django.utils.text import slugify
 
 # Flush a chunk once the buffer is this big. One write per ~64 KiB rather
 # than one per row: 200k tiny WSGI writes would dominate the run time.
 _STREAM_CHUNK = 64 * 1024
+
+# Cap the descriptive part of an export name so a long filter list (or a long
+# slug) can't push the date / .csv off the end.
+_FILENAME_MAX = 120
+
+
+def _slug(value) -> str:
+    """ASCII slug for a filename part — hyphens instead of the underscores
+    slugify keeps, so codes like NOT_FOUND read as "not-found"."""
+    return slugify(str(value)).replace("_", "-").strip("-")
+
+
+def csv_filename(base: str, filters: Mapping | None = None, *, on: date | None = None) -> str:
+    """A descriptive CSV attachment name: the page's base slug, each active
+    filter as "<key>-<slug>", then the date — e.g.
+    "link-status-category-not-found-2026-06-14.csv".
+
+    Pass the view's *validated* filters (the resolver's output, not raw GET),
+    so ignored junk never reaches the header. Values are slugified to ASCII,
+    so a data-derived filter (a host, a publisher slug) can't break the
+    Content-Disposition quoted string. Falsy values are skipped; key order
+    follows the mapping (each view builds its filters in a fixed order).
+    """
+    parts = [_slug(base) or "export"]
+    for key, value in (filters or {}).items():
+        if value in (None, "", (), [], {}):
+            continue
+        slug = _slug(value)
+        if slug:
+            parts.append(f"{_slug(key)}-{slug}")
+    stamp = (on or datetime.now(UTC).date()).isoformat()
+    stem = "-".join(parts)
+    # Cap the descriptive part only, keeping the date and extension intact.
+    room = _FILENAME_MAX - len(stamp) - len(".csv") - 1
+    if len(stem) > room:
+        stem = stem[:room].rstrip("-")
+    return f"{stem}-{stamp}.csv"
 
 
 def serialize(value):

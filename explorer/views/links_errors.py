@@ -10,7 +10,7 @@ URL (host) first.
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import csv_response
+from explorer.csv_export import csv_filename, csv_response
 from explorer.queries.core import iter_rows
 from explorer.queries.link_errors import (
     CATEGORY_LABELS,
@@ -322,4 +322,4 @@ def link_errors_download(request):
     checks as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))
-    return csv_response("link-status.csv", _LINK_ERRORS_CSV_COLUMNS, rows)
+    return csv_response(csv_filename("link-status", listing["filters"]), _LINK_ERRORS_CSV_COLUMNS, rows)

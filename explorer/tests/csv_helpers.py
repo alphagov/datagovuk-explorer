@@ -5,6 +5,13 @@ Not a test module (no `test_` prefix), so pytest won't collect it.
 
 import csv
 import io
+from datetime import UTC, datetime
+
+
+def today_iso() -> str:
+    """Today's date as csv_export names files — matched here so the download
+    tests can build the expected Content-Disposition deterministically."""
+    return datetime.now(UTC).date().isoformat()
 
 
 def csv_rows(response) -> list[list[str]]:

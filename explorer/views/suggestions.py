@@ -23,7 +23,7 @@ import json
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import csv_response
+from explorer.csv_export import csv_filename, csv_response
 from explorer.helpers import theme_label
 from explorer.queries.core import iter_rows
 from explorer.queries.suggestions import (
@@ -225,4 +225,4 @@ def suggestions_download(request):
     as the table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))
-    return csv_response("suggestions.csv", _SUGGESTIONS_CSV_COLUMNS, rows)
+    return csv_response(csv_filename("suggestions", listing["filters"]), _SUGGESTIONS_CSV_COLUMNS, rows)

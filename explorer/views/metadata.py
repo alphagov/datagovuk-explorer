@@ -9,7 +9,7 @@ import math
 from django.http import Http404
 from django.shortcuts import render
 
-from explorer.csv_export import csv_response, serialize
+from explorer.csv_export import csv_filename, csv_response, serialize
 from explorer.queries.datasets import DATASET_TOTAL
 from explorer.queries.metadata import METADATA_KEYS, METADATA_VALUE_COUNT, METADATA_VALUES
 
@@ -90,7 +90,7 @@ def metadata_download(request):
     """GET /metadata/download.csv — the same ranked field list as the table,
     unpaginated and as a CSV attachment."""
     rows = _listing(request)
-    return csv_response("metadata.csv", _METADATA_CSV_COLUMNS, rows, cell=_csv_cell)
+    return csv_response(csv_filename("metadata"), _METADATA_CSV_COLUMNS, rows, cell=_csv_cell)
 
 
 def metadata_detail(request, section, name):

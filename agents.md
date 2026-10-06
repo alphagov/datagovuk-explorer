@@ -35,10 +35,12 @@ To add it to a page:
    It iterates a server-side cursor, so pass it straight to `csv_response` — never
    materialise with a list comprehension, and never re-derive the SQL for the export.
 3. **Build the attachment** with `explorer/csv_export.csv_response(filename, columns,
-   rows[, cell])`. It returns a streaming `StreamingHttpResponse`, so `rows` should be
-   the lazy `iter_rows` generator (the CSV buffer flushes every ~64 KiB). Columns are
-   `(header, row key)` pairs in the view; `cell` is only needed for fallback columns
-   (see `views/reports.py::_csv_cell`).
+   rows[, cell])`. Name the file with `csv_filename(base, filters)` — the base slug,
+   each *validated* filter (the resolver's, not raw GET) as `<key>-<slug>`, then the
+   date — so the download is self-describing. It returns a streaming
+   `StreamingHttpResponse`, so `rows` should be the lazy `iter_rows` generator (the
+   CSV buffer flushes every ~64 KiB). Columns are `(header, row key)` pairs in the
+   view; `cell` is only needed for fallback columns (see `views/reports.py::_csv_cell`).
 4. **Wire it up:** a `GET <page>/download.csv` route in `config/urls.py`, the view
    exported from `views/__init__.py`, `"download_url": f"<path>/download.csv{pager_base}"`
    in the page context, and `download_url=download_url` on the pagination macro call.

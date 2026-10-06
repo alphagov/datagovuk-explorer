@@ -16,7 +16,7 @@ fixed whole-table aggregates (LINKS_STATS).
 from django.shortcuts import render
 
 from explorer import facets
-from explorer.csv_export import csv_response
+from explorer.csv_export import csv_filename, csv_response
 from explorer.queries.core import iter_rows
 from explorer.queries.links import (
     LINK_SORT,
@@ -307,4 +307,4 @@ def links_download(request):
     table, unpaginated and as a CSV attachment."""
     listing = _listing(request)
     rows = (_csv_row(r) for r in iter_rows(listing["stmts"]))
-    return csv_response("links.csv", _LINKS_CSV_COLUMNS, rows)
+    return csv_response(csv_filename("links", listing["filters"]), _LINKS_CSV_COLUMNS, rows)
