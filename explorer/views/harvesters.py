@@ -25,6 +25,7 @@ from django.http import Http404
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import CSV_ROW_LIMIT, csv_response
 from explorer.helpers import format_date
 from explorer.queries.datasets import DATASETS_SORT, source_datasets_stmts
 from explorer.queries.harvesters import (
@@ -141,37 +142,15 @@ def _matches(r: dict, filters: HarvesterFilters, exclude: str | None = None) -> 
     )
 
 
-def harvesters(request):
-    """GET /harvesters — all harvest sources, server-side sortable, with
-    type/status/frequency facets, paginated (100/page).
-
-    The list filter/sort/page is SQL (harvest_sources_stmts — the WHERE
-    clauses mirror _matches); the memoised full fetch still feeds the
-    facet master lists, the validation whitelists and the Python-side
-    self-excluding sidebar pools (cheap Counters over the small fetch).
-    """
+def _listing(request) -> dict:
+    """Resolve one /harvesters request into its facet masters, filter/sort
+    state and compiled count+list statements — shared by the page and the CSV
+    download so the exported rows match the table."""
     rows = harvest_source_rows()
-
-    # Facet masters over the full fetch — the validation whitelists, the
-    # row-label lookups and the sidebar facet master lists all consume
-    # these (computed once, not per consumer).
     all_types = Counter(r["type"] for r in rows)
     all_frequencies = Counter(r["frequency"] for r in rows)
-    type_master = _facet_master(all_types, TYPE_LABELS)
-    frequency_master = _facet_master(all_frequencies, FREQUENCY_LABELS)
-    type_labels = dict(type_master)
-    frequency_labels = dict(frequency_master)
-
     sort, dir_ = parse_sort(request, HARVESTER_SORT, *HARVESTER_SORT_DEFAULT)
-
-    filters = _parse_filters(
-        request,
-        set(all_types),
-        set(all_frequencies),
-    )
-
-    # Count + page in SQL — WHERE from the shared facet clauses, ORDER BY
-    # from HARVESTER_SORT (see queries/harvesters.py).
+    filters = _parse_filters(request, set(all_types), set(all_frequencies))
     stmts = harvest_sources_stmts(
         {
             "type": filters.type,
@@ -182,13 +161,78 @@ def harvesters(request):
         sort,
         dir_,
     )
-    shown_sources = stmts["count"].get(*stmts["params"])["n"]
+    return {
+        "rows": rows,
+        "type_master": _facet_master(all_types, TYPE_LABELS),
+        "frequency_master": _facet_master(all_frequencies, FREQUENCY_LABELS),
+        "sort": sort,
+        "dir": dir_,
+        "filters": filters,
+        "stmts": stmts,
+        "total": stmts["count"].get(*stmts["params"])["n"],
+    }
+
+
+# CSV export columns — the table's own columns. Type/Status/Frequency use the
+# table's display labels; the date stays raw for the CSV to serialise to ISO.
+_HARVESTER_CSV_COLUMNS = [
+    ("Source", "source"),
+    ("Harvest source ID", "id"),
+    ("Publisher", "org_name"),
+    ("Publisher ID", "organization_id"),
+    ("Type", "type"),
+    ("Status", "active"),
+    ("Frequency", "frequency"),
+    ("Datasets", "dataset_count"),
+    ("Last run", "last_run"),
+]
+
+
+def _csv_row(r: dict, type_labels: dict, frequency_labels: dict) -> dict:
+    """One SQL row → its export shape: the page's display labels, with the
+    timestamp left raw for the CSV to serialise."""
+    return {
+        "source": r["title"] or r["id"],
+        "id": r["id"],
+        "org_name": r["org_name"],
+        "organization_id": r["organization_id"],
+        "type": type_labels.get(r["type"], r["type"]),
+        "active": ACTIVE_LABELS["true" if r["active"] else "false"],
+        "frequency": frequency_labels.get(r["frequency"], r["frequency"]),
+        "dataset_count": r["dataset_count"],
+        "last_run": r["last_run"],
+    }
+
+
+def harvesters(request):
+    """GET /harvesters — all harvest sources, server-side sortable, with
+    type/status/frequency facets, paginated (100/page).
+
+    The list filter/sort/page is SQL (harvest_sources_stmts — the WHERE
+    clauses mirror _matches); the memoised full fetch still feeds the
+    facet master lists, the validation whitelists and the Python-side
+    self-excluding sidebar pools (cheap Counters over the small fetch).
+    """
+    listing = _listing(request)
+    filters, sort, dir_ = listing["filters"], listing["sort"], listing["dir"]
+    rows = listing["rows"]
+    stmts = listing["stmts"]
+
+    # Facet masters double as the row-label lookups, so rows and facets
+    # can't drift.
+    type_master = listing["type_master"]
+    frequency_master = listing["frequency_master"]
+    type_labels = dict(type_master)
+    frequency_labels = dict(frequency_master)
+
+    # Count + page in SQL — WHERE from the shared facet clauses, ORDER BY
+    # from HARVESTER_SORT (see queries/harvesters.py).
+    shown_sources = listing["total"]
     pagination = paginate(request, shown_sources)
     page_rows = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
 
     # Decorate only the page's rows: display labels (type/frequency/
-    # status) + formatted dates. The facet masters double as the label
-    # maps, so rows and facets can't drift.
+    # status) + formatted dates.
     for r in page_rows:
         r["type_label"] = type_labels.get(r["type"], r["type"])
         r["frequency_label"] = frequency_labels.get(r["frequency"], r["frequency"])
@@ -299,8 +343,20 @@ def harvesters(request):
             "facet_qs": facet_qs,
             "facet_url": facet_url,
             "pager_base": pager_base,
+            "download_url": f"/harvesters/download.csv{pager_base}",
         },
     )
+
+
+def harvesters_download(request):
+    """GET /harvesters/download.csv — the same filtered, sorted harvest
+    sources as the table, unpaginated and as a CSV attachment."""
+    listing = _listing(request)
+    stmts = listing["stmts"]
+    type_labels = dict(listing["type_master"])
+    frequency_labels = dict(listing["frequency_master"])
+    rows = [_csv_row(r, type_labels, frequency_labels) for r in stmts["list"].all(*stmts["params"], CSV_ROW_LIMIT, 0)]
+    return csv_response("harvesters.csv", _HARVESTER_CSV_COLUMNS, rows)
 
 
 def harvester(request, source_id):

@@ -3,6 +3,7 @@
 from django.shortcuts import render
 
 from explorer import facets
+from explorer.csv_export import CSV_ROW_LIMIT, csv_response
 from explorer.queries.organisations import (
     DATASET_BUCKET_NAMES,
     DATASET_BUCKETS,
@@ -16,17 +17,43 @@ from explorer.sort import parse_sort
 
 from .core import paginate, pill
 
+# CSV export columns — the table's own columns (the table's "Description"/
+# "Links" headers are the avg_findability/avg_resources scores), plus the
+# publisher's CKAN org UUID for joining.
+_PUBLISHER_REVIEWS_CSV_COLUMNS = [
+    ("Publisher", "name"),
+    ("Publisher ID", "ckan_id"),
+    ("Datasets", "reviewed_datasets"),
+    ("Description", "avg_findability"),
+    ("Links", "avg_resources"),
+]
 
-def publisher_reviews(request):
+
+def _listing(request) -> dict:
+    """Resolve one /organisations/reviews request into its filter/sort state
+    and compiled count+list statements — shared by the page and the CSV
+    download so the exported rows match the table."""
     datasets = request.GET.get("datasets")
     filters: dict[str, str] = {}
     if datasets in VALID_DATASET_BUCKETS:
         filters["datasets"] = datasets
 
     sort, dir_ = parse_sort(request, PUBLISHER_REVIEWS_SORT, *PUBLISHER_REVIEWS_SORT_DEFAULT)
-
     stmts = publisher_reviews_stmts(filters, sort, dir_)
-    total = stmts["count"].get(*stmts["params"])["n"]
+    return {
+        "filters": filters,
+        "sort": sort,
+        "dir": dir_,
+        "stmts": stmts,
+        "total": stmts["count"].get(*stmts["params"])["n"],
+    }
+
+
+def publisher_reviews(request):
+    listing = _listing(request)
+    filters, sort, dir_ = listing["filters"], listing["sort"], listing["dir"]
+    stmts = listing["stmts"]
+    total = listing["total"]
 
     pagination = paginate(request, total)
     rows = stmts["list"].all(*stmts["params"], pagination["page_size"], pagination["offset"])
@@ -78,6 +105,16 @@ def publisher_reviews(request):
             "pills": pills,
             "facet_qs": facet_qs,
             "pager_base": pager_base,
+            "download_url": f"/organisations/reviews/download.csv{pager_base}",
             **pagination,
         },
     )
+
+
+def publisher_reviews_download(request):
+    """GET /organisations/reviews/download.csv — the same filtered, sorted
+    publishers as the table, unpaginated and as a CSV attachment."""
+    listing = _listing(request)
+    stmts = listing["stmts"]
+    rows = stmts["list"].all(*stmts["params"], CSV_ROW_LIMIT, 0)
+    return csv_response("publisher-reviews.csv", _PUBLISHER_REVIEWS_CSV_COLUMNS, rows)

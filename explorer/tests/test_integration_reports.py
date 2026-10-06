@@ -150,7 +150,8 @@ def test_duplicate_content_detail_download(client):
         client.get(_DOWNLOAD.format(key="datasets-duplicate-content"), {"hash": "hash-shared-d01-d05-d09"}),
     )
     assert len(rows) == 4  # header + the three members
-    assert rows[0] == ["Dataset", "Publisher", "Created", "Modified", "Views"]
+    assert rows[0] == ["Dataset", "Publisher", "Created", "Modified", "Views", "Dataset ID"]
+    assert {row[-1] for row in rows[1:]} == {"d01", "d05", "d09"}
 
 
 def test_duplicate_url_detail_download(client):
@@ -159,3 +160,6 @@ def test_duplicate_url_detail_download(client):
     url = listing["list"].all(*listing["params"], 1, 0)[0]["url"]
     rows = _csv_rows(client.get(_DOWNLOAD.format(key=report["key"]), {"url": url}))
     assert len(rows) == Query(report["detail_count_sql"]).get(url)["n"] + 1
+    # Detail is the links shape; the shared URL is dropped but both GUIDs ride along.
+    assert rows[0] == ["Name", "Format", "Dataset", "Publisher", "Dataset ID", "Resource ID"]
+    assert all(row[-2] and row[-1] for row in rows[1:])

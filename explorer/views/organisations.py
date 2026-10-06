@@ -108,6 +108,7 @@ def _listing(request) -> dict:
 # shared csv helper serialises the dates to ISO (the page formats them).
 _ORG_CSV_COLUMNS = [
     ("Publisher", "name"),
+    ("Publisher ID", "ckan_id"),
     ("Datasets", "dataset_count"),
     ("Links", "resource_count"),
     ("Health", "link_health"),
@@ -122,6 +123,7 @@ def _csv_row(r: dict, link_health: dict) -> dict:
     but the dates are left raw for the CSV to serialise)."""
     return {
         "name": r["display_name"] or r["title"] or r["name"],
+        "ckan_id": r["ckan_id"],
         "dataset_count": r["package_count"] or 0,
         "resource_count": r["total_resources"] or 0,
         "link_health": link_health.get(r["slug"]),

@@ -31,7 +31,8 @@ DATASET_REPORT_COLS = (
 )
 DATASET_REPORT_ORDER = "LOWER(org_display_name), LOWER(title), id"
 LINK_REPORT_COLS = (
-    "id, dataset_id, org_slug, org_display_name, dataset_title, name, description, url, host, format_norm AS format"
+    "id, dataset_id, resource_id, org_slug, org_display_name, dataset_title, name, description, url, host,"
+    " format_norm AS format"
 )
 LINK_REPORT_ORDER = "LOWER(org_display_name), LOWER(dataset_title), id"
 

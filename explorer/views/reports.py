@@ -67,7 +67,8 @@ _DUPLICATE_CONTENT_DETAIL_SORT_DEFAULT = ("metadata_created", "asc")
 # CSV export columns per listing shape: (header, row key). The detail modes
 # reuse the "datasets"/"links" shapes and drop columns via hidden_cols, so
 # the CSV mirrors what the table shows. "title"/"name" get the table's own
-# fallbacks in _csv_cell (title or name; name or description).
+# fallbacks in _csv_cell (title or name; name or description). Each shape
+# ends with its GUID(s) so every export is joinable to the source records.
 _CSV_COLUMNS = {
     "datasets": [
         ("Dataset", "title"),
@@ -75,6 +76,7 @@ _CSV_COLUMNS = {
         ("Created", "metadata_created"),
         ("Modified", "metadata_modified"),
         ("Views", "views"),
+        ("Dataset ID", "ckan_id"),
     ],
     "links": [
         ("Name", "name"),
@@ -82,6 +84,8 @@ _CSV_COLUMNS = {
         ("Format", "format"),
         ("Dataset", "dataset_title"),
         ("Publisher", "org_display_name"),
+        ("Dataset ID", "ckan_id"),
+        ("Resource ID", "resource_id"),
     ],
     "duplicate-urls": [
         ("URL", "url"),
@@ -97,6 +101,7 @@ _CSV_COLUMNS = {
         ("Title", "title"),
         ("Datasets", "dataset_count"),
         ("Publishers", "org_count"),
+        ("Content hash", "content_hash"),
     ],
 }
 

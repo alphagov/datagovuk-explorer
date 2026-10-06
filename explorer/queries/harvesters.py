@@ -85,7 +85,7 @@ HARVESTER_SORT_DEFAULT = ("dataset_count", "desc")
 
 _HARVEST_SOURCE_SELECT = (
     "SELECT h.id, h.title, h.url, h.type, h.active, h.frequency, h.created,"
-    "       h.last_run,"
+    "       h.last_run, h.organization_id,"
     "       COALESCE(o.display_name, o.title, o.name) AS org_name,"
     "       h.dataset_count"
     " FROM harvest_sources h"

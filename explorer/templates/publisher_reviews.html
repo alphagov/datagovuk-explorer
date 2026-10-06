@@ -1,11 +1,15 @@
 {% extends "_app_layout.html" %}
 
+{% block scripts %}
+  <script src="{{ static('page-menu.js') }}"></script>
+{% endblock scripts %}
+
 {% block facets %}
   {{ facet_group("datasets") }}
 {% endblock facets %}
 
 {% block header_right %}
-  {{ pagination(start_index, end_index, shown, page, total_pages, pager_base, label="publishers", label_singular="publisher") }}
+  {{ pagination(start_index, end_index, shown, page, total_pages, pager_base, label="publishers", label_singular="publisher", download_url=download_url) }}
 {% endblock header_right %}
 
 {% block table %}

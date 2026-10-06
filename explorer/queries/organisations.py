@@ -290,9 +290,11 @@ _LINK_HEALTH_AGG = " LEFT JOIN org_link_health lh ON lh.org_slug = o.slug"
 # link_health is NOT included here: it comes from the memoised org_link_health_rows()
 # dict in the view, avoiding a links x link_check_results scan on every page load.
 # _LINK_HEALTH_AGG is still joined when sort == "link_health" so the ORDER BY works.
+# ckan_id is the CKAN org UUID, which only lives in the json blob (no column).
 _ORG_LIST_SELECT = (
     "SELECT o.slug, o.name, o.display_name, o.package_count, o.type, o.state,"
     "       o.approval_status, o.created, o.title,"
+    "       o.json::jsonb->>'id' AS ckan_id,"
     "       COALESCE(a.total_resources, 0) AS total_resources,"
     "       COALESCE(a.total_views, 0) AS total_views,"
     "       a.last_published"
@@ -341,7 +343,8 @@ def publisher_reviews_stmts(filters: dict, sort: str, dir_: str) -> dict:
             "  COALESCE(NULLIF(MAX(d.org_display_name), ''), d.org_slug) AS name,"
             "  COUNT(*) AS reviewed_datasets,"
             "  ROUND(AVG(r.findability)::numeric, 2) AS avg_findability,"
-            "  ROUND(AVG(r.resources)::numeric, 2) AS avg_resources"
+            "  ROUND(AVG(r.resources)::numeric, 2) AS avg_resources,"
+            "  (SELECT o.json::jsonb->>'id' FROM organisations o WHERE o.slug = d.org_slug) AS ckan_id"
             f" FROM {_PUBLISHER_REVIEWS_FROM}"
             f" GROUP BY d.org_slug{having}"
             f" ORDER BY {order_sql}"

@@ -11,13 +11,13 @@ from .core import _page_param, health, not_found, paginate
 from .dashboard import dashboard
 from .dataset import dataset
 from .datasets import datasets
-from .harvesters import harvester, harvesters
+from .harvesters import harvester, harvesters, harvesters_download
 from .links import links
 from .links_errors import link_errors
 from .metadata import metadata_detail, metadata_overview
 from .organisation import organisation
 from .organisations import organisations, organisations_download
-from .publisher_reviews import publisher_reviews
+from .publisher_reviews import publisher_reviews, publisher_reviews_download
 from .reports import report, report_download
 from .reviews import reviews
 from .search import publisher_suggest, search, search_datasets, search_publishers
@@ -35,6 +35,7 @@ __all__ = [
     "datasets",
     "harvester",
     "harvesters",
+    "harvesters_download",
     "health",
     "link_errors",
     "links",
@@ -46,6 +47,7 @@ __all__ = [
     "organisations_download",
     "paginate",
     "publisher_reviews",
+    "publisher_reviews_download",
     "publisher_suggest",
     "report",
     "report_download",

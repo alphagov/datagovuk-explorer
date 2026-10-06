@@ -19,7 +19,12 @@ from explorer.queries.core import Query
 from explorer.queries.dashboard import cards
 from explorer.queries.datasets import datasets_facet_counts, datasets_stmts
 from explorer.queries.harvesters import harvest_source_rows, harvest_sources_stmts, harvested_total
-from explorer.queries.organisations import organisations_facet_counts, organisations_stmts
+from explorer.queries.organisations import (
+    organisations_facet_counts,
+    organisations_stmts,
+    publisher_reviews_facet_counts,
+    publisher_reviews_stmts,
+)
 from explorer.queries.reports import (
     REPORTS,
     report_dashboard_count,
@@ -252,7 +257,17 @@ def test_organisations_download_is_unpaginated_csv(client):
     assert response["Content-Disposition"] == 'attachment; filename="publishers.csv"'
     rows = _csv_rows(response)
     assert len(rows) == n + 1
-    assert rows[0] == ["Publisher", "Datasets", "Links", "Health", "Views", "Created", "Last published"]
+    assert rows[0] == [
+        "Publisher",
+        "Publisher ID",
+        "Datasets",
+        "Links",
+        "Health",
+        "Views",
+        "Created",
+        "Last published",
+    ]
+    assert all(row[1].startswith("uuid-") for row in rows[1:])  # CKAN org UUID from json
 
 
 def test_organisations_page_offers_the_download(client):
@@ -280,3 +295,71 @@ def test_organisations_download_ignores_page(client):
     n = stmts["count"].get(*stmts["params"])["n"]
     rows = _csv_rows(client.get("/organisations/download.csv", {"page": "999"}))
     assert len(rows) == n + 1
+
+
+# ── /harvesters CSV download (views/harvesters.py) ───────────────────────
+
+
+def test_harvesters_download_is_unpaginated_csv(client):
+    stmts = harvest_sources_stmts({}, "dataset_count", "desc")
+    n = stmts["count"].get(*stmts["params"])["n"]
+    response = client.get("/harvesters/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="harvesters.csv"'
+    rows = _csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == [
+        "Source",
+        "Harvest source ID",
+        "Publisher",
+        "Publisher ID",
+        "Type",
+        "Status",
+        "Frequency",
+        "Datasets",
+        "Last run",
+    ]
+    assert all(row[1] and row[3] for row in rows[1:])  # harvest-source + publisher UUIDs
+
+
+def test_harvesters_page_offers_the_download(client):
+    html = client.get("/harvesters").content.decode()
+    assert "/harvesters/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_harvesters_download_applies_facet_filter(client):
+    stmts = harvest_sources_stmts({"active": "true"}, "dataset_count", "desc")
+    n = stmts["count"].get(*stmts["params"])["n"]
+    rows = _csv_rows(client.get("/harvesters/download.csv", {"active": "true"}))
+    assert len(rows) == n + 1
+
+
+def test_harvesters_download_url_carries_the_active_filters(client):
+    html = client.get("/harvesters", {"active": "true", "sort": "title", "dir": "asc"}).content.decode()
+    assert "/harvesters/download.csv?sort=title&amp;dir=asc&amp;active=true" in html
+
+
+# ── /organisations/reviews CSV download (views/publisher_reviews.py) ──────
+
+
+def test_publisher_reviews_download_is_unpaginated_csv(client):
+    stmts = publisher_reviews_stmts({}, "avg_findability", "desc")
+    n = stmts["count"].get(*stmts["params"])["n"]
+    response = client.get("/organisations/reviews/download.csv")
+    assert response["Content-Disposition"] == 'attachment; filename="publisher-reviews.csv"'
+    rows = _csv_rows(response)
+    assert len(rows) == n + 1
+    assert rows[0] == ["Publisher", "Publisher ID", "Datasets", "Description", "Links"]
+    assert all(row[1].startswith("uuid-") for row in rows[1:])  # CKAN org UUID from json
+
+
+def test_publisher_reviews_page_offers_the_download(client):
+    html = client.get("/organisations/reviews").content.decode()
+    assert "/organisations/reviews/download.csv" in html
+    assert "Download CSV" in html
+
+
+def test_publisher_reviews_download_url_carries_the_active_filters(client):
+    bucket = publisher_reviews_facet_counts({})["datasets"][0]["bucket"]
+    html = client.get("/organisations/reviews", {"datasets": bucket, "sort": "name", "dir": "asc"}).content.decode()
+    assert f"/organisations/reviews/download.csv?sort=name&amp;dir=asc&amp;datasets={bucket}" in html
