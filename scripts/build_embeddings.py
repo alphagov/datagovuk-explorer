@@ -1,7 +1,7 @@
 """Build pgvector embeddings for the datasets table via llama-server.
 
 Reads id, title, notes from the datasets table (populated by build_db.py),
-computes 768-dim embeddings through llama-server (bge-base-en-v1.5), and
+computes 768-dim embeddings through llama-server (EmbeddingGemma-300M), and
 writes them to dataset_embeddings (the vector) and embedding_map (the
 dataset -> rowid map) via pgvector.
 
@@ -12,40 +12,39 @@ Usage: python scripts/build_embeddings.py
 """
 
 import json
-import re
 import sys
 import time
 
 import httpx
 
 from scripts.db import connect, database_url
+from scripts.embed_text import format_document
 
 # ---------------------------------------------------------------------------
 # llama-server config
 # ---------------------------------------------------------------------------
 # Start llama-server first with:
+# --pooling mean: EmbeddingGemma pools with the mean token embedding (BGE used
+#   cls); leaving it unset falls back to the GGUF metadata, but be explicit.
 # --ubatch-size 2048: avoids the "n_batch > n_ubatch" assertion that caps both
 #   at 512, reducing GPU dispatch count ~4x for our 256-text batches.
+# --ctx-size 8192: 1024 tokens per slot (8 parallel) — plenty for the 500-char
+#   descriptions. Without it llama.cpp uses the model's 2048-token training
+#   context, leaving only 256 tokens per slot.
 # --parallel 8: 8 sequences processed per forward pass (vs default 4).
 LLAMA_SERVER = (
-    "llama-server -m llm/bge-base-en-v1.5-q8_0.gguf "
-    "--embeddings --pooling cls --embd-normalize 2 --gpu-layers all "
-    "--ubatch-size 2048 --parallel 8 --port 8080"
+    "llama-server -m llm/embeddinggemma-300m-qat-Q8_0.gguf "
+    "--embeddings --pooling mean --embd-normalize 2 --gpu-layers all "
+    "--ctx-size 8192 --ubatch-size 2048 --parallel 8 --port 8080"
 )
 
 EMBED_URL = "http://localhost:8080/v1/embeddings"
 DIM = 768
 BATCH = 256
-MODEL = "bge-base-en-v1.5"
+MODEL = "embeddinggemma-300m"
 TIMEOUT = 600
 
-# BGE instruction prefix — matches the format bge-base-en-v1.5 was trained
-# with, so retrieval queries and these stored documents embed consistently.
-BGE_PREFIX = "Represent this sentence for searching relevant passages: "
-
 DATABASE_URL = database_url()
-
-_WS_RE = re.compile(r"\s+")
 
 # The embedding tables are migration-owned (0001);
 # this script truncates + repopulates, never creates.
@@ -72,27 +71,30 @@ def _format_tags(tags_json: str | None) -> str:
 
 
 def build_texts(rows: list[dict]) -> list[str | None]:
-    """Build BGE-prefixed input texts from LLM-suggested fields.
+    """Build EmbeddingGemma document texts from LLM-suggested fields.
 
     rows: [{id, title, theme, tags, desc}, ...] — all from the reviews table.
-    Order: suggested title, theme, tags, desc (desc truncated to 500 chars).
-    Whitespace collapsed, trimmed. Empty texts become None.
+    The title becomes the document title; description (truncated to 500
+    chars), theme and tags make up the document body. Whitespace collapsed,
+    trimmed. Items with no title and no body become None.
     """
 
     texts: list[str | None] = []
     for r in rows:
         title = (r.get("title") or r.get("orig_title") or "").strip()
         desc_short = (r.get("desc") or r.get("notes") or "")[:500]
-        t = f"{BGE_PREFIX}{title}"
         theme = (r.get("theme") or "").strip()
         tags = _format_tags(r.get("tags"))
-        if theme:
-            t += f" Theme: {theme}."
-        if tags:
-            t += f" Tags: {tags}."
+
+        parts = []
         if desc_short:
-            t += f" {desc_short}"
-        texts.append(_WS_RE.sub(" ", t).strip() or None)
+            parts.append(desc_short)
+        if theme:
+            parts.append(f"Theme: {theme}.")
+        if tags:
+            parts.append(f"Tags: {tags}.")
+
+        texts.append(format_document(title, " ".join(parts)))
     return texts
 
 

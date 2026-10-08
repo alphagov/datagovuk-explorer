@@ -5,7 +5,12 @@ from explorer.sort import order_by
 
 from .core import Query, cached_unfiltered, facet_where
 
-RELATED_DISTANCE_THRESHOLD = 0.77
+# L2 distance below which a collection's neighbour counts as "related" —
+# gates the collection detail page's related list. Must match
+# scripts/build_related.py::RELATED_DISTANCE_THRESHOLD (which bakes the counts
+# this list page shows): 0.83 is tuned to EmbeddingGemma-300M, the model that
+# replaced BGE (whose equivalent was 0.77).
+RELATED_DISTANCE_THRESHOLD = 0.83
 
 COLLECTIONS_SORT = {
     "title": "LOWER(COALESCE(c.title, ''))",

@@ -87,7 +87,7 @@ Other commands — `just --list` lists them all. Notable ones:
 | `just build-dataset-content-hash` | Rebuild the content-hash deduplication table |
 | `just pull-db` | Pull Railway Postgres down to replace the local DB (needs tunnel open) |
 | `just build-series` | Build dataset series groupings from titles |
-| `just download-llm` | Fetch the bge-base-en-v1.5 embedding model into `llm/` |
+| `just download-llm` | Fetch the EmbeddingGemma-300M embedding model into `llm/` |
 | `just build-embeddings` | Build embedding vectors (needs `just llama-server` running on :8080) |
 | `just start` | Production mode: collectstatic + gunicorn |
 

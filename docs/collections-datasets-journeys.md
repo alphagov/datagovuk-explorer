@@ -27,7 +27,7 @@ We tested semantic similarity (embeddings) and full-text search for matching col
 
 **Full-text search** works well for some topics but fails for others. "Water quality" and "food hygiene" return clearly relevant datasets. "Bank of england interest rate" returns nothing at all. The results are binary — good or absent — with little middle ground.
 
-**Semantic search** (using the existing bge-base-en-v1.5 embeddings) gives a richer picture. Every collection has a nearest dataset, but the distances fall into clear bands:
+**Semantic search** (using the existing EmbeddingGemma-300M embeddings) gives a richer picture. Every collection has a nearest dataset, but the distances fall into clear bands:
 
 | Distance | Quality | Examples |
 |---|---|---|

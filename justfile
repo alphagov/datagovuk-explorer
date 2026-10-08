@@ -65,7 +65,7 @@ perf *args:
 setup:
     uv sync --dev
 
-# Download the bge-base-en-v1.5 GGUF model into llm/ (needed for embeddings)
+# Download the EmbeddingGemma-300M GGUF model into llm/ (needed for embeddings)
 download-llm:
     uv run python -m scripts.download_llm
 
@@ -149,12 +149,15 @@ build-series:
     uv run --env-file .env python -m scripts.build_series
 
 # Start llama-server with the embedding model on :8080 (keep running in a separate terminal)
+# --pooling mean: EmbeddingGemma pools with the mean token embedding (not BGE's cls)
+# --ctx-size 8192: 1024 tokens per slot (8 parallel) — plenty for the 500-char
+#   descriptions; otherwise llama.cpp leaves only 256 tokens per slot
 # --ubatch-size 2048: avoids the assertion that caps both n_batch and ubatch at 512
 # --parallel 8: 8 sequences per forward pass (double the default 4)
 llama-server:
-    llama-server -m llm/bge-base-en-v1.5-q8_0.gguf \
-      --embeddings --pooling cls --embd-normalize 2 --gpu-layers all \
-      --ubatch-size 2048 --parallel 8 --port 8080
+    llama-server -m llm/embeddinggemma-300m-qat-Q8_0.gguf \
+      --embeddings --pooling mean --embd-normalize 2 --gpu-layers all \
+      --ctx-size 8192 --ubatch-size 2048 --parallel 8 --port 8080
 
 # Build dataset embeddings (run `just llama-server` in another terminal first; DATABASE_URL from .env)
 build-embeddings:

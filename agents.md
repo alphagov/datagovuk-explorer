@@ -41,8 +41,8 @@ To add it to a page:
    `StreamingHttpResponse`, so `rows` should be the lazy `iter_rows` generator (the
    CSV buffer flushes every ~64 KiB). Columns are `(header, row key)` pairs in the
    view; `cell` is only needed for fallback columns (see `views/reports.py::_csv_cell`).
-4. **Wire it up:** a `GET <page>/download.csv` route in `config/urls.py`, the view
-   exported from `views/__init__.py`, `"download_url": f"<path>/download.csv{pager_base}"`
+4. **Wire it up:** a `GET <page>.csv` route in `config/urls.py`, the view
+   exported from `views/__init__.py`, `"download_url": f"<path>.csv{pager_base}"`
    in the page context, and `download_url=download_url` on the pagination macro call.
    `page-menu.js` and the menu CSS are global (`_layout.html` /
    `page-menu.css`) — no per-page wiring.

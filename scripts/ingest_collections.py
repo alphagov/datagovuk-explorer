@@ -22,6 +22,7 @@ import httpx
 import yaml
 
 from scripts.db import connect, database_url
+from scripts.embed_text import format_document
 
 _DATA = Path(__file__).resolve().parent.parent / "data"
 COLLECTIONS_DIR = _DATA / "collections"
@@ -38,9 +39,7 @@ GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-apr-aug.csv"
 CONSENT_RATE_FLOOR = 0.10
 
 EMBED_URL = "http://localhost:8080/v1/embeddings"
-EMBED_MODEL = "bge-base-en-v1.5"
-BGE_PREFIX = "Represent this sentence for searching relevant passages: "
-_WS_RE = re.compile(r"\s+")
+EMBED_MODEL = "embeddinggemma-300m"
 
 _COLLECTION_URL_RE = re.compile(
     r"https://www\.data\.gov\.uk/collections/(.+)",
@@ -234,16 +233,16 @@ def build_collection_embeddings(db, records: list[dict]) -> int:
     slugs = []
     for r in records:
         notes_short = (r["description"] or "")[:500]
-        t = f"{BGE_PREFIX}{r['title']}."
         meta = tags_map.get(r["slug"], {})
-        if meta.get("theme"):
-            t += f" Theme: {meta['theme']}."
-        if meta.get("tags"):
-            t += f" Tags: {', '.join(meta['tags'])}."
+        parts = []
         if notes_short:
-            t += f" {notes_short}"
-        t = _WS_RE.sub(" ", t).strip()
-        if t == BGE_PREFIX.strip():
+            parts.append(notes_short)
+        if meta.get("theme"):
+            parts.append(f"Theme: {meta['theme']}.")
+        if meta.get("tags"):
+            parts.append(f"Tags: {', '.join(meta['tags'])}.")
+        t = format_document(r["title"], " ".join(parts))
+        if t is None:
             continue
         texts.append(t)
         slugs.append(r["slug"])

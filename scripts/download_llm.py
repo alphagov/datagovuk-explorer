@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Download the bge-base-en-v1.5 embedding model (GGUF q8_0) into llm/.
+"""Download the EmbeddingGemma-300M embedding model (GGUF q8_0) into llm/.
 
-The model is a community GGUF conversion of BAAI/bge-base-en-v1.5 hosted at
-https://huggingface.co/CompendiumLabs/bge-base-en-v1.5-gguf — the file the
-embedding pipeline expects (see scripts/build_embeddings.py, LLAMA_SERVER). The
-llm/ directory is gitignored working data, so it's not shipped with the repo.
+The model is the quantisation-aware-trained Q8_0 GGUF published by the
+llama.cpp team at
+https://huggingface.co/ggml-org/embeddinggemma-300m-qat-q8_0-GGUF — the file
+the embedding pipeline expects (see scripts/build_embeddings.py,
+LLAMA_SERVER). The llm/ directory is gitignored working data, so it's not
+shipped with the repo.
 
 Skips the download if the file is already there (pass --force to re-fetch).
 
@@ -18,13 +20,14 @@ import sys
 import httpx
 import typer
 
-REPO = "CompendiumLabs/bge-base-en-v1.5-gguf"
-FILENAME = "bge-base-en-v1.5-q8_0.gguf"
+REPO = "ggml-org/embeddinggemma-300m-qat-q8_0-GGUF"
+FILENAME = "embeddinggemma-300m-qat-Q8_0.gguf"
 URL = f"https://huggingface.co/{REPO}/resolve/main/{FILENAME}"
 
-# sha256 of the q8_0 GGUF as published at the URL above. If upstream
-# re-uploads the file this will differ — the error message says so.
-SHA256 = "ad1afe72cd6654a558667a3db10878b049a75bfd72912e1dabb91310d671173c"
+# sha256 of the Q8_0 GGUF as published at the URL above (the Hugging Face
+# X-Linked-Etag). If upstream re-uploads the file this will differ — the error
+# message says so.
+SHA256 = "6fa0c02a9c302be6f977521d399b4de3a46310a4f2621ee0063747881b673f67"
 
 DEST = pathlib.Path(__file__).resolve().parent.parent / "llm" / FILENAME
 
@@ -72,7 +75,7 @@ def main(
         help="Re-download even if the model file already exists.",
     ),
 ) -> None:
-    """Download the bge-base-en-v1.5-q8_0.gguf model into llm/."""
+    """Download the embeddinggemma-300m-qat-Q8_0.gguf model into llm/."""
 
     if DEST.exists() and not force:
         print(f"{DEST} already exists — nothing to do. (Pass --force to re-download.)")
