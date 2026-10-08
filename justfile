@@ -289,10 +289,12 @@ deploy-check:
 get-organisations:
     uv run python -m scripts.get_organisations
 
-# Get all harvest sources from CKAN API (walks orgs, per-org filter).
-# Writes downloads/harvest_sources.json, which build-db loads.
-get-harvest-sources:
-    uv run python -m scripts.get_harvest_sources
+# Get harvest sources from the CKAN API (per-org filter), incrementally:
+# orgs with no cache entry (new) and orgs with a dataset modified in the last
+# --active-days are fetched; the rest are carried forward. Pass --full to
+# re-walk every org. Writes downloads/harvest_sources.json, which build-db loads.
+get-harvest-sources *args:
+    uv run --env-file .env python -m scripts.get_harvest_sources {{args}}
 
 # Audit for unused CSS with PurgeCSS (read-only: lists selectors that
 # appear in no template/JS, never rewrites files). Requires Node/npx —

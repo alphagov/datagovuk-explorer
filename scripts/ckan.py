@@ -4,12 +4,13 @@ import json
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 BASE_URL = "https://www.data.gov.uk/api/3/action"
 MAX_RPS = 4
 
 
-def write_json(data: list[dict], path: Path | str) -> None:
+def write_json(data: Any, path: Path | str) -> None:
     content = json.dumps(data, indent=2, ensure_ascii=False)
     Path(path).write_text(content, encoding="utf-8")
 

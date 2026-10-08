@@ -668,7 +668,7 @@ def _load_harvest_sources() -> list:
     failure are the interface (get-harvest-sources regenerates the file)."""
     print("Reading harvest_sources.json...", file=sys.stderr)
     try:
-        return json.loads(HARVEST_SOURCES_FILE.read_text(encoding="utf-8"))
+        data = json.loads(HARVEST_SOURCES_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError) as err:
         print(f"Could not read {HARVEST_SOURCES_FILE}: {err}", file=sys.stderr)
         print(
@@ -676,6 +676,9 @@ def _load_harvest_sources() -> list:
             file=sys.stderr,
         )
         raise SystemExit(1) from None
+    # The wrapper groups the records by owning org; the build wants a flat
+    # list of records.
+    return [source for sources in data["orgs"].values() for source in sources]
 
 
 def _collect_files() -> list[dict[str, str | Path]]:

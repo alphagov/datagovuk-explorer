@@ -247,10 +247,13 @@ def test_normalise_format():
 
 
 def test_load_harvest_sources(tmp_path, monkeypatch):
-    # happy path: reads and parses the file
+    # reads the wrapper file and returns just the source records
     sources = [{"id": "src-1", "title": "One", "url": "https://x/1.xml"}]
     f = tmp_path / "harvest_sources.json"
-    f.write_text(json.dumps(sources), encoding="utf-8")
+    payload = {
+        "orgs": {"org-1": sources, "org-2": []},
+    }
+    f.write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setattr(bd, "HARVEST_SOURCES_FILE", f)
     assert bd._load_harvest_sources() == sources
 
