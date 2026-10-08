@@ -55,7 +55,7 @@ from scripts.llm.common import (
 
 app = typer.Typer(add_completion=False)
 
-DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "downloads" / "reviews"
+DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent.parent / "downloads" / "reviews"
 MAX_RESOURCES = 8
 
 

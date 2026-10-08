@@ -27,6 +27,14 @@ import scripts.llm.common as lc
 import scripts.llm.review as rv
 from tests.llm_helpers import PatchedSleep, chat_handler, fake_row, make_client, read_record
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_default_out_dir_is_repo_root_downloads():
+    """The script lives in scripts/llm/, so the default must climb three
+    parents — a two-parent path silently wrote to scripts/downloads/."""
+    assert rv.DEFAULT_OUT_DIR == REPO_ROOT / "downloads" / "reviews"
+
 
 def review_reply(**overrides) -> httpx.Response:
     review = {

@@ -13,8 +13,9 @@ Schema notes:
   LinkCheckResult.checked_at is a DateTimeField.
 - links.id / series.id are SERIAL -> AutoField.
 - embedding_map.rowid / dataset_embeddings.rowid are plain INTEGER PRIMARY KEY
-  (embed_batch assigns dense rowids from 1) -> IntegerField(primary_key=True),
-  not AutoField.
+  (embed_batch assigns dense rowids, starting from 1) ->
+  IntegerField(primary_key=True), not AutoField. embedding_map is keyed on the
+  dataset's ckan_id (no FK) so embeddings survive a datasets rebuild.
 - datasets.id is SERIAL (AutoField) — the CKAN UUID lives in ckan_id.
 - datasets.fts is a SearchVectorField (tsvector), populated by build_db.py.
 - dataset_embeddings.embedding and collection_embeddings.embedding are
@@ -332,25 +333,23 @@ class MetadataValue(models.Model):
 
 
 class EmbeddingMap(models.Model):
-    """Maps a dataset id to its dense rowid in dataset_embeddings."""
+    """Maps a dataset's stable CKAN guid to its dense rowid in
+    dataset_embeddings.
+
+    Keyed on dataset_ckan_id, not datasets.id: a CKAN re-ingest truncates and
+    repopulates datasets (reassigning its SERIAL ids), so an integer FK would
+    cascade-delete every vector on each rebuild. ckan_id survives the ingest,
+    so the embeddings persist and build_embeddings only computes new ones."""
 
     rowid = models.IntegerField(primary_key=True)
-    dataset = models.ForeignKey(
-        Dataset,
-        on_delete=models.CASCADE,
-        db_column="dataset_id",
-        db_index=False,
-    )
+    dataset_ckan_id = models.TextField(unique=True)
 
     class Meta:
         app_label = "explorer"
         db_table = "embedding_map"
-        indexes = [
-            models.Index(fields=["dataset"], name="idx_embedding_map_dataset"),
-        ]
 
     def __str__(self):
-        return str(self.dataset)
+        return self.dataset_ckan_id
 
 
 class DatasetEmbedding(models.Model):

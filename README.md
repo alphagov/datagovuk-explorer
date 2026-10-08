@@ -70,6 +70,11 @@ Embeddings (semantic search over datasets) are optional: run
 `just download-llm` once to fetch the model into `llm/`, then
 run `just build-embeddings` with llama-server serving the model on :8080 —
 see `scripts/build_embeddings.py`.
+Embeddings are keyed by the CKAN dataset guid (`embedding_map.dataset_ckan_id`),
+not the local integer pk, so they also survive a `build-db`/`ingest_ckan`
+rebuild. The build is incremental — it only embeds datasets that don't have a
+vector yet; pass `--force` to re-embed everything (e.g. after a new
+`suggest` run changes the source text).
 Semantic "more like this" is served by an HNSW index on the embedding
 column. The index is approximate — `HNSW_EF_SEARCH` (default 400)
 trades recall for latency.
@@ -92,6 +97,16 @@ Other commands — `just --list` lists them all. Notable ones:
 | `just start` | Production mode: collectstatic + gunicorn |
 
 The `review` and `suggest` scripts support remote (API key via `LLM`) and local (llama.cpp via `LOCAL_BASE_URL`) modes; see the env vars table below.
+
+They are file-based and incremental: each dataset gets one JSON file under
+`downloads/reviews/<org>/` and `downloads/suggestions/<org>/` (separate dirs;
+the old combined `review_suggest.py` was split), and a dataset with an
+existing `ok` file is skipped. `ingest-reviews`/`ingest-suggestions` are
+TRUNCATE + reload from those files, so the files must be complete before an
+ingest. If the DB was restored from a dump and the `downloads/` dirs are
+missing, run `just export-llm-records` first to write the stored rows back
+out — otherwise generating files for only a subset and ingesting would drop
+the rest.
 
 ## Environment variables
 

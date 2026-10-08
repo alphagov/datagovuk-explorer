@@ -1,16 +1,23 @@
 """Build pgvector embeddings for the datasets table via llama-server.
 
-Reads id, title, notes from the datasets table (populated by build_db.py),
-computes 768-dim embeddings through llama-server (EmbeddingGemma-300M), and
-writes them to dataset_embeddings (the vector) and embedding_map (the
-dataset -> rowid map) via pgvector.
+Reads the LLM-suggested title/theme/tags/description for each dataset (the
+suggestions table, joined by CKAN guid) and writes the 768-dim embedding to
+dataset_embeddings, with embedding_map recording which ckan_id owns which
+rowid.
+
+The map is keyed on the CKAN guid (not datasets.id, which the CKAN ingest
+reassigns), so a new ingest does not orphan or delete existing vectors. By
+default the build is incremental: it only embeds datasets that don't have a
+vector yet. Pass --force to re-embed everything (e.g. after suggestions
+changed), which truncates and rebuilds from scratch.
 
 Start llama-server first (see LLAMA_SERVER below, or `just llama-server`).
 
-Usage: python scripts/build_embeddings.py
+Usage: python scripts/build_embeddings.py [--force]
        DATABASE_URL=postgresql://localhost:5432/other python scripts/build_embeddings.py
 """
 
+import argparse
 import json
 import sys
 import time
@@ -46,17 +53,32 @@ TIMEOUT = 600
 
 DATABASE_URL = database_url()
 
-# The embedding tables are migration-owned (0001);
-# this script truncates + repopulates, never creates.
+# --force rebuild: the embedding tables are migration-owned (0001); this
+# script repopulates, never creates.
 TRUNCATE_SQL = "TRUNCATE TABLE embedding_map, dataset_embeddings CASCADE"
 
 # Drop the HNSW index before bulk-loading embeddings and recreate it after.
 # Incremental HNSW maintenance during individual INSERTs degrades from ~180
 # rows/s at the start to ~30 rows/s by 67k rows, adding ~30-40 minutes to a
 # full rebuild. A single bulk CREATE INDEX takes ~5 minutes and produces the
-# same result.
+# same result. Only used for a full build (--force or the first run); small
+# incremental backfills keep the index in place.
 DROP_HNSW_SQL = "DROP INDEX IF EXISTS idx_dataset_embeddings_hnsw"
 CREATE_HNSW_SQL = "CREATE INDEX idx_dataset_embeddings_hnsw ON dataset_embeddings USING hnsw (embedding vector_l2_ops)"
+
+# Datasets that have an LLM suggestion but no stored vector yet — everything
+# the incremental build needs to embed. Only datasets with resources are
+# reviewed/suggested (see scripts/llm/common.py) and so only those can be
+# embedded; the filter makes that explicit.
+SELECT_NEW_SQL = """
+SELECT d.ckan_id, s.title, d.title AS orig_title, s.theme, s.tags, s.desc, d.notes
+FROM datasets d
+JOIN suggestions s ON s.dataset_ckan_id = d.ckan_id
+LEFT JOIN embedding_map m ON m.dataset_ckan_id = d.ckan_id
+WHERE m.rowid IS NULL
+  AND d.resource_count > 0
+ORDER BY d.id
+"""
 
 
 def _format_tags(tags_json: str | None) -> str:
@@ -73,10 +95,11 @@ def _format_tags(tags_json: str | None) -> str:
 def build_texts(rows: list[dict]) -> list[str | None]:
     """Build EmbeddingGemma document texts from LLM-suggested fields.
 
-    rows: [{id, title, theme, tags, desc}, ...] — all from the reviews table.
-    The title becomes the document title; description (truncated to 500
-    chars), theme and tags make up the document body. Whitespace collapsed,
-    trimmed. Items with no title and no body become None.
+    rows: [{ckan_id, title, theme, tags, desc}, ...] — all from the
+    suggestions table. The title becomes the document title; description
+    (truncated to 500 chars), theme and tags make up the document body.
+    Whitespace collapsed, trimmed. Items with no title and no body become
+    None.
     """
 
     texts: list[str | None] = []
@@ -127,11 +150,14 @@ def embed_batch(
     rows: list[dict],
     batch_start: int,
     batch_end: int,
+    start_rowid: int,
 ) -> None:
     """Embed one batch and write its rows.
 
     Null texts are skipped in the request and stored as zero vectors; every
-    other row gets embedding = the response vector.
+    other row gets embedding = the response vector. rowids continue above
+    the existing embeddings (start_rowid is the current max, 0 on a full
+    build) so incremental runs append rather than overwrite.
     """
 
     if batch_start >= batch_end:
@@ -158,11 +184,11 @@ def embed_batch(
             "INSERT INTO dataset_embeddings(rowid, embedding) VALUES (?, ?::vector)",
         )
         insert_map = tx.prepare(
-            "INSERT INTO embedding_map(rowid, dataset_id) VALUES (?, ?)",
+            "INSERT INTO embedding_map(rowid, dataset_ckan_id) VALUES (?, ?)",
         )
         emb_idx = 0
         for i in range(batch_start, batch_end):
-            rowid = i + 1  # dense ids from 1
+            rowid = start_rowid + i + 1
             if texts[i] is not None:
                 vec_arr = data[emb_idx]["embedding"]
                 emb_idx += 1
@@ -171,32 +197,52 @@ def embed_batch(
             # pgvector expects the '[...]' literal; str(float) is the
             # shortest round-trip repr.
             insert_emb.run(rowid, f"[{','.join(str(v) for v in vec_arr)}]")
-            insert_map.run(rowid, rows[i]["id"])
+            insert_map.run(rowid, rows[i]["ckan_id"])
 
     db.transaction(_write)
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="truncate and re-embed every dataset (use after suggestions change)",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = _parse_args()
+
     print("Opening db...", file=sys.stderr)
     db = connect(DATABASE_URL)
     try:
-        db.exec(TRUNCATE_SQL)
+        if args.force:
+            db.exec(TRUNCATE_SQL)
+            existing = 0
+        else:
+            count_row = db.prepare("SELECT COUNT(*) AS n FROM embedding_map").get()
+            existing = count_row["n"] if count_row else 0
 
-        # Drop the HNSW index before bulk-loading — incremental maintenance is
-        # O(n log n) overall and adds 30-40 min on a 67k-row rebuild.
-        db.exec(DROP_HNSW_SQL)
-        print("HNSW index dropped; will rebuild after inserts.", file=sys.stderr)
-
-        rows = db.prepare(
-            "SELECT d.id, s.title, d.title AS orig_title,"
-            " s.theme, s.tags, s.desc, d.notes"
-            " FROM datasets d"
-            " JOIN suggestions s ON s.dataset_ckan_id = d.ckan_id",
-        ).all()
-        print(f"datasets to embed: {len(rows)}", file=sys.stderr)
+        rows = db.prepare(SELECT_NEW_SQL).all()
+        print(f"datasets to embed: {len(rows)} ({existing} already stored)", file=sys.stderr)
+        if not rows:
+            print("Nothing new to embed.", file=sys.stderr)
+            return
 
         rows = [dict(r) for r in rows]
         texts = build_texts(rows)
+        max_row = db.prepare("SELECT COALESCE(MAX(rowid), 0) AS n FROM embedding_map").get()
+        start_rowid = max_row["n"] if max_row else 0
+
+        # A full build (--force or the first run) bulk-loads without the HNSW
+        # index; a small incremental backfill keeps it and pays only the
+        # per-row insert cost.
+        rebuild_index = args.force or existing == 0
+        if rebuild_index:
+            db.exec(DROP_HNSW_SQL)
+            print("HNSW index dropped; will rebuild after inserts.", file=sys.stderr)
 
         print("Computing embeddings via llama-server...", file=sys.stderr)
 
@@ -205,7 +251,7 @@ def main() -> None:
         with httpx.Client(follow_redirects=True, timeout=TIMEOUT) as client:
             for batch_num, batch_start in enumerate(range(0, len(texts), BATCH)):
                 batch_end = min(batch_start + BATCH, len(texts))
-                embed_batch(client, db, texts, rows, batch_start, batch_end)
+                embed_batch(client, db, texts, rows, batch_start, batch_end, start_rowid)
 
                 done = batch_end
                 if batch_num % log_every == 0 or done >= len(texts):
@@ -221,13 +267,14 @@ def main() -> None:
             file=sys.stderr,
         )
 
-        print("Rebuilding HNSW index (this takes ~5 min)...", file=sys.stderr)
-        t_idx = time.time()
-        db.exec(CREATE_HNSW_SQL)
-        print(
-            f"HNSW index rebuilt in {(time.time() - t_idx) / 60:.1f} min.",
-            file=sys.stderr,
-        )
+        if rebuild_index:
+            print("Rebuilding HNSW index (this takes ~5 min)...", file=sys.stderr)
+            t_idx = time.time()
+            db.exec(CREATE_HNSW_SQL)
+            print(
+                f"HNSW index rebuilt in {(time.time() - t_idx) / 60:.1f} min.",
+                file=sys.stderr,
+            )
 
         total_elapsed = (time.time() - start_time) / 60
         print(f"Done: total {total_elapsed:.1f} min.", file=sys.stderr)

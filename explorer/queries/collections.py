@@ -91,7 +91,7 @@ COLLECTION_RELATED_DATASETS = Query(
               emb.embedding <-> %s::vector AS distance
        FROM dataset_embeddings emb
        JOIN embedding_map m ON m.rowid = emb.rowid
-       JOIN datasets d ON d.id = m.dataset_id
+       JOIN datasets d ON d.ckan_id = m.dataset_ckan_id
        WHERE d.resource_count > 0
        ORDER BY distance, d.id
        LIMIT 12""",

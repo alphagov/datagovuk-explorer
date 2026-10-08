@@ -42,28 +42,28 @@ SELECT dataset_id, id,
 FROM (
     SELECT src.dataset_id, sub.id, sub.distance
     FROM (
-        SELECT m.dataset_id, e.embedding
+        SELECT d.id AS dataset_id, e.embedding
         FROM embedding_map m
         JOIN dataset_embeddings e ON e.rowid = m.rowid
-        JOIN datasets d ON d.id = m.dataset_id
+        JOIN datasets d ON d.ckan_id = m.dataset_ckan_id
         WHERE d.resource_count > 0
     ) src
     CROSS JOIN LATERAL (
-        SELECT m2.dataset_id AS id,
+        SELECT d2.id AS id,
                emb2.embedding <-> src.embedding AS distance
         FROM dataset_embeddings emb2
         JOIN embedding_map m2 ON m2.rowid = emb2.rowid
-        JOIN datasets d2 ON d2.id = m2.dataset_id
-        WHERE m2.dataset_id != src.dataset_id
+        JOIN datasets d2 ON d2.ckan_id = m2.dataset_ckan_id
+        WHERE d2.id != src.dataset_id
           AND d2.resource_count > 0
-          AND m2.dataset_id NOT IN (
+          AND d2.id NOT IN (
               SELECT sd.dataset_id FROM series_datasets sd
               WHERE sd.series_id IN (
                   SELECT sd2.series_id FROM series_datasets sd2
                   WHERE sd2.dataset_id = src.dataset_id
               )
           )
-        ORDER BY emb2.embedding <-> src.embedding, m2.dataset_id
+        ORDER BY emb2.embedding <-> src.embedding, d2.id
         LIMIT 30
     ) sub
 ) t
@@ -81,13 +81,13 @@ FROM (
     SELECT ce.slug, sub.id, sub.distance
     FROM collection_embeddings ce
     CROSS JOIN LATERAL (
-        SELECT m.dataset_id AS id,
+        SELECT d.id AS id,
                emb.embedding <-> ce.embedding AS distance
         FROM dataset_embeddings emb
         JOIN embedding_map m ON m.rowid = emb.rowid
-        JOIN datasets d ON d.id = m.dataset_id
+        JOIN datasets d ON d.ckan_id = m.dataset_ckan_id
         WHERE d.resource_count > 0
-        ORDER BY emb.embedding <-> ce.embedding, m.dataset_id
+        ORDER BY emb.embedding <-> ce.embedding, d.id
         LIMIT 30
     ) sub
 ) t
@@ -108,7 +108,7 @@ FROM (
         SELECT emb.embedding <-> ce.embedding AS distance
         FROM dataset_embeddings emb
         JOIN embedding_map m ON m.rowid = emb.rowid
-        JOIN datasets d ON d.id = m.dataset_id
+        JOIN datasets d ON d.ckan_id = m.dataset_ckan_id
         WHERE d.resource_count > 0
         ORDER BY emb.embedding <-> ce.embedding
         LIMIT 500

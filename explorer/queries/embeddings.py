@@ -16,12 +16,13 @@ BAKED_SEMANTIC_RELATED = Query(
 )
 
 # The dataset's own embedding as a pgvector literal, used as the probe for
-# SEMANTIC_RELATED. Kept for use at build time (scripts/build_related.py).
+# SEMANTIC_RELATED. Keyed on the CKAN guid (not datasets.id) so the vector
+# survives a rebuild.
 EMBEDDING_LITERAL = Query(
     "SELECT e.embedding::text AS embedding "
     "FROM embedding_map m "
     "JOIN dataset_embeddings e ON e.rowid = m.rowid "
-    "WHERE m.dataset_id = %s",
+    "WHERE m.dataset_ckan_id = %s",
 )
 
 # Semantic "more like this" via pgvector KNN. The series exclusion (the
@@ -38,12 +39,14 @@ SEMANTIC_RELATED = Query(
               emb.embedding <-> %s::vector AS distance
        FROM dataset_embeddings emb
        JOIN embedding_map m ON m.rowid = emb.rowid
-       JOIN datasets d ON d.id = m.dataset_id
-       WHERE m.dataset_id != %s
+       JOIN datasets d ON d.ckan_id = m.dataset_ckan_id
+       WHERE m.dataset_ckan_id != %s
          AND d.id NOT IN (
            SELECT sd.dataset_id FROM series_datasets sd
            WHERE sd.series_id IN (
-             SELECT sd2.series_id FROM series_datasets sd2 WHERE sd2.dataset_id = %s
+             SELECT sd2.series_id FROM series_datasets sd2
+             JOIN datasets ds ON ds.id = sd2.dataset_id
+             WHERE ds.ckan_id = %s
            )
          )
        ORDER BY distance, d.id

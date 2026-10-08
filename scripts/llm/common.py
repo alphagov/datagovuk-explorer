@@ -241,14 +241,22 @@ def load_processed_ids(out_dir: Path) -> tuple[set, set]:
     return ok, attempted
 
 
-def write_record(out_dir: Path, record: dict) -> None:
-    """Write one JSON file per dataset: out_dir/<org_slug>/<slug>-<id[:8]>.json."""
+def record_path(out_dir: Path, record: dict) -> Path:
+    """Canonical file path for a record: out_dir/<org_slug>/<slug>-<id[:8]>.json.
+
+    Shared by write_record and scripts/llm/export_records.py so a DB export
+    lands exactly where the review/suggest pipeline looks for processed ids.
+    """
     org = record.get("org_slug") or "_unknown"
     title = record.get("title") or record["dataset_id"]
-    filename = f"{slugify(title)}-{record['dataset_id'][:8]}.json"
-    directory = out_dir / org
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / filename).write_text(
+    return out_dir / org / f"{slugify(title)}-{record['dataset_id'][:8]}.json"
+
+
+def write_record(out_dir: Path, record: dict) -> None:
+    """Write one JSON file per dataset, overwriting any existing file."""
+    path = record_path(out_dir, record)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
         json.dumps(record, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )

@@ -443,12 +443,13 @@ def normalise_format(raw):
 
 # ---------------------------------------------------------------------------
 # Wipe — schema is owned by Django migrations; the build only truncates
-# the 9 tables it populates (series tables excluded).
+# the core tables it repopulates (series/derived tables excluded). The
+# embedding tables are deliberately untouched: they are keyed on ckan_id and
+# must survive a re-ingest (see explorer/models.py EmbeddingMap).
 # ---------------------------------------------------------------------------
 
 TRUNCATE_SQL = (
-    "TRUNCATE TABLE embedding_map, dataset_embeddings, "
-    "links, temporal_periods, dataset_json, datasets, "
+    "TRUNCATE TABLE links, temporal_periods, dataset_json, datasets, "
     "organisations, harvest_sources RESTART IDENTITY CASCADE"
 )
 

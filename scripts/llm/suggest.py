@@ -58,7 +58,7 @@ from scripts.llm.common import (
 
 app = typer.Typer(add_completion=False)
 
-DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "downloads" / "suggestions"
+DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent.parent / "downloads" / "suggestions"
 
 
 # ---------------------------------------------------------------------------

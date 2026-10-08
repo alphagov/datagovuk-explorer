@@ -159,9 +159,12 @@ llama-server:
       --embeddings --pooling mean --embd-normalize 2 --gpu-layers all \
       --ctx-size 8192 --ubatch-size 2048 --parallel 8 --port 8080
 
-# Build dataset embeddings (run `just llama-server` in another terminal first; DATABASE_URL from .env)
-build-embeddings:
-    uv run --env-file .env python -m scripts.build_embeddings
+# Build dataset embeddings (run `just llama-server` in another terminal first;
+# DATABASE_URL from .env). Incremental by default: only datasets without a
+# stored vector are embedded, so embeddings survive a CKAN re-ingest. Pass
+# --force to re-embed everything (e.g. after suggestions change).
+build-embeddings *args:
+    uv run --env-file .env python -m scripts.build_embeddings {{args}}
 
 # Pre-compute related-dataset results into baked lookup tables. Run after
 # build-embeddings. Required before dump-db so the deploy dump contains the
@@ -335,6 +338,14 @@ ingest-reviews:
 # Load suggestions into the suggestions table (run after `just suggest`)
 ingest-suggestions:
     uv run --env-file .env python -m scripts.llm.ingest_suggestions
+
+# Write the reviews/suggestions DB rows back out as per-dataset JSON files
+# under downloads/. Run before `review`/`suggest` when those dirs are missing
+# (e.g. after restoring a DB dump) so the LLM run skips existing rows and
+# `ingest-*` (TRUNCATE + reload) can't drop them. Skips files that exist;
+# pass --force to overwrite.
+export-llm-records *args:
+    uv run --env-file .env python -m scripts.llm.export_records {{args}}
 
 # Load collection pages from data/collections/ into the collections table,
 # with combined views from GA page views, GA Google landing pages, and
