@@ -21,7 +21,12 @@
       </summary>
       <div class="page-menu__panel">
         {% for item in items %}
-          <a class="page-menu__item" href="{{ item.url }}">{{ item.label }}</a>
+          <a class="page-menu__item" href="{{ item.url }}">
+            {% if item.get("icon") == "download" or item.label == "Download CSV" %}
+              <span class="page-menu__icon page-menu__icon--download" aria-hidden="true"></span>
+            {% endif %}
+            {{ item.label }}
+          </a>
         {% endfor %}
       </div>
     </details>

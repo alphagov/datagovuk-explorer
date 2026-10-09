@@ -56,12 +56,27 @@
 }
 
 .page-menu__item {
-	display: block;
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	padding: 10px 16px;
 	color: var(--color-text);
 	font-size: var(--text-body);
 	text-decoration: none;
 	white-space: nowrap;
+}
+
+.page-menu__icon {
+	flex-shrink: 0;
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	background-color: currentColor;
+}
+
+.page-menu__icon--download {
+	-webkit-mask: url("../../images/lucide/download.svg") no-repeat center / contain;
+	mask: url("../../images/lucide/download.svg") no-repeat center / contain;
 }
 
 .page-menu__item:hover {
