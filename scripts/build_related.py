@@ -16,11 +16,11 @@ DATABASE_URL = database_url()
 
 # L2 distance (normalised vectors, so cosine >= ~0.69) below which a
 # collection's neighbour counts as "related". Model-dependent: tuned to
-# EmbeddingGemma-300M. The BGE model this replaced scored the same pairs at a
-# smaller distance — 0.77 was its equivalent. Keep in sync with
-# explorer/queries/collections.py (scripts/ and explorer/ can't import each
-# other). See docs/collections-datasets-journeys.md.
-RELATED_DISTANCE_THRESHOLD = 0.83
+# EmbeddingGemma-2 (0.660). EmbeddingGemma-300M was 0.83; the BGE model this
+# replaced used 0.77. Keep in sync with explorer/queries/collections.py
+# (scripts/ and explorer/ can't import each other).
+# See docs/collections-datasets-journeys.md.
+RELATED_DISTANCE_THRESHOLD = 0.660
 
 # ---- SQL (lateral-join rewrites) ----------------------------------------
 # Each pass is a single INSERT…SELECT with a CROSS JOIN LATERAL so

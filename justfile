@@ -65,7 +65,7 @@ perf *args:
 setup:
     uv sync --dev
 
-# Download the EmbeddingGemma-300M GGUF model into llm/ (needed for embeddings)
+# Download the EmbeddingGemma-2 GGUF model into llm/ (needed for embeddings)
 download-llm:
     uv run python -m scripts.download_llm
 
@@ -155,7 +155,7 @@ build-series:
 # --ubatch-size 2048: avoids the assertion that caps both n_batch and ubatch at 512
 # --parallel 8: 8 sequences per forward pass (double the default 4)
 llama-server:
-    llama-server -m llm/embeddinggemma-300m-qat-Q8_0.gguf \
+    llama-server -m llm/embeddinggemma-2-Q8_0.gguf \
       --embeddings --pooling mean --embd-normalize 2 --gpu-layers all \
       --ctx-size 8192 --ubatch-size 2048 --parallel 8 --port 8080
 
