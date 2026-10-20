@@ -1,6 +1,6 @@
 {
   "business-and-economy/agricultural-commodity-prices": {"theme": "farming", "tags": ["agriculture", "commodity prices", "food prices", "farming"]},
-  "business-and-economy/bank-of-england-interest-rates": {"theme": "business-and-economy", "tags": ["interest rates", "base rate", "monetary policy", "finance"]},
+  "business-and-economy/bank-of-england-interest-rates": {"theme": "business-and-economy", "tags": ["interest rates", "base rate", "monetary policy", "finance", "Bank of England", "central bank", "monetary policy committee", "bank rate"]},
   "business-and-economy/electricity": {"theme": "energy", "tags": ["electricity", "energy", "power generation", "grid"]},
   "business-and-economy/energy-prices": {"theme": "energy", "tags": ["energy prices", "electricity prices", "energy bills"]},
   "business-and-economy/food-hygiene-ratings": {"theme": "business-and-economy", "tags": ["food safety", "food hygiene", "restaurants", "catering", "inspections"]},
@@ -14,8 +14,8 @@
   "early-years/childcare-providers": {"theme": "education", "tags": ["childcare", "nurseries", "childminders", "early years", "childcare register"]},
   "early-years/childhood-vaccinations": {"theme": "health", "tags": ["vaccinations", "immunisations", "children", "public health", "MMR"]},
   "early-years/early-years-development-review": {"theme": "health", "tags": ["child development", "early years", "development review", "health visitors"]},
-  "early-years/early-years-health-indicators": {"theme": "health", "tags": ["child health", "early years", "health outcomes"]},
-  "early-years/education-statistics": {"theme": "education", "tags": ["education", "schools", "pupils", "attainment", "exam results", "school statistics"]},
+  "early-years/early-years-health-indicators": {"theme": "health", "tags": ["child health", "early years", "health outcomes", "infant health", "under 5", "developmental milestones", "child development"]},
+  "early-years/education-statistics": {"theme": "education", "tags": ["early years education", "EYFS", "foundation stage", "childcare statistics", "early childhood development"]},
   "early-years/long-term-development-learning-and-wellbeing-studies": {"theme": "education", "tags": ["child development", "longitudinal study", "wellbeing", "learning", "mental health"]},
 
   "environment/aerial-photography": {"theme": "environment", "tags": ["aerial photography", "mapping", "satellite imagery", "geospatial", "remote sensing"]},
@@ -39,7 +39,7 @@
 
   "government-and-parliament/contracts-finder": {"theme": "government-and-parliament", "tags": ["procurement", "government contracts", "public spending", "tenders", "suppliers"]},
   "government-and-parliament/council-tax-statistics": {"theme": "government-and-parliament", "tags": ["council tax", "local government", "tax rates", "local authority finance"]},
-  "government-and-parliament/election-results": {"theme": "government-and-parliament", "tags": ["elections", "voting", "constituencies", "MPs", "general election", "local elections", "electoral boundaries", "electoral wards", "parliamentary constituencies"]},
+  "government-and-parliament/election-results": {"theme": "government-and-parliament", "tags": ["elections", "voting", "constituencies", "MPs", "general election", "local elections"]},
   "government-and-parliament/legislation": {"theme": "government-and-parliament", "tags": ["legislation", "Acts of Parliament", "statutory instruments", "laws"]},
   "government-and-parliament/local-government-finance": {"theme": "government-and-parliament", "tags": ["local government", "public spending", "grants", "rates", "local authority finance"]},
   "government-and-parliament/parliament-voting-records": {"theme": "government-and-parliament", "tags": ["MPs", "voting records", "parliamentary divisions", "Hansard", "Parliament"]},
@@ -70,9 +70,9 @@
   "people/museum-and-gallery-visits": {"theme": "people", "tags": ["museums", "galleries", "cultural visits", "arts", "heritage", "visitor numbers"]},
   "people/police-recorded-crime-and-outcomes": {"theme": "crime-and-justice", "tags": ["crime", "police", "crime statistics", "outcomes", "offences"]},
   "people/population-estimates": {"theme": "people", "tags": ["population", "census", "demographics", "age groups", "mid-year estimates", "MYE", "population estimates", "local authority districts", "output areas", "ethnicity"]},
-  "people/public-health-dashboard": {"theme": "health", "tags": ["public health", "health outcomes", "disease", "mortality"]},
+  "people/public-health-dashboard": {"theme": "health", "tags": ["public health", "health outcomes", "health indicators", "mortality"]},
   "people/pupil-attendance": {"theme": "education", "tags": ["school attendance", "absence", "exclusions", "pupils", "persistent absence"]},
-  "people/social-mobility": {"theme": "people", "tags": ["social mobility", "inequality", "income", "educational attainment", "social class", "disadvantage"]},
+  "people/social-mobility": {"theme": "people", "tags": ["social mobility", "inequality", "income", "educational attainment", "social class", "disadvantage", "Social Mobility Commission", "socioeconomic", "intergenerational mobility", "life chances"]},
   "people/state-funded-schools-inspections-and-outcomes": {"theme": "education", "tags": ["schools", "inspections", "performance", "SATs", "school ratings"]},
   "people/vocational-qualifications": {"theme": "education", "tags": ["vocational qualifications", "apprenticeships", "NVQs", "training", "skills", "T-levels"]},
 

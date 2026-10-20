@@ -11,7 +11,7 @@ contact:
 status: for-publication
 ---
 
-Find social mobility data for an area of the UK by entering a postcode or selecting one of 205 regions. The result page has data on 4 measures of social mobility:
+Social mobility data from the Social Mobility Commission covering 205 regions of the UK, across four measures:
 
 - promising prospects – how well young people from similar socio-economic backgrounds do in education and the labour market (since 2018)
 - conditions of childhood – whether the conditions children grow up in are good for promoting social mobility (since 2000)
