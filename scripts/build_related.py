@@ -142,10 +142,17 @@ def build_semantic_related(db) -> int:
 
 
 def build_collection_related(db) -> tuple[int, int]:
-    """Build collection related datasets and update related_count."""
+    """Build collection related datasets and update related_count.
+
+    Collection embeddings are out-of-distribution for the dataset HNSW index
+    (they are never inserted into it), so HNSW traversal can get stuck in a
+    local minimum and miss true nearest neighbours. We force an exact scan for
+    both collection queries — with only ~83 collections this is fast enough.
+    """
     print(f"  {_ts()} Collections: inserting related datasets…", file=sys.stderr)
     t0 = time.monotonic()
     with db.conn.cursor() as cur:
+        cur.execute("SET LOCAL enable_indexscan = off")
         cur.execute(_COLLECTION_RELATED_LATERAL)
         rel_inserted = cur.rowcount
     elapsed = time.monotonic() - t0
@@ -154,6 +161,7 @@ def build_collection_related(db) -> tuple[int, int]:
     print(f"  {_ts()} Collections: updating related_count…", file=sys.stderr)
     t0 = time.monotonic()
     with db.conn.cursor() as cur:
+        cur.execute("SET LOCAL enable_indexscan = off")
         cur.execute(_COLLECTION_COUNT_UPDATE)
         updated = cur.rowcount
     elapsed = time.monotonic() - t0

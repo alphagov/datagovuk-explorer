@@ -64,7 +64,7 @@ TRUNCATE_SQL = "TRUNCATE TABLE embedding_map, dataset_embeddings CASCADE"
 # same result. Only used for a full build (--force or the first run); small
 # incremental backfills keep the index in place.
 DROP_HNSW_SQL = "DROP INDEX IF EXISTS idx_dataset_embeddings_hnsw"
-CREATE_HNSW_SQL = "CREATE INDEX idx_dataset_embeddings_hnsw ON dataset_embeddings USING hnsw (embedding vector_l2_ops)"
+CREATE_HNSW_SQL = "CREATE INDEX idx_dataset_embeddings_hnsw ON dataset_embeddings USING hnsw (embedding vector_l2_ops) WITH (m = 32, ef_construction = 128)"
 
 # Datasets that have an LLM suggestion but no stored vector yet — everything
 # the incremental build needs to embed. Only datasets with resources are
@@ -270,6 +270,7 @@ def main() -> None:
         if rebuild_index:
             print("Rebuilding HNSW index (this takes ~5 min)...", file=sys.stderr)
             t_idx = time.time()
+            db.exec("SET maintenance_work_mem = '256MB'")
             db.exec(CREATE_HNSW_SQL)
             print(
                 f"HNSW index rebuilt in {(time.time() - t_idx) / 60:.1f} min.",
