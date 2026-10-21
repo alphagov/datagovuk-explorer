@@ -90,6 +90,10 @@ build-db: migrate
     uv run --env-file .env python -m scripts.build_dataset_api
     uv run --env-file .env python -m scripts.build_dataset_content_hash
     uv run --env-file .env python -m scripts.build_harvester_stats
+    @echo ""
+    @echo "Next: run 'just build-embeddings' (starts llama-server first; incremental, so only new datasets embed)."
+    @echo "It finishes by running build-related — related datasets were wiped by this rebuild."
+    @echo "Also run 'just check-links' to check any new links (safe to interrupt and resume)."
 
 # Rebuild just the dataset_api table (TRUNCATE + INSERT) — fast, no full
 # rebuild needed. Use when tweaking the API detection algorithm.
@@ -138,6 +142,10 @@ fresh-db db_name="datagovuk_explorer":
     uv run --env-file .env python -m scripts.build_dataset_api
     uv run --env-file .env python -m scripts.build_dataset_content_hash
     uv run --env-file .env python -m scripts.build_harvester_stats
+    @echo ""
+    @echo "Next: run 'just build-embeddings' (starts llama-server first; incremental, so only new datasets embed)."
+    @echo "It finishes by running build-related — related datasets were wiped by this rebuild."
+    @echo "Also run 'just check-links' to check any new links (safe to interrupt and resume)."
 
 # Populate denormalised stats columns on harvest_sources (dataset_count,
 # last_run). Run after build-db; re-runnable.
@@ -162,9 +170,12 @@ llama-server:
 # Build dataset embeddings (run `just llama-server` in another terminal first;
 # DATABASE_URL from .env). Incremental by default: only datasets without a
 # stored vector are embedded, so embeddings survive a CKAN re-ingest. Pass
-# --force to re-embed everything (e.g. after suggestions change).
+# --force to re-embed everything (e.g. after suggestions change). Finishes by
+# running build-related (~40s) so the baked related-dataset tables never lag
+# the vectors.
 build-embeddings *args:
     uv run --env-file .env python -m scripts.build_embeddings {{args}}
+    uv run --env-file .env python -m scripts.build_related
 
 # Pre-compute related-dataset results into baked lookup tables. Run after
 # build-embeddings. Required before dump-db so the deploy dump contains the

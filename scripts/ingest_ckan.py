@@ -796,6 +796,10 @@ def build() -> None:
 
         # Phase 1: wipe — drop old rows, keep the migrated tables
         db.exec(TRUNCATE_SQL)
+        # The TRUNCATE ... CASCADE above also empties the baked related_*
+        # tables (they FK datasets), so the denormalised count on
+        # collection_pages is stale until build_related runs again.
+        db.exec("UPDATE collection_pages SET related_count = NULL")
 
         # Phase 2: load organisations
         db.transaction(partial(_load_organisations_tx, orgs=orgs))
