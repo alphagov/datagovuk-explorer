@@ -542,6 +542,7 @@ class Collection(models.Model):
     status = models.TextField(blank=True, null=True)
     views = models.IntegerField(db_default=0)
     related_count = models.IntegerField(blank=True, null=True)
+    linked_datasets = models.JSONField(blank=True, null=True)
 
     class Meta:
         app_label = "explorer"

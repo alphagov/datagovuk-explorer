@@ -69,6 +69,34 @@
     </section>
   {% endif %}
 
+  {% if linked_datasets %}
+    <section class="section" style="margin-top: 32px;">
+      <h2>Datasets with the same links</h2>
+      <div class="table-wrap" style="margin-top: 16px;">
+        <table class="data-table data-table--wide-first">
+          <thead>
+            <tr>
+              <th class="col-text">Dataset</th>
+              <th>Publisher</th>
+              <th>Updated</th>
+              <th class="col-num">Shared links</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in linked_datasets %}
+              <tr>
+                <td class="col-text"><a href="/dataset/{{ d.org_slug }}/{{ d.ckan_id }}">{{ d.title }}</a></td>
+                <td>{{ d.org_display_name }}</td>
+                <td class="col-date">{{ d.metadata_modified | date_short if d.metadata_modified else '—' }}</td>
+                <td class="col-num">{% if d.links %}{{ d.links.shared }}/{{ d.links.total }}{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
   {% if related_datasets %}
     <section class="section" style="margin-top: 32px;">
       <h2>Related datasets</h2>
@@ -85,7 +113,7 @@
           <tbody>
             {% for r in related_datasets %}
               <tr>
-                <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.ckan_id }}">{{ r.title }}</a></td>
+                <td class="col-text"><a href="/dataset/{{ r.org_slug }}/{{ r.ckan_id }}">{{ r.title }}</a>{% if r.links %} <span class="muted">({{ r.links.shared }}/{{ r.links.total }} links shared)</span>{% endif %}</td>
                 <td>{{ r.org_display_name }}</td>
                 <td class="col-date">{{ r.metadata_modified | date_short if r.metadata_modified else '—' }}</td>
                 <td class="col-num"{% if r.distance > distance_threshold %} style="color: var(--color-error, #c00);"{% endif %}>{{ '%.3f' | format(1.2 - r.distance) }}</td>

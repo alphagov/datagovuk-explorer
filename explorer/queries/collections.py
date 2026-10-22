@@ -30,8 +30,28 @@ COLLECTION_TOTAL = Query("SELECT COUNT(*) AS n FROM collection_pages")
 
 COLLECTION_DETAIL = Query(
     "SELECT slug, collection, title, description,"
-    " websites, api, dataset, page_last_updated, views, status"
+    " websites, api, dataset, page_last_updated, views, status, linked_datasets"
     " FROM collection_pages WHERE slug = %s",
+)
+
+COLLECTION_LINKED_DATASETS = Query(
+    """SELECT d.ckan_id, d.title, d.org_slug, d.org_display_name, d.metadata_modified
+       FROM datasets d
+       WHERE d.ckan_id = ANY(%s::text[])
+       ORDER BY d.title""",
+)
+
+# Per linked dataset: how many of its distinct link URLs also appear on the
+# collection page. Params: page URLs (normalised), then ckan_ids.
+COLLECTION_LINK_OVERLAP = Query(
+    """SELECT d.ckan_id,
+              COUNT(DISTINCT lower(rtrim(l.url, '/'))) AS total,
+              COUNT(DISTINCT lower(rtrim(l.url, '/')))
+                  FILTER (WHERE lower(rtrim(l.url, '/')) = ANY(%s::text[])) AS shared
+       FROM datasets d
+       JOIN links l ON l.dataset_id = d.id AND l.url IS NOT NULL
+       WHERE d.ckan_id = ANY(%s::text[])
+       GROUP BY d.ckan_id""",
 )
 
 

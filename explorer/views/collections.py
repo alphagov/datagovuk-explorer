@@ -10,6 +10,8 @@ from explorer import facets
 from explorer.queries.collections import (
     BAKED_COLLECTION_RELATED,
     COLLECTION_DETAIL,
+    COLLECTION_LINK_OVERLAP,
+    COLLECTION_LINKED_DATASETS,
     COLLECTION_TOTAL,
     COLLECTIONS_SORT,
     COLLECTIONS_SORT_DEFAULT,
@@ -51,6 +53,10 @@ def _parse_jsonb(v):
     return v
 
 
+def _as_list(v):
+    return v if isinstance(v, list) else [v] if v else []
+
+
 def collection_detail(request, slug: str):
     """GET /collections/{slug} — one collection's detail page."""
     row = COLLECTION_DETAIL.get(slug)
@@ -60,8 +66,26 @@ def collection_detail(request, slug: str):
     collection["websites"] = _parse_jsonb(collection["websites"])
     collection["api"] = _parse_jsonb(collection["api"])
     collection["dataset"] = _parse_jsonb(collection["dataset"])
+    linked_datasets_meta = _parse_jsonb(collection.pop("linked_datasets")) or []
+
+    ckan_ids = [d["ckan_id"] for d in linked_datasets_meta]
+    linked_datasets = COLLECTION_LINKED_DATASETS.all(ckan_ids) if ckan_ids else []
+
+    page_urls = sorted(
+        {
+            link["url"].rstrip("/").lower()
+            for field in ("websites", "api", "dataset")
+            for link in _as_list(collection[field])
+            if link.get("url")
+        }
+    )
+    overlap = {r["ckan_id"]: r for r in COLLECTION_LINK_OVERLAP.all(page_urls, ckan_ids)} if ckan_ids else {}
+    for d in linked_datasets:
+        d["links"] = overlap.get(d["ckan_id"])
 
     related_datasets = BAKED_COLLECTION_RELATED.all(slug)
+    for r in related_datasets:
+        r["links"] = overlap.get(r["ckan_id"])
 
     return render(
         request,
@@ -72,6 +96,7 @@ def collection_detail(request, slug: str):
             "narrow": True,
             "collection": collection,
             "category_label": COLLECTION_LABELS.get(collection["collection"], collection["collection"]),
+            "linked_datasets": linked_datasets,
             "related_datasets": related_datasets,
             "distance_threshold": RELATED_DISTANCE_THRESHOLD,
         },

@@ -26,6 +26,7 @@ from scripts.embed_text import format_document
 
 _DATA = Path(__file__).resolve().parent.parent / "data"
 COLLECTIONS_DIR = _DATA / "collections"
+METADATA_FILE = _DATA / "collection-page-metadata.json"
 VIEWS_FILE = _DATA / "console-clicks-apr-aug.csv"
 GA_PAGE_VIEWS_FILE = _DATA / "ga-views-apr-aug.csv"
 GA_GOOGLE_LANDING_FILE = _DATA / "ga-google-landing-apr-aug.csv"
@@ -108,10 +109,12 @@ def parse_collection(path: Path, base: Path) -> dict:
 
 def load_all_collections() -> list[dict]:
     """Parse every .md file under data/collections/."""
+    metadata = json.loads(METADATA_FILE.read_text()) if METADATA_FILE.exists() else {}
     records = []
     for path in sorted(COLLECTIONS_DIR.rglob("*.md")):
         rec = parse_collection(path, COLLECTIONS_DIR)
         if rec:
+            rec["linked_datasets"] = metadata.get(rec["slug"], {}).get("linked_datasets") or None
             records.append(rec)
     return records
 
@@ -200,8 +203,8 @@ def ingest(db, records: list[dict], views: dict[str, int]) -> int:
         stmt = tx.prepare(
             """INSERT INTO collection_pages
                (slug, collection, title, description, websites, api, dataset,
-                page_last_updated, visualisation_data, status, views)
-               VALUES (?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, ?)""",
+                page_last_updated, visualisation_data, status, views, linked_datasets)
+               VALUES (?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?::jsonb)""",
         )
         for r in records:
             stmt.run(
@@ -216,6 +219,7 @@ def ingest(db, records: list[dict], views: dict[str, int]) -> int:
                 r["visualisation_data"],
                 r["status"],
                 views.get(r["slug"], 0),
+                json.dumps(r["linked_datasets"], ensure_ascii=False) if r["linked_datasets"] else None,
             )
 
     db.transaction(_run)
@@ -226,8 +230,7 @@ def build_collection_embeddings(db, records: list[dict]) -> int:
     """Embed collection title+description via llama-server and write to
     collection_embeddings. Returns the number of embeddings written, or 0
     if llama-server is unreachable."""
-    tags_path = _DATA / "collection-page-tags.json"
-    tags_map = json.loads(tags_path.read_text()) if tags_path.exists() else {}
+    tags_map = json.loads(METADATA_FILE.read_text()) if METADATA_FILE.exists() else {}
 
     texts = []
     slugs = []
